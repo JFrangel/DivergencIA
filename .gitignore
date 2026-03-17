@@ -8,3 +8,6 @@ dist/
 Thumbs.db
 .vite/
 .claude/
+
+# Local Netlify folder
+.netlify
