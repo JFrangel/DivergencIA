@@ -1,0 +1,256 @@
+@import "tailwindcss";
+
+/* ─── Variables de Color ──────────────────────────────────────────────────── */
+:root {
+  --c-primary:    #FC651F;
+  --c-secondary:  #8B5CF6;
+  --c-bg:         #060304;
+  --c-accent:     #00D1FF;
+  --c-success:    #22c55e;
+  --c-warning:    #F59E0B;
+  --c-error:      #EF4444;
+
+  --c-surface-1:  rgba(255, 255, 255, 0.04);
+  --c-surface-2:  rgba(255, 255, 255, 0.06);
+  --c-surface-3:  rgba(255, 255, 255, 0.09);
+  --c-border:     rgba(255, 255, 255, 0.08);
+  --c-border-2:   rgba(255, 255, 255, 0.14);
+
+  --blur-sm:  blur(8px);
+  --blur-md:  blur(16px);
+  --blur-lg:  blur(24px);
+
+  --font-title:    'Space Grotesk', sans-serif;
+  --font-body:     'Inter', sans-serif;
+  --font-terminal: 'JetBrains Mono', monospace;
+
+  --shadow-primary:   0 0 24px rgba(252, 101, 31, 0.25);
+  --shadow-secondary: 0 0 24px rgba(139, 92, 246, 0.25);
+  --shadow-accent:    0 0 24px rgba(0, 209, 255, 0.25);
+  --shadow-card:      0 4px 24px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255,255,255,0.04) inset;
+}
+
+/* ─── Reset + Base ────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-color: var(--c-bg);
+  color: #e8e8e8;
+  font-family: var(--font-body);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-title);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+/* ─── Glassmorphism ───────────────────────────────────────────────────────── */
+.glass {
+  background: var(--c-surface-1);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  border: 1px solid var(--c-border);
+  box-shadow: var(--shadow-card);
+}
+
+.glass-frosted {
+  background: var(--c-surface-2);
+  backdrop-filter: var(--blur-lg);
+  -webkit-backdrop-filter: var(--blur-lg);
+  border: 1px solid var(--c-border-2);
+  box-shadow: var(--shadow-card);
+}
+
+.glass-clear {
+  background: var(--c-surface-3);
+  backdrop-filter: var(--blur-sm);
+  -webkit-backdrop-filter: var(--blur-sm);
+  border: 1px solid var(--c-border);
+}
+
+/* ─── Neon Effects ────────────────────────────────────────────────────────── */
+.neon-border {
+  border: 1px solid rgba(252, 101, 31, 0.4);
+  box-shadow: var(--shadow-primary), inset 0 0 12px rgba(252, 101, 31, 0.05);
+}
+
+.neon-border-accent {
+  border: 1px solid rgba(0, 209, 255, 0.4);
+  box-shadow: var(--shadow-accent), inset 0 0 12px rgba(0, 209, 255, 0.05);
+}
+
+.neon-border-secondary {
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  box-shadow: var(--shadow-secondary), inset 0 0 12px rgba(139, 92, 246, 0.05);
+}
+
+.glow-text-primary {
+  text-shadow: 0 0 20px rgba(252, 101, 31, 0.6);
+}
+
+.glow-text-accent {
+  text-shadow: 0 0 20px rgba(0, 209, 255, 0.6);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--c-primary), var(--c-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-accent {
+  background: linear-gradient(135deg, var(--c-accent), var(--c-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Animated Gradient Border ────────────────────────────────────────────── */
+.animated-border {
+  position: relative;
+}
+.animated-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--c-primary), var(--c-secondary), var(--c-accent), var(--c-primary));
+  background-size: 300% 300%;
+  animation: gradient-shift 4s linear infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ─── Shimmer ─────────────────────────────────────────────────────────────── */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0%   { left: -100%; }
+  100% { left: 200%; }
+}
+
+/* ─── Pulse Dot ────────────────────────────────────────────────────────────── */
+.pulse-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+.pulse-dot-green  { background: var(--c-success); box-shadow: 0 0 8px var(--c-success); }
+.pulse-dot-orange { background: var(--c-warning); box-shadow: 0 0 8px var(--c-warning); }
+.pulse-dot-red    { background: var(--c-error);   box-shadow: 0 0 8px var(--c-error); }
+.pulse-dot-cyan   { background: var(--c-accent);  box-shadow: 0 0 8px var(--c-accent); }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(0.85); }
+}
+
+/* ─── Float Animation ─────────────────────────────────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+.float { animation: float 4s ease-in-out infinite; }
+
+/* ─── Neon Pulse ──────────────────────────────────────────────────────────── */
+@keyframes neon-pulse {
+  0%, 100% { box-shadow: var(--shadow-primary); }
+  50%       { box-shadow: 0 0 40px rgba(252,101,31,0.5), 0 0 60px rgba(139,92,246,0.3); }
+}
+.neon-pulse { animation: neon-pulse 2.5s ease-in-out infinite; }
+
+/* ─── Fade In / Slide Up ──────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.fade-in    { animation: fadeIn 0.4s ease-out forwards; }
+.slide-up   { animation: slideUp 0.5s ease-out forwards; }
+.slide-in-r { animation: slideInRight 0.4s ease-out forwards; }
+
+/* ─── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+::-webkit-scrollbar-thumb {
+  background: rgba(252, 101, 31, 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(252, 101, 31, 0.5); }
+
+/* ─── Selection ────────────────────────────────────────────────────────────── */
+::selection {
+  background: rgba(139, 92, 246, 0.35);
+  color: #fff;
+}
+
+/* ─── Terminal Font Class ─────────────────────────────────────────────────── */
+.font-terminal { font-family: var(--font-terminal); }
+.font-title    { font-family: var(--font-title); }
+
+/* ─── Area Colors (Research Areas) ───────────────────────────────────────── */
+.area-ml     { color: var(--c-primary); }
+.area-nlp    { color: var(--c-secondary); }
+.area-vision { color: var(--c-accent); }
+.area-datos  { color: var(--c-success); }
+.area-other  { color: var(--c-warning); }
+
+/* ─── React Flow Custom ─────────────────────────────────────────────────── */
+.react-flow__background {
+  background-color: var(--c-bg) !important;
+}
+.react-flow__controls {
+  background: var(--c-surface-2) !important;
+  border: 1px solid var(--c-border) !important;
+  backdrop-filter: var(--blur-md);
+}
+.react-flow__controls button {
+  background: transparent !important;
+  border-bottom: 1px solid var(--c-border) !important;
+  color: rgba(255,255,255,0.6) !important;
+}
+.react-flow__controls button:hover {
+  background: var(--c-surface-3) !important;
+  color: white !important;
+}
+.react-flow__minimap {
+  background: var(--c-surface-1) !important;
+  border: 1px solid var(--c-border) !important;
+}

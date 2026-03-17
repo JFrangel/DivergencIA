@@ -1,0 +1,103 @@
+/**
+ * ATHENIA Command Parser
+ * Parses /commands and returns structured actions
+ */
+
+export const COMMANDS = {
+  help: {
+    usage: '/help',
+    desc: 'Muestra todos los comandos disponibles',
+  },
+  status: {
+    usage: '/status',
+    desc: 'Estado del sistema DivergencIA',
+  },
+  members: {
+    usage: '/members [área]',
+    desc: 'Lista investigadores. Ej: /members ML',
+  },
+  projects: {
+    usage: '/projects [estado]',
+    desc: 'Lista proyectos activos. Ej: /projects desarrollo',
+  },
+  ideas: {
+    usage: '/ideas [top|new]',
+    desc: 'Ideas del banco. Ej: /ideas top',
+  },
+  connect: {
+    usage: '/connect [TemaA] · [TemaB]',
+    desc: 'Conecta dos áreas semánticamente con IA',
+  },
+  analyze: {
+    usage: '/analyze',
+    desc: 'Analiza imagen de pizarrón (adjunta imagen)',
+  },
+  roadmap: {
+    usage: '/roadmap',
+    desc: 'Ver fases del roadmap del semillero',
+  },
+  about: {
+    usage: '/about',
+    desc: 'Información sobre ATHENIA y DivergencIA',
+  },
+  tasks: {
+    usage: '/tasks [mias|proyecto]',
+    desc: 'Ver tareas pendientes. Ej: /tasks mias',
+  },
+  logros: {
+    usage: '/logros',
+    desc: 'Muestra tus logros desbloqueados',
+  },
+  stats: {
+    usage: '/stats [user|global]',
+    desc: 'Estadísticas personales o del semillero',
+  },
+  suggest: {
+    usage: '/suggest [tema]',
+    desc: 'Sugerencias de papers/datasets con IA',
+  },
+  export: {
+    usage: '/export',
+    desc: 'Exporta el historial de la terminal',
+  },
+  clear: {
+    usage: '/clear',
+    desc: 'Limpia la terminal',
+  },
+}
+
+/**
+ * Parse a terminal input string
+ * Returns { type: 'command' | 'message', command?, args?, raw }
+ */
+export function parseInput(input) {
+  const trimmed = input.trim()
+  if (!trimmed) return null
+
+  if (trimmed.startsWith('/')) {
+    const parts = trimmed.slice(1).split(/\s+/)
+    const command = parts[0].toLowerCase()
+    const args = parts.slice(1).join(' ')
+    return { type: 'command', command, args, raw: trimmed }
+  }
+
+  return { type: 'message', raw: trimmed }
+}
+
+/**
+ * Build help output lines
+ */
+export function buildHelpLines() {
+  const lines = [
+    { type: 'system', text: '═══════════════ COMANDOS ATHENIA ═══════════════' },
+    { type: 'info', text: 'Comandos disponibles:' },
+    ...Object.values(COMMANDS).map(c => ({
+      type: 'info',
+      text: `  ${c.usage.padEnd(30)} — ${c.desc}`,
+    })),
+    { type: 'system', text: '═══════════════════════════════════════════════' },
+    { type: 'info', text: 'También puedes escribir en lenguaje natural.' },
+    { type: 'info', text: 'ATHENIA responde con contexto del semillero.' },
+  ]
+  return lines
+}
