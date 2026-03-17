@@ -6,6 +6,7 @@ import { useProject, useAdvances, useTasks } from '../../hooks/useProjects'
 import { useAuth } from '../../context/AuthContext'
 import ProjectKanban from '../../components/projects/ProjectKanban'
 import WorkflowEditor from '../../components/workflow/WorkflowEditor'
+import DiagramEditor from '../../components/diagrams/DiagramEditor'
 import AdvanceForm from '../../components/projects/AdvanceForm'
 import ProjectForm from '../../components/projects/ProjectForm'
 import Card from '../../components/ui/Card'
@@ -47,6 +48,7 @@ export default function ProjectDetail() {
     { id: 'advances', label: 'Avances', count: advances.length },
     { id: 'metrics', label: 'Métricas' },
     { id: 'workflow', label: 'Workflow' },
+    { id: 'diagrams', label: 'Diagramas' },
   ]
 
   return (
@@ -212,6 +214,10 @@ export default function ProjectDetail() {
 
       {tab === 'workflow' && (
         <WorkflowEditor projectId={id} initialData={project.workflow_data} />
+      )}
+
+      {tab === 'diagrams' && (
+        <DiagramEditor projectId={id} />
       )}
 
       <AdvanceForm open={showAdvForm} onClose={() => setShowAdvForm(false)} onSubmit={createAdvance} />

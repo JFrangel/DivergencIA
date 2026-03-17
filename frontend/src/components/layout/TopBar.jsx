@@ -1,11 +1,27 @@
 import { useState } from 'react'
 import { useLocation, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiBell, FiSearch, FiCheck, FiX, FiClock } from 'react-icons/fi'
+import { FiBell, FiSearch, FiCheck, FiX, FiClock, FiMessageSquare, FiThumbsUp, FiActivity, FiCheckSquare, FiAward, FiUsers } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
 import { useNotifs } from '../../context/NotifContext'
 import Avatar from '../ui/Avatar'
 import GlobalSearch from '../ui/GlobalSearch'
+import { timeAgo } from '../../lib/utils'
+
+const NOTIF_ICONS = {
+  comentarios: FiMessageSquare,
+  comments: FiMessageSquare,
+  votos: FiThumbsUp,
+  votes: FiThumbsUp,
+  avances: FiActivity,
+  advances: FiActivity,
+  tareas: FiCheckSquare,
+  tasks: FiCheckSquare,
+  logros: FiAward,
+  achievements: FiAward,
+  solicitudes: FiUsers,
+  joinRequests: FiUsers,
+}
 
 const ROUTE_LABELS = {
   '/dashboard':      'Dashboard',
@@ -119,10 +135,16 @@ export default function TopBar() {
                         style={!n.leida ? { background: 'color-mix(in srgb, var(--c-primary) 5%, transparent)' } : {}}
                         onClick={() => markAsRead(n.id)}
                       >
-                        <p className="text-xs text-white/60 leading-relaxed">{n.mensaje}</p>
+                        <div className="flex items-start gap-2">
+                          {(() => {
+                            const Icon = NOTIF_ICONS[n.tipo] || FiBell
+                            return <Icon size={12} className="shrink-0 mt-0.5 text-[#FC651F]" />
+                          })()}
+                          <p className="text-xs text-white/60 leading-relaxed">{n.mensaje}</p>
+                        </div>
                         <p className="text-[10px] text-white/20 mt-1 flex items-center gap-1">
                           <FiClock size={9} />
-                          {new Date(n.fecha).toLocaleDateString('es-MX')}
+                          {timeAgo(n.fecha)}
                         </p>
                       </div>
                     ))

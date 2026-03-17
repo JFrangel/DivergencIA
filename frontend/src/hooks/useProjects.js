@@ -3,6 +3,22 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
 
+/** Insert a notification into the notificaciones table */
+async function createNotification(userId, tipo, mensaje, referenciaId) {
+  if (!userId) return
+  const { error } = await supabase
+    .from('notificaciones')
+    .insert({
+      usuario_id: userId,
+      tipo,
+      mensaje,
+      referencia_id: referenciaId,
+      leida: false,
+      fecha: new Date().toISOString(),
+    })
+  if (error) console.error('Error creating notification:', error)
+}
+
 export function useProjects({ userId, all = false } = {}) {
   const { user } = useAuth()
   const [projects, setProjects] = useState([])
@@ -128,6 +144,33 @@ export function useAdvances(projectId) {
     if (error) { toast.error('Error al crear avance'); return { error } }
     setAdvances(a => [data, ...a])
     toast.success('Avance registrado')
+
+    // Notify all project members about the new advance
+    if (projectId) {
+      const { data: members } = await supabase
+        .from('miembros_proyecto')
+        .select('usuario:usuarios(id)')
+        .eq('proyecto_id', projectId)
+        .eq('activo', true)
+      const { data: proj } = await supabase
+        .from('proyectos')
+        .select('titulo')
+        .eq('id', projectId)
+        .single()
+      const projectTitle = proj?.titulo || 'proyecto'
+      ;(members || []).forEach((m) => {
+        const memberId = m.usuario?.id
+        if (memberId && memberId !== user?.id) {
+          createNotification(
+            memberId,
+            'avances',
+            `Nuevo avance "${data.titulo}" en "${projectTitle}"`,
+            data.id
+          )
+        }
+      })
+    }
+
     return { data }
   }
 
@@ -160,6 +203,24 @@ export function useTasks(projectId) {
       .single()
     if (error) { toast.error('Error al crear tarea'); return { error } }
     setTasks(t => [...t, data])
+
+    // Notify the project creator about the new task
+    if (projectId) {
+      const { data: proj } = await supabase
+        .from('proyectos')
+        .select('creador_id, titulo')
+        .eq('id', projectId)
+        .single()
+      if (proj && proj.creador_id && proj.creador_id !== user?.id) {
+        createNotification(
+          proj.creador_id,
+          'tareas',
+          `Nueva tarea "${data.titulo}" creada en "${proj.titulo}"`,
+          data.id
+        )
+      }
+    }
+
     return { data }
   }
 
