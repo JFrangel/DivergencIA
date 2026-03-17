@@ -25,7 +25,8 @@ export default function Tabs({ tabs = [], defaultTab, onChange, className = '' }
           >
             {active === tab.id && (
               <motion.span
-                className="absolute inset-0 rounded-lg bg-white/10"
+                className="absolute inset-0 rounded-lg"
+                style={{ background: 'color-mix(in srgb, var(--c-primary) 15%, rgba(255,255,255,0.05))' }}
                 layoutId="tab-pill"
                 transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
               />

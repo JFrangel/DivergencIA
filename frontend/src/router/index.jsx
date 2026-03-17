@@ -27,6 +27,8 @@ const Roadmap       = lazy(() => import('../pages/app/Roadmap'))
 const ZenMode       = lazy(() => import('../pages/app/ZenMode'))
 const Settings      = lazy(() => import('../pages/app/Settings'))
 const Calendar      = lazy(() => import('../pages/app/Calendar'))
+const Learning      = lazy(() => import('../pages/app/Learning'))
+const Diagrams      = lazy(() => import('../pages/app/Diagrams'))
 
 // Lazy imports — admin
 const AdminPanel = lazy(() => import('../pages/admin/AdminPanel'))
@@ -67,6 +69,7 @@ export const router = createBrowserRouter([
       { path: '/projects',    element: withSuspense(Projects) },
       { path: '/roadmap',     element: withSuspense(Roadmap) },
       { path: '/calendar',    element: withSuspense(Calendar) },
+      { path: '/learning',    element: withSuspense(Learning) },
     ],
   },
 
@@ -80,6 +83,7 @@ export const router = createBrowserRouter([
       { path: '/profile',      element: withSuspense(MyProfile) },
       { path: '/athenia',      element: withSuspense(Athenia) },
       { path: '/settings',     element: withSuspense(Settings) },
+      { path: '/diagrams',     element: withSuspense(Diagrams) },
     ],
   },
 

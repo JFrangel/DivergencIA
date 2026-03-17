@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import ReactFlow, {
   ReactFlowProvider, Background, MiniMap,
   useNodesState, useEdgesState, useReactFlow,
@@ -7,8 +7,8 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import GraphControls from './GraphControls'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiX, FiExternalLink, FiUsers, FiFolder, FiStar, FiZap } from 'react-icons/fi'
-import { Link } from 'react-router-dom'
+import { FiX, FiExternalLink, FiUsers, FiFolder, FiStar, FiZap, FiLink, FiUser } from 'react-icons/fi'
+import { Link, useNavigate } from 'react-router-dom'
 
 /* ──────── Area colors ──────── */
 const AREA_COLOR = {
@@ -118,7 +118,7 @@ function IdeaNode({ data }) {
       <Handle type="target" position={Position.Left} className="opacity-0" />
       <div className="flex items-center gap-1 mb-1">
         <FiStar size={9} className="text-[#00D1FF]/60" />
-        <span className="text-[#00D1FF]/50 text-[9px]">↑{data.votos}</span>
+        <span className="text-[#00D1FF]/50 text-[9px]">{data.votos}</span>
       </div>
       <p className="text-white/60 truncate" style={{ maxWidth: 100 }}>{data.label}</p>
     </div>
@@ -170,15 +170,76 @@ function DetailPanel({ node, onClose }) {
         </div>
       </div>
 
-      {data.area && <p className="text-xs text-white/40 mb-2">Área: {data.area}</p>}
+      {data.area && <p className="text-xs text-white/40 mb-2">Area: {data.area}</p>}
       {data.estado && <p className="text-xs text-white/40 mb-2">Estado: {data.estado}</p>}
-      {data.votos !== undefined && <p className="text-xs text-white/40 mb-2">Votos: ↑{data.votos}</p>}
+      {data.votos !== undefined && <p className="text-xs text-white/40 mb-2">Votos: {data.votos}</p>}
 
       {HREF[type] && (
         <Link to={HREF[type]} className="mt-3 flex items-center gap-1.5 text-[11px] text-[#FC651F] hover:text-[#FC651F]/80 transition-colors">
           <FiExternalLink size={11} /> Ver detalle
         </Link>
       )}
+    </motion.div>
+  )
+}
+
+/* ──────── Context Menu ──────── */
+function ContextMenu({ x, y, node, onClose }) {
+  const navigate = useNavigate()
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) onClose()
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [onClose])
+
+  if (!node) return null
+  const { type, data } = node
+
+  const HREF = {
+    member: data.id ? `/members/${data.id}` : null,
+    founder: data.id ? `/members/${data.id}` : null,
+    project: data.id ? `/projects/${data.id}` : null,
+  }
+
+  const items = []
+  if (HREF[type]) {
+    items.push({ label: 'Ver perfil', icon: FiUser, action: () => navigate(HREF[type]) })
+  }
+  if (type === 'member' || type === 'founder') {
+    items.push({ label: 'Ver proyectos', icon: FiFolder, action: () => navigate('/projects') })
+    items.push({ label: 'Conectar con...', icon: FiLink, action: () => navigate('/projects') })
+  }
+  if (type === 'project') {
+    items.push({ label: 'Ver proyecto', icon: FiFolder, action: () => navigate(`/projects/${data.id}`) })
+  }
+
+  return (
+    <motion.div
+      ref={menuRef}
+      className="fixed z-50 py-1.5 min-w-[160px] rounded-xl bg-black/80 backdrop-blur-xl border border-white/10 shadow-2xl"
+      style={{ left: x, top: y }}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ duration: 0.12 }}
+    >
+      <div className="px-3 py-1.5 border-b border-white/[0.06]">
+        <p className="text-[10px] text-white/30 capitalize">{type}</p>
+        <p className="text-xs text-white font-medium truncate">{data.label}</p>
+      </div>
+      {items.map((item, i) => (
+        <button
+          key={i}
+          onClick={() => { item.action(); onClose() }}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+        >
+          <item.icon size={12} /> {item.label}
+        </button>
+      ))}
     </motion.div>
   )
 }
@@ -196,24 +257,70 @@ function GraphControlsWrapper({ onToggleFullscreen }) {
   )
 }
 
+/* ──────── Focus on highlighted node ──────── */
+function FocusNode({ highlightedNodeId }) {
+  const { setCenter, getNode } = useReactFlow()
+
+  useEffect(() => {
+    if (!highlightedNodeId) return
+    const node = getNode(highlightedNodeId)
+    if (node) {
+      const x = node.position.x + (node.width || 100) / 2
+      const y = node.position.y + (node.height || 50) / 2
+      setCenter(x, y, { zoom: 1.2, duration: 600 })
+    }
+  }, [highlightedNodeId, setCenter, getNode])
+
+  return null
+}
+
 /* ──────── Main ──────── */
-export default function UniversalGraph({ initialNodes, initialEdges }) {
+export default function UniversalGraph({ initialNodes, initialEdges, highlightedNodeId }) {
   const [nodes, , onNodesChange] = useNodesState(initialNodes || [])
   const [edges, , onEdgesChange] = useEdgesState(initialEdges || [])
   const [selectedNode, setSelectedNode] = useState(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [contextMenu, setContextMenu] = useState(null)
 
-  const onNodeClick = useCallback((_, node) => setSelectedNode(node), [])
+  // Update nodes/edges when props change (from filtering)
+  useEffect(() => {
+    // useNodesState doesn't auto-sync with prop changes, so we re-init via a key approach
+    // Actually we need to use setNodes but useNodesState doesn't expose it cleanly
+    // So we handle it through a key remount approach in the parent
+  }, [initialNodes, initialEdges])
+
+  const onNodeClick = useCallback((_, node) => {
+    setContextMenu(null)
+    setSelectedNode(node)
+  }, [])
+
+  const onNodeContextMenu = useCallback((event, node) => {
+    event.preventDefault()
+    setSelectedNode(null)
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      node,
+    })
+  }, [])
+
+  const onPaneClick = useCallback(() => {
+    setContextMenu(null)
+  }, [])
+
+  // Key based on node count to force remount when filters change
+  const graphKey = `graph-${initialNodes?.length}-${initialEdges?.length}`
 
   return (
     <div className="relative w-full h-full">
       <ReactFlowProvider>
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
+        key={graphKey}
+        nodes={initialNodes || []}
+        edges={initialEdges || []}
         onNodeClick={onNodeClick}
+        onNodeContextMenu={onNodeContextMenu}
+        onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ padding: 0.15 }}
@@ -224,6 +331,7 @@ export default function UniversalGraph({ initialNodes, initialEdges }) {
       >
         <Background color="#ffffff08" gap={40} size={1} />
         <GraphControlsWrapper onToggleFullscreen={() => setIsFullscreen(f => !f)} />
+        <FocusNode highlightedNodeId={highlightedNodeId} />
         <MiniMap
           nodeColor={n => {
             const type = n.type
@@ -246,6 +354,17 @@ export default function UniversalGraph({ initialNodes, initialEdges }) {
       <AnimatePresence>
         {selectedNode && (
           <DetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {contextMenu && (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            node={contextMenu.node}
+            onClose={() => setContextMenu(null)}
+          />
         )}
       </AnimatePresence>
     </div>

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiBarChart2, FiPlus, FiX, FiTrendingUp, FiTarget, FiPercent } from 'react-icons/fi'
+import { FiBarChart2, FiPlus, FiX, FiTrendingUp, FiTarget, FiPercent, FiZap } from 'react-icons/fi'
 import Card from '../ui/Card'
 import Button from '../ui/Button'
+import { useAutoPopulate } from '../../hooks/useAutoPopulate'
 
 const METRIC_TYPES = [
   { value: 'accuracy', label: 'Accuracy', icon: FiTarget, color: '#22c55e', suffix: '%' },
@@ -13,9 +14,10 @@ const METRIC_TYPES = [
   { value: 'custom', label: 'Personalizada', icon: FiBarChart2, color: '#F59E0B', suffix: '' },
 ]
 
-export default function MetricsEditor({ metrics = [], onChange }) {
+export default function MetricsEditor({ metrics = [], onChange, area }) {
   const [showAdd, setShowAdd] = useState(false)
   const [newMetric, setNewMetric] = useState({ tipo: 'accuracy', nombre: '', valor: '', meta: '' })
+  const { suggestMetrics } = useAutoPopulate()
 
   const handleAdd = () => {
     if (!newMetric.valor) return
@@ -37,19 +39,48 @@ export default function MetricsEditor({ metrics = [], onChange }) {
     onChange(metrics.filter(m => m.id !== id))
   }
 
+  const handleSuggestMetrics = () => {
+    const areaKey = area || 'General'
+    const suggestions = suggestMetrics(areaKey)
+    // Map suggestions to the metric format used in this component, merging with existing
+    const existingNames = new Set(metrics.map(m => m.nombre.toLowerCase()))
+    const newMetrics = suggestions
+      .filter(s => !existingNames.has(s.nombre.toLowerCase()))
+      .map((s, i) => ({
+        id: Date.now() + i,
+        tipo: 'custom',
+        nombre: s.nombre,
+        valor: s.valor,
+        meta: null,
+        color: '#F59E0B',
+      }))
+    if (newMetrics.length > 0) {
+      onChange([...metrics, ...newMetrics])
+    }
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-semibold text-white/40 uppercase tracking-wider flex items-center gap-2">
           <FiBarChart2 size={12} className="text-[#8B5CF6]" />
-          Métricas del proyecto
+          Metricas del proyecto
         </h4>
-        <button
-          className="text-[10px] text-[#FC651F] hover:text-[#FC651F]/80 flex items-center gap-1 transition-colors"
-          onClick={() => setShowAdd(!showAdd)}
-        >
-          <FiPlus size={10} /> Agregar métrica
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className="text-[10px] text-[#8B5CF6] hover:text-[#8B5CF6]/80 flex items-center gap-1 transition-colors"
+            onClick={handleSuggestMetrics}
+            title="Sugerir metricas basadas en el area del proyecto"
+          >
+            <FiZap size={10} /> Sugerir metricas
+          </button>
+          <button
+            className="text-[10px] text-[#FC651F] hover:text-[#FC651F]/80 flex items-center gap-1 transition-colors"
+            onClick={() => setShowAdd(!showAdd)}
+          >
+            <FiPlus size={10} /> Agregar metrica
+          </button>
+        </div>
       </div>
 
       {/* Add metric form */}
@@ -108,7 +139,15 @@ export default function MetricsEditor({ metrics = [], onChange }) {
 
       {/* Metrics grid */}
       {metrics.length === 0 ? (
-        <p className="text-center text-xs text-white/15 py-4">Sin métricas registradas</p>
+        <div className="text-center py-4 space-y-2">
+          <p className="text-xs text-white/15">Sin metricas registradas</p>
+          <button
+            onClick={handleSuggestMetrics}
+            className="text-[10px] text-[#8B5CF6]/60 hover:text-[#8B5CF6] flex items-center gap-1 mx-auto transition-colors"
+          >
+            <FiZap size={10} /> Generar metricas sugeridas
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {metrics.map((m, i) => {

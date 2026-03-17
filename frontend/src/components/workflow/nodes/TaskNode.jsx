@@ -4,13 +4,13 @@ import { FiCheckCircle, FiClock, FiAlertCircle, FiLoader } from 'react-icons/fi'
 
 const STATE = {
   pendiente:   { color: '#6b7280', icon: FiClock, label: 'Pendiente' },
-  en_progreso: { color: '#FC651F', icon: FiLoader, label: 'En progreso' },
+  en_progreso: { color: 'var(--c-primary)', icon: FiLoader, label: 'En progreso' },
   revision:    { color: '#F59E0B', icon: FiAlertCircle, label: 'Revisión' },
   completada:  { color: '#22c55e', icon: FiCheckCircle, label: 'Completada' },
 }
 
 const PRIORITY_DOT = {
-  baja: '#6b7280', media: '#F59E0B', alta: '#FC651F', critica: '#EF4444',
+  baja: '#6b7280', media: '#F59E0B', alta: 'var(--c-primary)', critica: '#EF4444',
 }
 
 function TaskNode({ data }) {
@@ -21,9 +21,9 @@ function TaskNode({ data }) {
     <div
       className="px-4 py-3 rounded-xl text-xs min-w-[160px] max-w-[200px] group"
       style={{
-        background: `${st.color}08`,
-        border: `1px solid ${st.color}30`,
-        boxShadow: `0 0 12px ${st.color}10`,
+        background: `color-mix(in srgb, ${st.color} 3%, transparent)`,
+        border: `1px solid color-mix(in srgb, ${st.color} 20%, transparent)`,
+        boxShadow: `0 0 12px color-mix(in srgb, ${st.color} 6%, transparent)`,
       }}
     >
       <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-white/20 !border-white/10" />
@@ -32,7 +32,7 @@ function TaskNode({ data }) {
       {/* Header */}
       <div className="flex items-center gap-1.5 mb-2">
         <Icon size={11} style={{ color: st.color }} />
-        <span className="text-[9px] uppercase tracking-wider" style={{ color: `${st.color}90` }}>{st.label}</span>
+        <span className="text-[9px] uppercase tracking-wider" style={{ color: `color-mix(in srgb, ${st.color} 56%, transparent)` }}>{st.label}</span>
         {data.prioridad && (
           <span
             className="w-1.5 h-1.5 rounded-full ml-auto"

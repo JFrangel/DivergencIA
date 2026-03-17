@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { FiShield, FiUsers, FiInbox, FiBarChart2, FiSettings, FiCheck, FiX, FiTrash2, FiEdit2, FiCalendar, FiMail, FiPlus, FiClock, FiFlag, FiSliders } from 'react-icons/fi'
+import { FiShield, FiUsers, FiInbox, FiBarChart2, FiSettings, FiCheck, FiX, FiTrash2, FiEdit2, FiCalendar, FiMail, FiPlus, FiClock, FiFlag, FiSliders, FiSearch, FiStar } from 'react-icons/fi'
 import { supabase } from '../../lib/supabase'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -8,10 +8,134 @@ import Button from '../../components/ui/Button'
 import Tabs from '../../components/ui/Tabs'
 import Avatar from '../../components/ui/Avatar'
 import Spinner from '../../components/ui/Spinner'
+import Modal from '../../components/ui/Modal'
 import ContentModerator from '../../components/admin/ContentModerator'
 import PlatformConfig from '../../components/admin/PlatformConfig'
 import { toast } from 'sonner'
 import { timeAgo } from '../../lib/utils'
+
+const AREAS = ['ML', 'NLP', 'Vision', 'Datos', 'General']
+const AREA_COLORS = { ML: '#FC651F', NLP: '#8B5CF6', Vision: '#00D1FF', Datos: '#22c55e', General: '#F59E0B' }
+
+/* ──────── User Edit Modal ──────── */
+function UserEditModal({ user, open, onClose, onSave }) {
+  const [form, setForm] = useState({
+    nombre: '',
+    rol: 'miembro',
+    area_investigacion: '',
+    carrera: '',
+    semestre: '',
+    es_fundador: false,
+    activo: true,
+  })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (user) {
+      setForm({
+        nombre: user.nombre || '',
+        rol: user.rol || 'miembro',
+        area_investigacion: user.area_investigacion || '',
+        carrera: user.carrera || '',
+        semestre: user.semestre || '',
+        es_fundador: !!user.es_fundador,
+        activo: user.activo !== false,
+      })
+    }
+  }, [user])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!user) return
+    setSaving(true)
+    const updates = {
+      nombre: form.nombre,
+      rol: form.rol,
+      area_investigacion: form.area_investigacion || null,
+      carrera: form.carrera || null,
+      semestre: form.semestre ? Number(form.semestre) : null,
+      es_fundador: form.es_fundador,
+      activo: form.activo,
+    }
+    const { error } = await supabase.from('usuarios').update(updates).eq('id', user.id)
+    setSaving(false)
+    if (error) { toast.error('Error al actualizar usuario'); return }
+    onSave({ ...user, ...updates })
+    toast.success(`${form.nombre} actualizado`)
+    onClose()
+  }
+
+  const inputClass = 'w-full px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-white/20 outline-none focus:border-[#FC651F]/40 transition-colors'
+  const labelClass = 'block text-[11px] text-white/40 uppercase tracking-wider font-semibold mb-1.5'
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Editar usuario — ${user?.nombre || ''}`}
+      size="md"
+      footer={
+        <>
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancelar</Button>
+          <Button variant="solid" size="sm" onClick={handleSubmit} disabled={saving} className="gap-1.5">
+            {saving ? <Spinner size="xs" /> : <FiCheck size={13} />}
+            Guardar
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className={labelClass}>Nombre</label>
+          <input className={inputClass} value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} required />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Rol</label>
+            <select className={inputClass} value={form.rol} onChange={e => setForm(f => ({ ...f, rol: e.target.value }))}>
+              <option value="miembro">Miembro</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Área de investigación</label>
+            <select className={inputClass} value={form.area_investigacion} onChange={e => setForm(f => ({ ...f, area_investigacion: e.target.value }))}>
+              <option value="">Sin área</option>
+              {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Carrera</label>
+            <input className={inputClass} value={form.carrera} onChange={e => setForm(f => ({ ...f, carrera: e.target.value }))} placeholder="Ej: Ingeniería de Sistemas" />
+          </div>
+          <div>
+            <label className={labelClass}>Semestre</label>
+            <input type="number" min={1} max={12} className={inputClass} value={form.semestre} onChange={e => setForm(f => ({ ...f, semestre: e.target.value }))} placeholder="1-12" />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-6 pt-2">
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <input type="checkbox" checked={form.es_fundador} onChange={e => setForm(f => ({ ...f, es_fundador: e.target.checked }))}
+              className="w-4 h-4 rounded border-white/20 bg-white/[0.04] accent-[#FC651F]" />
+            <span className="text-sm text-white/50 group-hover:text-white/70 transition-colors flex items-center gap-1">
+              <FiStar size={12} className="text-[#F59E0B]" /> Fundador
+            </span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <input type="checkbox" checked={form.activo} onChange={e => setForm(f => ({ ...f, activo: e.target.checked }))}
+              className="w-4 h-4 rounded border-white/20 bg-white/[0.04] accent-[#22c55e]" />
+            <span className="text-sm text-white/50 group-hover:text-white/70 transition-colors">Activo</span>
+          </label>
+        </div>
+      </form>
+    </Modal>
+  )
+}
 
 const tabs = [
   { id: 'users', label: 'Usuarios' },
@@ -27,18 +151,47 @@ const tabs = [
 function UserTable() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [roleFilter, setRoleFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [editingUser, setEditingUser] = useState(null)
 
   useEffect(() => {
     supabase.from('usuarios').select('*').order('fecha_registro', { ascending: false })
       .then(({ data }) => { setUsers(data || []); setLoading(false) })
   }, [])
 
-  const toggleRole = async (user) => {
-    const newRol = user.rol === 'admin' ? 'miembro' : 'admin'
+  /* ── Filtering ── */
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => {
+      const matchesSearch = !search ||
+        (u.nombre || '').toLowerCase().includes(search.toLowerCase()) ||
+        (u.correo || '').toLowerCase().includes(search.toLowerCase())
+      const matchesRole = roleFilter === 'all' || u.rol === roleFilter
+      const matchesStatus = statusFilter === 'all' ||
+        (statusFilter === 'active' && u.activo) ||
+        (statusFilter === 'inactive' && !u.activo)
+      return matchesSearch && matchesRole && matchesStatus
+    })
+  }, [users, search, roleFilter, statusFilter])
+
+  /* ── Inline role change ── */
+  const changeRole = async (user, newRol) => {
+    if (newRol === user.rol) return
     const { error } = await supabase.from('usuarios').update({ rol: newRol }).eq('id', user.id)
     if (error) { toast.error('Error al cambiar rol'); return }
     setUsers(prev => prev.map(u => u.id === user.id ? { ...u, rol: newRol } : u))
     toast.success(`${user.nombre} ahora es ${newRol}`)
+  }
+
+  /* ── Inline founder toggle ── */
+  const toggleFounder = async (user) => {
+    const newVal = !user.es_fundador
+    const { error } = await supabase.from('usuarios').update({ es_fundador: newVal }).eq('id', user.id)
+    if (error) { toast.error('Error'); return }
+    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, es_fundador: newVal } : u))
+    toast.success(newVal ? `${user.nombre} marcado como fundador` : `${user.nombre} ya no es fundador`)
   }
 
   const toggleActive = async (user) => {
@@ -49,65 +202,241 @@ function UserTable() {
     toast.success(newActive ? 'Usuario reactivado' : 'Usuario desactivado')
   }
 
+  /* ── Bulk actions ── */
+  const allFilteredSelected = filteredUsers.length > 0 && filteredUsers.every(u => selectedIds.has(u.id))
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredUsers.map(u => u.id)))
+    }
+  }
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const bulkSetActive = async (activo) => {
+    const ids = [...selectedIds]
+    if (ids.length === 0) return
+    const { error } = await supabase.from('usuarios').update({ activo }).in('id', ids)
+    if (error) { toast.error('Error en acción masiva'); return }
+    setUsers(prev => prev.map(u => ids.includes(u.id) ? { ...u, activo } : u))
+    setSelectedIds(new Set())
+    toast.success(`${ids.length} usuario(s) ${activo ? 'activados' : 'desactivados'}`)
+  }
+
+  /* ── Edit modal save handler ── */
+  const handleEditSave = (updatedUser) => {
+    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u))
+  }
+
   if (loading) return <div className="flex justify-center py-10"><Spinner /></div>
 
+  /* ── Stats ── */
+  const totalUsers = users.length
+  const activeUsers = users.filter(u => u.activo).length
+  const adminUsers = users.filter(u => u.rol === 'admin').length
+  const areaCounts = {}
+  users.forEach(u => {
+    const area = u.area_investigacion || 'Sin área'
+    areaCounts[area] = (areaCounts[area] || 0) + 1
+  })
+
+  const filterBtnClass = (active) =>
+    `px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${active ? 'bg-[#FC651F]/15 text-[#FC651F] border border-[#FC651F]/25' : 'text-white/30 hover:text-white/50 hover:bg-white/[0.04] border border-transparent'}`
+
   return (
-    <Card className="overflow-hidden !p-0">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-white/[0.06]">
-              {['Usuario', 'Correo', 'Área', 'Rol', 'Estado', 'Registro', 'Acciones'].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-[11px] text-white/30 uppercase tracking-wider font-semibold">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(u => (
-              <tr key={u.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <Avatar name={u.nombre || ''} area={u.area_investigacion} size="xs" isFounded={u.es_fundador} />
-                    <div>
-                      <p className="text-white/80 font-medium text-xs">{u.nombre}</p>
-                      <p className="text-[10px] text-white/25">{u.carrera || '—'}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-xs text-white/40">{u.correo}</td>
-                <td className="px-4 py-3">{u.area_investigacion ? <Badge area={u.area_investigacion} size="xs" /> : <span className="text-white/20 text-xs">—</span>}</td>
-                <td className="px-4 py-3"><Badge rol={u.rol} size="xs" /></td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs flex items-center gap-1 ${u.activo ? 'text-[#22c55e]' : 'text-[#EF4444]'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${u.activo ? 'bg-[#22c55e]' : 'bg-[#EF4444]'}`} />
-                    {u.activo ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-xs text-white/25">{timeAgo(u.fecha_registro)}</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => toggleRole(u)}
-                      className="px-2 py-1 rounded text-[10px] text-white/30 hover:text-[#8B5CF6] hover:bg-[#8B5CF6]/10 transition-all"
-                      title="Cambiar rol"
-                    >
-                      <FiShield size={12} />
-                    </button>
-                    <button
-                      onClick={() => toggleActive(u)}
-                      className={`px-2 py-1 rounded text-[10px] transition-all ${u.activo ? 'text-white/30 hover:text-[#EF4444] hover:bg-[#EF4444]/10' : 'text-white/30 hover:text-[#22c55e] hover:bg-[#22c55e]/10'}`}
-                      title={u.activo ? 'Desactivar' : 'Reactivar'}
-                    >
-                      {u.activo ? <FiX size={12} /> : <FiCheck size={12} />}
-                    </button>
-                  </div>
-                </td>
-              </tr>
+    <div className="space-y-4">
+      {/* ── Stats Header ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="!py-3 !px-4">
+          <p className="text-xl font-bold font-title text-white">{totalUsers}</p>
+          <p className="text-[10px] text-white/30 mt-0.5">Total usuarios</p>
+        </Card>
+        <Card className="!py-3 !px-4">
+          <p className="text-xl font-bold font-title text-[#22c55e]">{activeUsers}</p>
+          <p className="text-[10px] text-white/30 mt-0.5">Activos</p>
+        </Card>
+        <Card className="!py-3 !px-4">
+          <p className="text-xl font-bold font-title text-[#8B5CF6]">{adminUsers}</p>
+          <p className="text-[10px] text-white/30 mt-0.5">Admins</p>
+        </Card>
+        <Card className="!py-3 !px-4">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {Object.entries(areaCounts).map(([area, count]) => (
+              <span key={area} className="flex items-center gap-1 text-[10px] text-white/40" title={`${area}: ${count}`}>
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: AREA_COLORS[area] || '#6b7280' }} />
+                {count}
+              </span>
             ))}
-          </tbody>
-        </table>
+          </div>
+          <p className="text-[10px] text-white/30 mt-1">Por área</p>
+        </Card>
       </div>
-    </Card>
+
+      {/* ── Search & Filters ── */}
+      <Card className="!py-3 !px-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          {/* Search */}
+          <div className="relative flex-1 w-full sm:w-auto">
+            <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" />
+            <input
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-white/20 outline-none focus:border-[#FC651F]/40 transition-colors"
+              placeholder="Buscar por nombre o correo..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+
+          {/* Role filter */}
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-white/20 mr-1">Rol:</span>
+            {[['all', 'Todos'], ['admin', 'Admin'], ['miembro', 'Miembro']].map(([val, label]) => (
+              <button key={val} className={filterBtnClass(roleFilter === val)} onClick={() => setRoleFilter(val)}>{label}</button>
+            ))}
+          </div>
+
+          {/* Status filter */}
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-white/20 mr-1">Estado:</span>
+            {[['all', 'Todos'], ['active', 'Activos'], ['inactive', 'Inactivos']].map(([val, label]) => (
+              <button key={val} className={filterBtnClass(statusFilter === val)} onClick={() => setStatusFilter(val)}>{label}</button>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Bulk Actions Bar ── */}
+      {selectedIds.size > 0 && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-[#FC651F]/10 border border-[#FC651F]/20">
+          <span className="text-xs text-[#FC651F] font-semibold">{selectedIds.size} seleccionado(s)</span>
+          <div className="flex-1" />
+          <Button variant="solid" size="xs" className="gap-1 !bg-[#22c55e] hover:!bg-[#16a34a]" onClick={() => bulkSetActive(true)}>
+            <FiCheck size={11} /> Activar todos
+          </Button>
+          <Button variant="danger" size="xs" className="gap-1" onClick={() => bulkSetActive(false)}>
+            <FiX size={11} /> Desactivar todos
+          </Button>
+          <button onClick={() => setSelectedIds(new Set())} className="text-[10px] text-white/30 hover:text-white/50 transition-colors ml-1">Limpiar</button>
+        </motion.div>
+      )}
+
+      {/* ── Table ── */}
+      <Card className="overflow-hidden !p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/[0.06]">
+                <th className="px-3 py-3 w-8">
+                  <input
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleSelectAll}
+                    className="w-3.5 h-3.5 rounded border-white/20 bg-white/[0.04] accent-[#FC651F] cursor-pointer"
+                  />
+                </th>
+                {['Usuario', 'Correo', 'Área', 'Rol', 'Estado', 'Registro', 'Acciones'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-[11px] text-white/30 uppercase tracking-wider font-semibold">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-10 text-white/20 text-sm">No se encontraron usuarios</td>
+                </tr>
+              ) : filteredUsers.map(u => (
+                <tr key={u.id} className={`border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors ${selectedIds.has(u.id) ? 'bg-[#FC651F]/[0.03]' : ''}`}>
+                  <td className="px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(u.id)}
+                      onChange={() => toggleSelect(u.id)}
+                      className="w-3.5 h-3.5 rounded border-white/20 bg-white/[0.04] accent-[#FC651F] cursor-pointer"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <Avatar name={u.nombre || ''} area={u.area_investigacion} size="xs" isFounded={u.es_fundador} />
+                      <div>
+                        <p className="text-white/80 font-medium text-xs flex items-center gap-1">
+                          {u.nombre}
+                          {u.es_fundador && <FiStar size={10} className="text-[#F59E0B]" title="Fundador" />}
+                        </p>
+                        <p className="text-[10px] text-white/25">{u.carrera || '—'}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-white/40">{u.correo}</td>
+                  <td className="px-4 py-3">{u.area_investigacion ? <Badge area={u.area_investigacion} size="xs" /> : <span className="text-white/20 text-xs">—</span>}</td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={u.rol}
+                      onChange={e => changeRole(u, e.target.value)}
+                      className="text-[11px] px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08] text-white/60 outline-none cursor-pointer hover:border-[#8B5CF6]/30 transition-colors"
+                    >
+                      <option value="miembro">Miembro</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs flex items-center gap-1 ${u.activo ? 'text-[#22c55e]' : 'text-[#EF4444]'}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${u.activo ? 'bg-[#22c55e]' : 'bg-[#EF4444]'}`} />
+                      {u.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-white/25">{timeAgo(u.fecha_registro)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setEditingUser(u)}
+                        className="px-2 py-1 rounded text-[10px] text-white/30 hover:text-[#FC651F] hover:bg-[#FC651F]/10 transition-all"
+                        title="Editar usuario"
+                      >
+                        <FiEdit2 size={12} />
+                      </button>
+                      <button
+                        onClick={() => toggleFounder(u)}
+                        className={`px-2 py-1 rounded text-[10px] transition-all ${u.es_fundador ? 'text-[#F59E0B] hover:text-[#F59E0B]/60 hover:bg-[#F59E0B]/10' : 'text-white/30 hover:text-[#F59E0B] hover:bg-[#F59E0B]/10'}`}
+                        title={u.es_fundador ? 'Quitar fundador' : 'Hacer fundador'}
+                      >
+                        <FiStar size={12} />
+                      </button>
+                      <button
+                        onClick={() => toggleActive(u)}
+                        className={`px-2 py-1 rounded text-[10px] transition-all ${u.activo ? 'text-white/30 hover:text-[#EF4444] hover:bg-[#EF4444]/10' : 'text-white/30 hover:text-[#22c55e] hover:bg-[#22c55e]/10'}`}
+                        title={u.activo ? 'Desactivar' : 'Reactivar'}
+                      >
+                        {u.activo ? <FiX size={12} /> : <FiCheck size={12} />}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {/* Table footer with count */}
+        <div className="px-4 py-2.5 border-t border-white/[0.06] text-[10px] text-white/20">
+          Mostrando {filteredUsers.length} de {totalUsers} usuarios
+        </div>
+      </Card>
+
+      {/* ── Edit Modal ── */}
+      <UserEditModal
+        user={editingUser}
+        open={!!editingUser}
+        onClose={() => setEditingUser(null)}
+        onSave={handleEditSave}
+      />
+    </div>
   )
 }
 

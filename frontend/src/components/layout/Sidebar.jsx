@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  FiZap, FiGrid, FiFolder, FiStar, FiBook,
+  FiZap, FiGrid, FiFolder, FiStar, FiBook, FiBookOpen, FiLayers,
   FiUsers, FiUser, FiGlobe, FiTerminal, FiShield,
   FiChevronLeft, FiChevronRight, FiBell, FiLogOut, FiSun,
   FiMap, FiSettings, FiCalendar,
@@ -20,6 +20,7 @@ const NAV_SECTIONS = [
       { to: '/projects',  icon: FiFolder,   label: 'Proyectos' },
       { to: '/ideas',     icon: FiStar,     label: 'Ideas' },
       { to: '/library',   icon: FiBook,     label: 'Biblioteca' },
+      { to: '/learning', icon: FiBookOpen, label: 'Aprendizaje' },
     ],
   },
   {
@@ -35,6 +36,12 @@ const NAV_SECTIONS = [
     label: 'IA',
     items: [
       { to: '/athenia', icon: FiTerminal, label: 'A.T.H.E.N.I.A' },
+    ],
+  },
+  {
+    label: 'Herramientas',
+    items: [
+      { to: '/diagrams', icon: FiLayers, label: 'Diagramas' },
     ],
   },
 ]
@@ -70,7 +77,7 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle })
         <Link to="/dashboard" className="flex items-center gap-3 overflow-hidden">
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: 'linear-gradient(135deg, #FC651F, #8B5CF6)' }}
+            style={{ background: 'linear-gradient(135deg, var(--c-primary), var(--c-secondary))' }}
           >
             <FiZap size={15} className="text-white" />
           </div>
@@ -83,7 +90,7 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle })
                 exit={{ opacity: 0, x: -8 }}
                 transition={{ duration: 0.2 }}
               >
-                Divergenc<span style={{ color: '#FC651F' }}>IA</span>
+                Divergenc<span style={{ color: 'var(--c-primary)' }}>IA</span>
               </motion.span>
             )}
           </AnimatePresence>
@@ -106,16 +113,18 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle })
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-2 py-2 rounded-lg mb-0.5 transition-all duration-150 group ${
                     isActive
-                      ? 'bg-[#FC651F]/15 text-[#FC651F]'
+                      ? ''
                       : 'text-white/50 hover:text-white hover:bg-white/[0.05]'
                   }`
                 }
+                style={({ isActive }) => isActive ? { background: 'color-mix(in srgb, var(--c-primary) 15%, transparent)', color: 'var(--c-primary)' } : {}}
               >
                 {({ isActive }) => (
                   <>
                     <item.icon
                       size={17}
-                      className={`shrink-0 ${isActive ? 'drop-shadow-[0_0_6px_rgba(252,101,31,0.6)]' : ''}`}
+                      className="shrink-0"
+                      style={isActive ? { filter: 'drop-shadow(0 0 6px currentColor)' } : {}}
                     />
                     <AnimatePresence>
                       {!isCollapsed && (
@@ -147,9 +156,10 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle })
               to="/admin"
               className={({ isActive }) =>
                 `flex items-center gap-3 px-2 py-2 rounded-lg mb-0.5 transition-all duration-150 ${
-                  isActive ? 'bg-[#FC651F]/15 text-[#FC651F]' : 'text-white/50 hover:text-white hover:bg-white/[0.05]'
+                  isActive ? '' : 'text-white/50 hover:text-white hover:bg-white/[0.05]'
                 }`
               }
+              style={({ isActive }) => isActive ? { background: 'color-mix(in srgb, var(--c-primary) 15%, transparent)', color: 'var(--c-primary)' } : {}}
             >
               {({ isActive }) => (
                 <>
@@ -170,7 +180,10 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle })
         {/* Zen Mode */}
         <button
           onClick={() => { enterZen(); navigate('/zen') }}
-          className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-white/40 hover:text-[#00D1FF] hover:bg-[#00D1FF]/5 transition-all duration-150"
+          className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-white/40 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--c-accent)_5%,transparent)]"
+          style={{ '--hover-color': 'var(--c-accent)' }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--c-accent)'; e.currentTarget.style.background = 'color-mix(in srgb, var(--c-accent) 5%, transparent)' }}
+          onMouseLeave={e => { e.currentTarget.style.color = ''; e.currentTarget.style.background = '' }}
         >
           <FiSun size={17} className="shrink-0" />
           {!isCollapsed && <span className="text-sm">Modo Zen</span>}

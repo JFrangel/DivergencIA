@@ -2,9 +2,9 @@ import { FiPlus, FiFlag, FiGitBranch, FiSave, FiTrash2 } from 'react-icons/fi'
 import Button from '../ui/Button'
 
 const TOOLS = [
-  { id: 'task', label: 'Tarea', icon: FiPlus, color: '#FC651F' },
-  { id: 'milestone', label: 'Hito', icon: FiFlag, color: '#8B5CF6' },
-  { id: 'decision', label: 'Decisión', icon: FiGitBranch, color: '#00D1FF' },
+  { id: 'task', label: 'Tarea', icon: FiPlus, color: 'var(--c-primary)' },
+  { id: 'milestone', label: 'Hito', icon: FiFlag, color: 'var(--c-secondary)' },
+  { id: 'decision', label: 'Decisión', icon: FiGitBranch, color: 'var(--c-accent)' },
 ]
 
 export default function WorkflowToolbar({ onAddNode, onSave, onClear, saving }) {
@@ -18,9 +18,9 @@ export default function WorkflowToolbar({ onAddNode, onSave, onClear, saving }) 
           onClick={() => onAddNode(t.id)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all hover:scale-105"
           style={{
-            background: `${t.color}10`,
-            color: `${t.color}cc`,
-            border: `1px solid ${t.color}20`,
+            background: `color-mix(in srgb, ${t.color} 8%, transparent)`,
+            color: t.color,
+            border: `1px solid color-mix(in srgb, ${t.color} 15%, transparent)`,
           }}
         >
           <t.icon size={11} /> {t.label}

@@ -28,7 +28,7 @@ export default function Dashboard() {
       <motion.div {...FU(0)}>
         <h1 className="text-2xl font-bold font-title text-white">
           {greeting},{' '}
-          <span className="text-[#FC651F]">
+          <span style={{ color: 'var(--c-primary)' }}>
             {profile?.nombre?.split(' ')[0] || 'Investigador'}
           </span>
         </h1>

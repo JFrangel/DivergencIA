@@ -117,7 +117,7 @@ export default function ProjectDetail() {
             </Card>
           </div>
           <Card>
-            <MetricsEditor metrics={metrics} onChange={setMetrics} />
+            <MetricsEditor metrics={metrics} onChange={setMetrics} area={project.area} />
           </Card>
         </div>
       )}
@@ -206,7 +206,7 @@ export default function ProjectDetail() {
 
       {tab === 'metrics' && (
         <Card>
-          <MetricsEditor metrics={metrics} onChange={setMetrics} />
+          <MetricsEditor metrics={metrics} onChange={setMetrics} area={project.area} />
         </Card>
       )}
 

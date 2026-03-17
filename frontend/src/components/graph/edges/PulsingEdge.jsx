@@ -17,7 +17,7 @@ function PulsingEdge({
     targetPosition,
   })
 
-  const color = data?.color || 'rgba(255,255,255,0.12)'
+  const color = data?.color || 'color-mix(in srgb, var(--c-primary) 20%, rgba(255,255,255,0.12))'
 
   return (
     <>

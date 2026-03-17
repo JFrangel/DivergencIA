@@ -14,15 +14,15 @@ function DecisionNode({ data }) {
       <div
         className="w-12 h-12 rotate-45 rounded-md flex items-center justify-center"
         style={{
-          background: 'rgba(0,209,255,0.08)',
-          border: '1.5px solid rgba(0,209,255,0.35)',
+          background: 'color-mix(in srgb, var(--c-accent) 8%, transparent)',
+          border: '1.5px solid color-mix(in srgb, var(--c-accent) 35%, transparent)',
         }}
       >
-        <FiGitBranch size={14} className="-rotate-45 text-[#00D1FF]" />
+        <FiGitBranch size={14} className="-rotate-45" style={{ color: 'var(--c-accent)' }} />
       </div>
 
       <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap">
-        <p className="text-[10px] text-[#00D1FF]/60 font-medium text-center">{data.label || '?'}</p>
+        <p className="text-[10px] font-medium text-center" style={{ color: 'var(--c-accent)', opacity: 0.6 }}>{data.label || '?'}</p>
       </div>
     </div>
   )

@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 
 function MilestoneNode({ data }) {
   const completed = data.completed
-  const color = completed ? '#22c55e' : '#8B5CF6'
+  const color = completed ? '#22c55e' : 'var(--c-secondary)'
 
   return (
     <div className="relative flex items-center justify-center" style={{ width: 64, height: 64 }}>
@@ -16,7 +16,7 @@ function MilestoneNode({ data }) {
       {!completed && (
         <motion.div
           className="absolute inset-0 rounded-xl border"
-          style={{ borderColor: `${color}30` }}
+          style={{ borderColor: `color-mix(in srgb, ${color} 20%, transparent)` }}
           animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.15, 0.5] }}
           transition={{ repeat: Infinity, duration: 2.5 }}
         />
@@ -26,8 +26,8 @@ function MilestoneNode({ data }) {
       <div
         className="w-11 h-11 rotate-45 rounded-lg flex items-center justify-center z-10"
         style={{
-          background: `${color}15`,
-          border: `1.5px solid ${color}50`,
+          background: `color-mix(in srgb, ${color} 8%, transparent)`,
+          border: `1.5px solid color-mix(in srgb, ${color} 30%, transparent)`,
         }}
       >
         <FiFlag size={14} className="-rotate-45" style={{ color }} />

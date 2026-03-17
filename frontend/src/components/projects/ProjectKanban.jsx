@@ -16,7 +16,7 @@ import { formatDate } from '../../lib/utils'
 
 const COLUMNS = [
   { id: 'pendiente',   label: 'Pendiente',   color: '#6b7280' },
-  { id: 'en_progreso', label: 'En progreso', color: '#00D1FF' },
+  { id: 'en_progreso', label: 'En progreso', color: 'var(--c-accent)' },
   { id: 'revision',    label: 'Revisión',    color: '#F59E0B' },
   { id: 'completada',  label: 'Completada',  color: '#22c55e' },
 ]
@@ -80,7 +80,7 @@ function KanbanColumn({ column, tasks, onAddTask, onClickTask }) {
           <span className="text-xs font-semibold text-white/60 uppercase tracking-wide">{column.label}</span>
           <span
             className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-            style={{ background: `${column.color}20`, color: column.color }}
+            style={{ background: `color-mix(in srgb, ${column.color} 12%, transparent)`, color: column.color }}
           >
             {tasks.length}
           </span>

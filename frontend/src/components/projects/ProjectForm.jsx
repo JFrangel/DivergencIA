@@ -1,59 +1,104 @@
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { FiSave, FiX } from 'react-icons/fi'
+import { FiSave, FiX, FiZap, FiCheckSquare } from 'react-icons/fi'
+import { motion, AnimatePresence } from 'framer-motion'
 import Input from '../ui/Input'
 import Textarea from '../ui/Textarea'
 import Select from '../ui/Select'
 import Button from '../ui/Button'
 import Modal from '../ui/Modal'
+import Badge from '../ui/Badge'
+import { useAutoPopulate } from '../../hooks/useAutoPopulate'
 
 const schema = z.object({
-  titulo: z.string().min(3, 'Mínimo 3 caracteres'),
+  titulo: z.string().min(3, 'Minimo 3 caracteres'),
   descripcion: z.string().optional(),
   estado: z.string().default('desarrollo'),
+  area: z.string().optional(),
   fecha_inicio: z.string().optional(),
   fecha_fin: z.string().optional(),
-  repositorio_url: z.string().url('URL inválida').optional().or(z.literal('')),
+  repositorio_url: z.string().url('URL invalida').optional().or(z.literal('')),
   publico: z.boolean().default(false),
 })
 
 const ESTADOS = [
   { value: 'idea', label: 'Idea' },
   { value: 'desarrollo', label: 'En desarrollo' },
-  { value: 'investigacion', label: 'Investigación' },
+  { value: 'investigacion', label: 'Investigacion' },
   { value: 'pruebas', label: 'Pruebas' },
   { value: 'finalizado', label: 'Finalizado' },
   { value: 'pausa', label: 'En pausa' },
 ]
 
+const AREAS = [
+  { value: '', label: 'Sin area' },
+  { value: 'ML', label: 'Machine Learning' },
+  { value: 'NLP', label: 'NLP' },
+  { value: 'Vision', label: 'Computer Vision' },
+  { value: 'Datos', label: 'Datos & Analytics' },
+  { value: 'General', label: 'General' },
+]
+
 export default function ProjectForm({ open, onClose, onSubmit, defaultValues }) {
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm({
+  const { register, handleSubmit, watch, formState: { errors, isSubmitting }, reset } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: defaultValues || { estado: 'desarrollo', publico: false },
+    defaultValues: defaultValues || { estado: 'desarrollo', publico: false, area: '' },
   })
 
-  const handleClose = () => { reset(); onClose() }
+  const { suggestTasks, suggestWorkflow } = useAutoPopulate()
+  const [autoGenerateTasks, setAutoGenerateTasks] = useState(false)
+  const [showTemplate, setShowTemplate] = useState(false)
+  const [suggestedTasks, setSuggestedTasks] = useState([])
+  const [suggestedWorkflow, setSuggestedWorkflow] = useState(null)
+
+  const selectedArea = watch('area')
+
+  const handleClose = () => {
+    reset()
+    setAutoGenerateTasks(false)
+    setShowTemplate(false)
+    setSuggestedTasks([])
+    setSuggestedWorkflow(null)
+    onClose()
+  }
+
+  const handleUseTemplate = () => {
+    const area = selectedArea || 'General'
+    setSuggestedTasks(suggestTasks(area))
+    setSuggestedWorkflow(suggestWorkflow(area))
+    setShowTemplate(true)
+  }
 
   const submit = async (data) => {
-    await onSubmit(data)
+    const payload = { ...data }
+    if (autoGenerateTasks || showTemplate) {
+      payload._suggestedTasks = suggestedTasks.length > 0 ? suggestedTasks : suggestTasks(data.area || 'General')
+    }
+    if (suggestedWorkflow) {
+      payload._suggestedWorkflow = suggestedWorkflow
+    }
+    await onSubmit(payload)
     handleClose()
   }
+
+  const isNew = !defaultValues
 
   return (
     <Modal open={open} onClose={handleClose} title={defaultValues ? 'Editar proyecto' : 'Nuevo proyecto'} size="md">
       <form onSubmit={handleSubmit(submit)} className="space-y-4">
         <Input
-          label="Título del proyecto *"
-          placeholder="Ej. Sistema de Detección de Anomalías"
+          label="Titulo del proyecto *"
+          placeholder="Ej. Sistema de Deteccion de Anomalias"
           error={errors.titulo?.message}
           {...register('titulo')}
         />
 
         <Textarea
-          label="Descripción"
+          label="Descripcion"
           rows={3}
-          placeholder="¿De qué trata el proyecto?"
+          placeholder="De que trata el proyecto?"
           {...register('descripcion')}
         />
 
@@ -63,8 +108,21 @@ export default function ProjectForm({ open, onClose, onSubmit, defaultValues }) 
             options={ESTADOS}
             {...register('estado')}
           />
+          <Select
+            label="Area"
+            options={AREAS}
+            {...register('area')}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Fecha límite"
+            label="Fecha inicio"
+            type="date"
+            {...register('fecha_inicio')}
+          />
+          <Input
+            label="Fecha limite"
             type="date"
             {...register('fecha_fin')}
           />
@@ -83,8 +141,63 @@ export default function ProjectForm({ open, onClose, onSubmit, defaultValues }) 
             className="w-4 h-4 rounded accent-[#FC651F]"
             {...register('publico')}
           />
-          <span className="text-sm text-white/60">Proyecto público (visible sin login)</span>
+          <span className="text-sm text-white/60">Proyecto publico (visible sin login)</span>
         </label>
+
+        {/* Auto-population section - only for new projects */}
+        {isNew && (
+          <div className="border-t border-white/[0.06] pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-white/40 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                <FiZap size={11} className="text-[#FC651F]" /> Plantillas
+              </span>
+              <button
+                type="button"
+                onClick={handleUseTemplate}
+                className="text-[10px] text-[#FC651F] hover:text-[#FC651F]/80 flex items-center gap-1 transition-colors"
+              >
+                <FiZap size={10} /> Usar plantilla
+              </button>
+            </div>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                className="w-3.5 h-3.5 rounded accent-[#FC651F]"
+                checked={autoGenerateTasks}
+                onChange={e => setAutoGenerateTasks(e.target.checked)}
+              />
+              <span className="text-xs text-white/50 flex items-center gap-1.5">
+                <FiCheckSquare size={11} /> Auto-generar tareas iniciales
+              </span>
+            </label>
+
+            {/* Show suggested tasks preview */}
+            <AnimatePresence>
+              {showTemplate && suggestedTasks.length > 0 && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-1.5">
+                    <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold mb-2">
+                      Tareas sugeridas
+                    </p>
+                    {suggestedTasks.map((task, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/20 shrink-0" />
+                        <span className="text-white/60 flex-1">{task.titulo}</span>
+                        <Badge preset={task.prioridad} size="xs">{task.prioridad}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
         <div className="flex gap-2 pt-2">
           <Button type="submit" variant="solid" size="sm" loading={isSubmitting} className="gap-2">

@@ -2,13 +2,37 @@ import { cn } from '../../lib/utils'
 import Spinner from './Spinner'
 
 const variants = {
-  solid:   'bg-[#FC651F] hover:bg-[#e55a15] text-white border border-[#FC651F]/50',
-  outline: 'bg-transparent border border-[#FC651F]/60 text-[#FC651F] hover:bg-[#FC651F]/10',
+  solid:   'btn-solid text-white border',
+  outline: 'btn-outline bg-transparent border',
   ghost:   'bg-transparent text-white/70 hover:bg-white/5 hover:text-white border border-transparent',
-  neon:    'bg-transparent border border-[#FC651F]/40 text-white animated-border hover:bg-[#FC651F]/5',
-  accent:  'bg-[#00D1FF]/10 border border-[#00D1FF]/40 text-[#00D1FF] hover:bg-[#00D1FF]/20',
-  secondary: 'bg-[#8B5CF6]/10 border border-[#8B5CF6]/40 text-[#8B5CF6] hover:bg-[#8B5CF6]/20',
+  neon:    'btn-neon bg-transparent border text-white animated-border',
+  accent:  'btn-accent border',
+  secondary: 'btn-secondary border',
   danger:  'bg-[#EF4444]/10 border border-[#EF4444]/40 text-[#EF4444] hover:bg-[#EF4444]/20',
+}
+
+const variantStyles = {
+  solid: {
+    background: 'var(--c-primary)',
+    borderColor: 'color-mix(in srgb, var(--c-primary) 50%, transparent)',
+  },
+  outline: {
+    borderColor: 'color-mix(in srgb, var(--c-primary) 60%, transparent)',
+    color: 'var(--c-primary)',
+  },
+  neon: {
+    borderColor: 'color-mix(in srgb, var(--c-primary) 40%, transparent)',
+  },
+  accent: {
+    background: 'color-mix(in srgb, var(--c-accent) 10%, transparent)',
+    borderColor: 'color-mix(in srgb, var(--c-accent) 40%, transparent)',
+    color: 'var(--c-accent)',
+  },
+  secondary: {
+    background: 'color-mix(in srgb, var(--c-secondary) 10%, transparent)',
+    borderColor: 'color-mix(in srgb, var(--c-secondary) 40%, transparent)',
+    color: 'var(--c-secondary)',
+  },
 }
 
 const sizes = {
@@ -50,6 +74,7 @@ export default function Button({
         fullWidth && 'w-full',
         className,
       )}
+      style={variantStyles[variant] || variantStyles.solid}
       {...props}
     >
       {loading ? (

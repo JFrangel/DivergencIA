@@ -36,7 +36,7 @@ export default function WorkflowEditor({ projectId, initialData }) {
     (params) => setEdges((eds) => addEdge({
       ...params,
       animated: true,
-      style: { stroke: 'rgba(139,92,246,0.4)', strokeWidth: 1.5 },
+      style: { stroke: 'color-mix(in srgb, var(--c-secondary) 40%, transparent)', strokeWidth: 1.5 },
     }, eds)),
     [setEdges]
   )
@@ -121,9 +121,9 @@ export default function WorkflowEditor({ projectId, initialData }) {
           />
           <MiniMap
             nodeColor={n => {
-              if (n.type === 'milestone') return '#8B5CF6'
-              if (n.type === 'decision') return '#00D1FF'
-              return '#FC651F'
+              if (n.type === 'milestone') return 'var(--c-secondary)'
+              if (n.type === 'decision') return 'var(--c-accent)'
+              return 'var(--c-primary)'
             }}
             style={{
               background: 'rgba(6,3,4,0.9)',
