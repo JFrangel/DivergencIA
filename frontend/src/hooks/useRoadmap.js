@@ -16,21 +16,65 @@ function mapEstado(dbEstado) {
   }
 }
 
+/** Reverse map: UI estado -> DB estado */
+function reverseMapEstado(uiEstado) {
+  switch (uiEstado) {
+    case 'completado':  return 'completada'
+    case 'en_progreso': return 'actual'
+    case 'pendiente':   return 'proxima'
+    case 'bloqueado':   return 'bloqueada'
+    default:            return 'proxima'
+  }
+}
+
+/**
+ * Auto-compute phase estado based on milestone completion.
+ * - All milestones complete → completado
+ * - At least one milestone complete → en_progreso
+ * - No milestones complete → keep original estado
+ * Phases with estado 'bloqueado' are never auto-transitioned.
+ */
+function computeAutoEstado(hitos, originalEstado) {
+  if (!hitos || hitos.length === 0) return originalEstado
+  if (originalEstado === 'bloqueado') return 'bloqueado'
+
+  const total = hitos.length
+  const done = hitos.filter(h => h.completado).length
+
+  if (done === total) return 'completado'
+  if (done > 0) return 'en_progreso'
+  return originalEstado
+}
+
 function normalizeFases(data) {
-  return data.map(fase => ({
-    id: fase.id,
-    orden: fase.orden,
-    titulo: fase.titulo,
-    descripcion: fase.descripcion,
-    estado: mapEstado(fase.estado),
-    estadoOriginal: fase.estado,
-    fecha_estimada: fase.fecha_estimada,
-    color: fase.color,
-    hitos: (fase.milestones || []).map(m => ({
+  return data.map(fase => {
+    const hitos = (fase.milestones || []).map(m => ({
       titulo: m.titulo,
       completado: m.completado,
-    })),
-  }))
+    }))
+
+    const mappedEstado = mapEstado(fase.estado)
+    const autoEstado = computeAutoEstado(hitos, mappedEstado)
+
+    const total = hitos.length
+    const done = hitos.filter(h => h.completado).length
+    const progressPct = total > 0 ? Math.round((done / total) * 100) : 0
+
+    return {
+      id: fase.id,
+      orden: fase.orden,
+      titulo: fase.titulo,
+      descripcion: fase.descripcion,
+      estado: autoEstado,
+      estadoOriginal: fase.estado,
+      fecha_estimada: fase.fecha_estimada,
+      color: fase.color,
+      hitos,
+      progressPct,
+      completedHitos: done,
+      totalHitos: total,
+    }
+  })
 }
 
 export function useRoadmap() {
@@ -46,7 +90,19 @@ export function useRoadmap() {
     if (error || !data?.length) {
       setRoadmap([])
     } else {
-      setRoadmap(normalizeFases(data))
+      const normalized = normalizeFases(data)
+      setRoadmap(normalized)
+
+      // Auto-sync phase estados to DB when milestone-based computation differs
+      for (const fase of normalized) {
+        const expectedDbEstado = reverseMapEstado(fase.estado)
+        if (expectedDbEstado !== fase.estadoOriginal && fase.estadoOriginal !== 'bloqueada') {
+          await supabase
+            .from('roadmap_fases')
+            .update({ estado: expectedDbEstado })
+            .eq('id', fase.id)
+        }
+      }
     }
     setLoading(false)
   }, [])
@@ -68,7 +124,6 @@ export function useRoadmap() {
 
   /** Toggle a milestone's completado status within the milestones JSONB array. */
   async function toggleMilestone(phaseId, milestoneTitle) {
-    // Find the current phase in local state to get its milestones
     const phase = roadmap.find(p => p.id === phaseId)
     if (!phase) throw new Error('Fase no encontrada')
 
@@ -76,9 +131,19 @@ export function useRoadmap() {
       m.titulo === milestoneTitle ? { ...m, completado: !m.completado } : m
     )
 
+    // Compute what the new estado should be after toggle
+    const done = updatedMilestones.filter(m => m.completado).length
+    const total = updatedMilestones.length
+    let newDbEstado = phase.estadoOriginal
+    if (phase.estadoOriginal !== 'bloqueada') {
+      if (done === total) newDbEstado = 'completada'
+      else if (done > 0) newDbEstado = 'actual'
+      else newDbEstado = 'proxima'
+    }
+
     const { error } = await supabase
       .from('roadmap_fases')
-      .update({ milestones: updatedMilestones })
+      .update({ milestones: updatedMilestones, estado: newDbEstado })
       .eq('id', phaseId)
 
     if (error) throw error
@@ -96,5 +161,41 @@ export function useRoadmap() {
     await fetchRoadmap()
   }
 
-  return { roadmap, loading, updatePhase, toggleMilestone, updatePhaseEstado }
+  /** Add a new milestone to a phase's milestones array. */
+  async function addMilestone(phaseId, titulo) {
+    const phase = roadmap.find(p => p.id === phaseId)
+    if (!phase) throw new Error('Fase no encontrada')
+    const milestones = [...phase.hitos.map(h => ({ titulo: h.titulo, completado: h.completado })), { titulo: titulo.trim(), completado: false }]
+    const { error } = await supabase.from('roadmap_fases').update({ milestones }).eq('id', phaseId)
+    if (error) throw error
+    await fetchRoadmap()
+  }
+
+  /** Remove a milestone from a phase by title. */
+  async function removeMilestone(phaseId, titulo) {
+    const phase = roadmap.find(p => p.id === phaseId)
+    if (!phase) throw new Error('Fase no encontrada')
+    const milestones = phase.hitos.filter(h => h.titulo !== titulo).map(h => ({ titulo: h.titulo, completado: h.completado }))
+    const { error } = await supabase.from('roadmap_fases').update({ milestones }).eq('id', phaseId)
+    if (error) throw error
+    await fetchRoadmap()
+  }
+
+  /** Create a new phase. */
+  async function createPhase({ titulo, descripcion, color, fecha_estimada }) {
+    const newOrden = roadmap.length > 0 ? Math.max(...roadmap.map(r => r.orden)) + 1 : 1
+    const { error } = await supabase.from('roadmap_fases').insert({
+      titulo,
+      descripcion: descripcion || '',
+      color: color || '#8B5CF6',
+      fecha_estimada: fecha_estimada || null,
+      estado: 'proxima',
+      orden: newOrden,
+      milestones: [],
+    })
+    if (error) throw error
+    await fetchRoadmap()
+  }
+
+  return { roadmap, loading, updatePhase, toggleMilestone, updatePhaseEstado, addMilestone, removeMilestone, createPhase }
 }
