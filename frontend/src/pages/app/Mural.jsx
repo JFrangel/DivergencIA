@@ -4,7 +4,7 @@ import {
   FiPlus, FiType, FiImage, FiEdit3, FiZoomIn, FiZoomOut, FiMaximize,
   FiTrash2, FiSave, FiCheck, FiChevronDown, FiX, FiCornerDownLeft,
   FiMousePointer, FiShare2, FiLock, FiGlobe, FiUsers, FiSearch, FiSquare,
-  FiRotateCw, FiAlertCircle, FiMinus, FiSlash,
+  FiRotateCw, FiMinus, FiSlash, FiCopy, FiRefreshCw,
 } from 'react-icons/fi'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -15,24 +15,33 @@ const PEN_COLORS = ['#ffffff', '#FBBF24', '#F87171', '#A78BFA', '#34D399', '#60A
 const SHAPE_FILLS = ['transparent', '#FC651F26', '#8B5CF626', '#00D1FF26', '#22c55e26', '#F59E0B26', '#EF444426']
 const SHAPE_STROKES = ['#FC651F', '#8B5CF6', '#00D1FF', '#22c55e', '#F59E0B', '#EF4444', '#ffffff']
 const SHAPE_TYPES = [
-  { id: 'rect',     label: 'Rectángulo', icon: '⬜' },
-  { id: 'circle',   label: 'Círculo',    icon: '⭕' },
-  { id: 'diamond',  label: 'Diamante',   icon: '◇'  },
-  { id: 'triangle', label: 'Triángulo',  icon: '△'  },
-  { id: 'arrow',    label: 'Flecha →',   icon: '→'  },
-  { id: 'arrow_up', label: 'Flecha ↑',   icon: '↑'  },
-  { id: 'star',     label: 'Estrella',   icon: '☆'  },
-  { id: 'hexagon',  label: 'Hexágono',   icon: '⬡'  },
-  { id: 'line',     label: 'Línea',      icon: '╱'  },
+  { id: 'rect',        label: 'Rectángulo',   icon: '⬜' },
+  { id: 'circle',      label: 'Círculo',      icon: '⭕' },
+  { id: 'diamond',     label: 'Diamante',     icon: '◇'  },
+  { id: 'triangle',    label: 'Triángulo',    icon: '△'  },
+  { id: 'arrow',       label: 'Flecha →',     icon: '→'  },
+  { id: 'arrow_up',    label: 'Flecha ↑',     icon: '↑'  },
+  { id: 'star',        label: 'Estrella',     icon: '☆'  },
+  { id: 'hexagon',     label: 'Hexágono',     icon: '⬡'  },
+  { id: 'line',        label: 'Línea',        icon: '╱'  },
+  { id: 'callout',     label: 'Burbuja',      icon: '💬' },
+  { id: 'parallelogram', label: 'Paralelogramo', icon: '▱' },
+  { id: 'cross',       label: 'Cruz',         icon: '✚'  },
 ]
-const PEN_SIZES = [2, 4, 8, 14]
+const PEN_SIZES = [2, 4, 8, 14, 20]
+const CANVAS_BACKGROUNDS = [
+  { id: 'dark',  label: 'Oscuro',    bg: '#0c0608' },
+  { id: 'navy',  label: 'Azul',      bg: '#060d1a' },
+  { id: 'forest',label: 'Verde',     bg: '#060f0a' },
+  { id: 'light', label: 'Claro',     bg: '#f4f0ec' },
+  { id: 'black', label: 'Negro',     bg: '#000000' },
+]
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 5
 const GRID_SIZE = 40
 const MAX_HISTORY = 80
 const GENERAL_MURAL_ID = '00000000-0000-0000-0000-000000000001'
 const AUTOSAVE_DELAY = 1200
-const LS_PREFIX = 'mural_'
 
 const uid = () => crypto.randomUUID()
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
@@ -228,6 +237,9 @@ export default function Mural() {
   const [showPenOptions, setShowPenOptions] = useState(false)
   const [showShapeMenu, setShowShapeMenu]   = useState(false)
   const [saveStatus, setSaveStatus]     = useState('saved') // 'saved'|'saving'|'error'|'offline'
+  const [canvasBg, setCanvasBg]         = useState('#0c0608')
+  const [gridStyle, setGridStyle]       = useState('dots') // 'dots' | 'grid' | 'none'
+  const [showBgMenu, setShowBgMenu]     = useState(false)
 
   const drawMode   = activeTool === 'draw' || activeTool === 'erase'
   const eraserMode = activeTool === 'erase'
@@ -243,9 +255,6 @@ export default function Mural() {
   const history         = useRef([])
   const historyIndex    = useRef(-1)
   const skipHistory     = useRef(false)
-  const activeMuralRef  = useRef(activeMural)
-  useEffect(() => { activeMuralRef.current = activeMural }, [activeMural])
-
   /* ── Undo ──────────────────────────────────────────────────────────── */
   const pushHistory = useCallback((elems) => {
     if (skipHistory.current) { skipHistory.current = false; return }
@@ -258,6 +267,13 @@ export default function Mural() {
   const undo = useCallback(() => {
     if (historyIndex.current <= 0) return
     historyIndex.current -= 1
+    skipHistory.current = true
+    try { setElements(JSON.parse(history.current[historyIndex.current])) } catch { /**/ }
+  }, [])
+
+  const redo = useCallback(() => {
+    if (historyIndex.current >= history.current.length - 1) return
+    historyIndex.current += 1
     skipHistory.current = true
     try { setElements(JSON.parse(history.current[historyIndex.current])) } catch { /**/ }
   }, [])
@@ -289,40 +305,25 @@ export default function Mural() {
     history.current = []
     historyIndex.current = -1
     setShowSelector(false)
-
-    // Try localStorage first for instant load (only use cached meta if it's valid)
-    try {
-      const cached = localStorage.getItem(LS_PREFIX + muralId)
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        setElements(parsed.elements || [])
-        // Only restore cached meta if it looks valid (not an offline fallback)
-        const m = parsed.meta
-        // Only restore cached meta if it's a real mural from DB (not an offline fallback)
-        const isRealMeta = m && m.id && m.titulo && !m.titulo.includes('offline') && !m.titulo.includes('local')
-        if (isRealMeta) setActiveMural(m)
-      }
-    } catch { /**/ }
+    setSaveStatus('saved')
 
     const { data, error } = await supabase.from('murales').select('*').eq('id', muralId).single()
     if (data) {
       setActiveMural(data)
-      const elems = (typeof data.data === 'string' ? JSON.parse(data.data) : data.data) || []
+      const raw = data.elements
+      const elems = (typeof raw === 'string' ? JSON.parse(raw) : raw) || []
       setElements(elems)
-      try { localStorage.setItem(LS_PREFIX + muralId, JSON.stringify({ meta: data, elements: elems })) } catch { /**/ }
     } else if (error && muralId === GENERAL_MURAL_ID) {
-      // Auto-create general mural
+      // Auto-create general mural if missing
       const { data: created } = await supabase.from('murales').insert({
         id: GENERAL_MURAL_ID, titulo: 'Mural General', tipo: 'general',
-        creador_id: user?.id, shared_with: [], data: [],
+        creador_id: null, shared_with: [], elements: [],
       }).select().single()
       setActiveMural(created || { id: GENERAL_MURAL_ID, titulo: 'Mural General', tipo: 'general', shared_with: [] })
       setElements([])
     } else if (error) {
-      // Table not accessible — fallback to localStorage, but still allow editing
-      setSaveStatus('offline')
-      setActiveMural({ id: muralId, titulo: 'Mural (local)', tipo: 'general', creador_id: user?.id, shared_with: [] })
-      setElements([])
+      console.warn('[Mural] Load error:', error.message)
+      setSaveStatus('error')
     }
   }, [user])
 
@@ -331,21 +332,15 @@ export default function Mural() {
   /* ── Auto-save ─────────────────────────────────────────────────────── */
   const saveToDb = useCallback(async (elems, muralId) => {
     if (!user || !muralId) return
-
-    // Always persist to localStorage (use current meta, not stale cache)
-    try {
-      localStorage.setItem(LS_PREFIX + muralId, JSON.stringify({ meta: activeMuralRef.current, elements: elems }))
-    } catch { /**/ }
-
     setSaveStatus('saving')
     const { error } = await supabase
       .from('murales')
-      .update({ data: elems, updated_at: new Date().toISOString() })
+      .update({ elements: elems, updated_at: new Date().toISOString() })
       .eq('id', muralId)
 
     if (error) {
-      console.warn('[Mural] Supabase save error (falling back to localStorage):', error.message)
-      setSaveStatus('offline')
+      console.warn('[Mural] Supabase save error:', error.message)
+      setSaveStatus('error')
     } else {
       setSaveStatus('saved')
     }
@@ -362,7 +357,7 @@ export default function Mural() {
   const createMural = async ({ titulo, tipo }) => {
     if (!user) return
     const { data, error } = await supabase
-      .from('murales').insert({ titulo, tipo, creador_id: user.id, shared_with: [], data: [] })
+      .from('murales').insert({ titulo, tipo, creador_id: user.id, shared_with: [], elements: [] })
       .select().single()
     if (data && !error) { await fetchMurales(); loadMural(data.id) }
   }
@@ -393,6 +388,26 @@ export default function Mural() {
     setSelectedId(null)
   }, [])
   const deleteSelected = useCallback(() => { if (selectedId) deleteElement(selectedId) }, [selectedId, deleteElement])
+
+  const duplicateSelected = useCallback(() => {
+    if (!selectedId) return
+    const el = elements.find(e => e.id === selectedId)
+    if (!el) return
+    const clone = { ...el, id: uid(), x: el.x + 24, y: el.y + 24 }
+    setElements(prev => [...prev, clone])
+    setSelectedId(clone.id)
+  }, [selectedId, elements])
+
+  const addLabel = (cx, cy) => {
+    if (!canEditMural) return
+    const el = { id: uid(), type: 'label',
+      x: cx ?? (-pan.x / zoom + 300), y: cy ?? (-pan.y / zoom + 200),
+      width: 200, height: 40,
+      text: 'Texto', fontSize: 18, color: '#ffffff', bold: false, italic: false,
+      rotation: 0, author_id: user?.id }
+    setElements(prev => [...prev, el])
+    setSelectedId(el.id)
+  }
 
   const addSticky = (cx, cy) => {
     if (!canEditMural) return
@@ -447,7 +462,9 @@ export default function Mural() {
       const active = document.activeElement
       const isEditing = active?.isContentEditable || active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA'
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); return }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo(); return }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); if (user && activeMuralId) saveToDb(elements, activeMuralId); return }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') { e.preventDefault(); duplicateSelected(); return }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && !isEditing) {
         e.preventDefault(); deleteSelected()
       }
@@ -457,11 +474,12 @@ export default function Mural() {
         if (e.key === 'v') setActiveTool('select')
         if (e.key === 'p' || e.key === 'b') setActiveTool('draw')
         if (e.key === 'e') setActiveTool('erase')
+        if (e.key === 't') { setActiveTool('select'); addLabel() }
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [undo, selectedId, deleteSelected, drawMode, user, activeMuralId, elements, saveToDb])
+  }, [undo, redo, selectedId, deleteSelected, duplicateSelected, drawMode, user, activeMuralId, elements, saveToDb])
 
   /* ── Canvas interaction ────────────────────────────────────────────── */
   const screenToCanvas = useCallback((sx, sy) => {
@@ -559,11 +577,17 @@ export default function Mural() {
 
   const gridBg = useMemo(() => {
     const s = GRID_SIZE * zoom, ox = pan.x % s, oy = pan.y % s
+    if (gridStyle === 'none') return {}
+    if (gridStyle === 'grid') return {
+      backgroundSize: `${s}px ${s}px`, backgroundPosition: `${ox}px ${oy}px`,
+      backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
+    }
+    // dots (default)
     return {
       backgroundSize: `${s}px ${s}px`, backgroundPosition: `${ox}px ${oy}px`,
-      backgroundImage: 'radial-gradient(circle, var(--c-surface-2) 1px, transparent 1px)',
+      backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px)',
     }
-  }, [zoom, pan])
+  }, [zoom, pan, gridStyle])
 
   /* Derived */
   const displayName  = activeMural?.tipo === 'general' ? 'Mural General' : (activeMural?.titulo || 'Mural')
@@ -671,8 +695,9 @@ export default function Mural() {
           <div className="w-6 h-px bg-[var(--c-border)] my-1" />
 
           <ToolbarIconBtn icon={FiPlus} tooltip="Nota adhesiva (doble clic)" onClick={() => { setActiveTool('select'); addSticky(-pan.x / zoom + 200, -pan.y / zoom + 200) }} disabled={!canEditMural} />
-          <ToolbarIconBtn icon={FiType} tooltip="Tarjeta de texto" onClick={() => { setActiveTool('select'); addTextCard() }} disabled={!canEditMural} />
+          <ToolbarIconBtn icon={FiType} tooltip="Texto libre (T)" onClick={() => { setActiveTool('select'); addLabel() }} disabled={!canEditMural} />
           <ToolbarIconBtn icon={FiImage} tooltip="Subir imagen" onClick={() => { setActiveTool('select'); addImageCard() }} disabled={!canEditMural} />
+          <ToolbarIconBtn icon={FiMinus} tooltip="Tarjeta de notas" onClick={() => { setActiveTool('select'); addTextCard() }} disabled={!canEditMural} />
 
           {/* Shapes */}
           <div className="relative">
@@ -731,7 +756,48 @@ export default function Mural() {
           <div className="w-6 h-px bg-[var(--c-border)] my-1" />
 
           <ToolbarIconBtn icon={FiTrash2} tooltip="Eliminar (Del)" disabled={!selectedId} onClick={deleteSelected} />
-          <ToolbarIconBtn icon={FiCornerDownLeft} tooltip="Deshacer (Ctrl+Z)" disabled={historyIndex.current <= 0} onClick={undo} />
+          <ToolbarIconBtn icon={FiCopy} tooltip="Duplicar (Ctrl+D)" disabled={!selectedId} onClick={duplicateSelected} />
+          <ToolbarIconBtn icon={FiCornerDownLeft} tooltip="Deshacer (Ctrl+Z)" onClick={undo} />
+          <ToolbarIconBtn icon={FiRefreshCw} tooltip="Rehacer (Ctrl+Y)" onClick={redo} />
+
+          <div className="w-6 h-px bg-[var(--c-border)] my-1" />
+
+          {/* Canvas background picker */}
+          <div className="relative">
+            <button onClick={() => setShowBgMenu(p => !p)} title="Fondo del lienzo"
+              className="w-9 h-9 flex items-center justify-center rounded-xl transition-all text-white/40 hover:text-white hover:bg-[var(--c-surface-2)]">
+              <span className="w-4 h-4 rounded-full border-2 border-white/30" style={{ background: canvasBg }} />
+            </button>
+            <AnimatePresence>
+              {showBgMenu && (
+                <motion.div initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -4 }}
+                  className="absolute left-full top-0 ml-2 p-2 rounded-xl z-50 space-y-1 glass-frosted border border-[var(--c-border)]">
+                  <p className="text-[10px] text-white/25 uppercase tracking-wider px-1 pb-1">Fondo</p>
+                  {CANVAS_BACKGROUNDS.map(bg => (
+                    <button key={bg.id} onClick={() => { setCanvasBg(bg.bg); setShowBgMenu(false) }}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors whitespace-nowrap ${canvasBg === bg.bg ? 'text-[var(--c-primary)] bg-[var(--c-primary)]/10' : 'text-white/60 hover:text-white hover:bg-[var(--c-surface-2)]'}`}>
+                      <span className="w-4 h-4 rounded-full border border-white/20 shrink-0" style={{ background: bg.bg }} />
+                      {bg.label}
+                    </button>
+                  ))}
+                  <div className="border-t border-white/[0.06] my-1" />
+                  <p className="text-[10px] text-white/25 uppercase tracking-wider px-1 pb-1">Cuadrícula</p>
+                  {[
+                    { id: 'dots', label: 'Puntos', icon: '·' },
+                    { id: 'grid', label: 'Cuadros', icon: '⊞' },
+                    { id: 'none', label: 'Sin cuadrícula', icon: '○' },
+                  ].map(g => (
+                    <button key={g.id} onClick={() => { setGridStyle(g.id); setShowBgMenu(false) }}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors whitespace-nowrap ${gridStyle === g.id ? 'text-[var(--c-primary)] bg-[var(--c-primary)]/10' : 'text-white/60 hover:text-white hover:bg-[var(--c-surface-2)]'}`}>
+                      <span className="w-4 text-center text-base leading-none">{g.icon}</span>
+                      {g.label}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <ToolbarIconBtn icon={FiSave} tooltip="Guardar (Ctrl+S)" onClick={() => { if (user && activeMuralId) saveToDb(elements, activeMuralId) }} />
 
           <div className="flex-1" />
@@ -742,7 +808,7 @@ export default function Mural() {
         <div
           ref={canvasRef}
           className="flex-1 relative"
-          style={{ ...gridBg, cursor: canvasCursor, background: 'var(--c-bg)', overflow: 'clip' }}
+          style={{ ...gridBg, cursor: canvasCursor, background: canvasBg, overflow: 'clip' }}
           onPointerDown={handleCanvasPointerDown}
           onPointerMove={handleCanvasPointerMove}
           onPointerUp={handleCanvasPointerUp}
@@ -873,6 +939,19 @@ function ShapeCard({ el, onUpdate, isSelected, readOnly }) {
       }
       case 'line':
         return <line x1={sw} y1={h/2} x2={w-sw} y2={h/2} stroke={stroke} strokeWidth={sw+1} strokeLinecap="round"/>
+      case 'callout': {
+        const tailX = w*0.2, tailY = h-sw, bodyH = h*0.75
+        return <path d={`M${sw},${sw} Q${sw},${sw} ${w-sw},${sw} Q${w-sw},${sw} ${w-sw},${bodyH} L${tailX+w*0.12},${bodyH} L${tailX},${tailY} L${tailX+w*0.06},${bodyH} Q${sw},${bodyH} ${sw},${bodyH} Z`} fill={fill} stroke={stroke} strokeWidth={sw} strokeLinejoin="round"/>
+      }
+      case 'parallelogram': {
+        const off = w * 0.18
+        return <polygon points={`${off+sw},${sw} ${w-sw},${sw} ${w-off-sw},${h-sw} ${sw},${h-sw}`} fill={fill} stroke={stroke} strokeWidth={sw}/>
+      }
+      case 'cross': {
+        const t = Math.min(w,h)*0.28 // thickness
+        const cx1=w/2-t/2, cx2=w/2+t/2, cy1=h/2-t/2, cy2=h/2+t/2
+        return <polygon points={`${cx1},${sw} ${cx2},${sw} ${cx2},${cy1} ${w-sw},${cy1} ${w-sw},${cy2} ${cx2},${cy2} ${cx2},${h-sw} ${cx1},${h-sw} ${cx1},${cy2} ${sw},${cy2} ${sw},${cy1} ${cx1},${cy1}`} fill={fill} stroke={stroke} strokeWidth={sw}/>
+      }
       default:
         return <rect x={sw} y={sw} width={w-sw*2} height={h-sw*2} rx={8} fill={fill} stroke={stroke} strokeWidth={sw} />
     }
@@ -996,12 +1075,14 @@ function CanvasElement({ el, isSelected, onSelect, onUpdate, onDelete, zoom, rea
 
   return (
     <motion.div ref={ref}
-      initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }}
+      initial={{ scale: 0.85, opacity: 0, rotate: rotation }}
+      animate={{ scale: 1, opacity: 1, rotate: rotation }}
+      exit={{ scale: 0.85, opacity: 0 }}
+      transition={{ duration: 0.15, ease: 'easeOut', rotate: { duration: 0 } }}
       className="absolute group"
       style={{
         left: el.x, top: el.y, width: el.width, height: el.height,
         zIndex: isSelected ? 50 : 1,
-        transform: rotation ? `rotate(${rotation}deg)` : undefined,
         transformOrigin: 'center center',
         pointerEvents: drawMode ? 'none' : undefined,
       }}
@@ -1009,6 +1090,7 @@ function CanvasElement({ el, isSelected, onSelect, onUpdate, onDelete, zoom, rea
     >
       {el.type === 'sticky' && <StickyNote   el={el} onUpdate={onUpdate} isSelected={isSelected} readOnly={readOnly} />}
       {el.type === 'text'   && <TextCard     el={el} onUpdate={onUpdate} isSelected={isSelected} readOnly={readOnly} />}
+      {el.type === 'label'  && <LabelCard    el={el} onUpdate={onUpdate} isSelected={isSelected} readOnly={readOnly} />}
       {el.type === 'image'  && <ImageCard    el={el} onUpdate={onUpdate} isSelected={isSelected} readOnly={readOnly} />}
       {el.type === 'shape'  && <ShapeCard    el={el} onUpdate={onUpdate} isSelected={isSelected} readOnly={readOnly} />}
 
@@ -1106,6 +1188,62 @@ function ImageCard({ el, onUpdate, isSelected, readOnly }) {
   return (
     <div className="w-full h-full rounded-2xl overflow-hidden border border-[var(--c-border)] glass-frosted">
       <img src={el.src} alt="" className="w-full h-full object-contain" draggable={false} />
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LABEL CARD — bare editable text directly on canvas
+   ═══════════════════════════════════════════════════════════════════════ */
+const LABEL_COLORS = ['#ffffff', '#FBBF24', '#F87171', '#A78BFA', '#34D399', '#60A5FA', '#FC651F', '#000000']
+const LABEL_SIZES  = [12, 16, 20, 28, 36, 48, 64]
+
+function LabelCard({ el, onUpdate, isSelected, readOnly }) {
+  return (
+    <div className="w-full h-full relative flex items-center">
+      {/* Floating toolbar below when selected */}
+      {isSelected && !readOnly && (
+        <div className="absolute top-full left-0 mt-2 flex items-center gap-1.5 px-2 py-1.5 rounded-xl z-50 flex-wrap max-w-[360px]"
+          style={{ background: 'rgba(12,6,8,0.97)', border: '1px solid rgba(255,255,255,0.1)' }}
+          data-no-drag="true">
+          {/* Color swatches */}
+          {LABEL_COLORS.map(c => (
+            <button key={c} onClick={() => onUpdate(el.id, { color: c })}
+              className={`w-4 h-4 rounded-full border-2 transition-transform hover:scale-110 shrink-0`}
+              style={{ background: c, borderColor: el.color === c ? 'white' : 'transparent' }} />
+          ))}
+          <div className="w-px h-4 bg-white/15" />
+          {/* Font sizes */}
+          {LABEL_SIZES.map(s => (
+            <button key={s} onClick={() => onUpdate(el.id, { fontSize: s })}
+              className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${el.fontSize === s ? 'bg-[var(--c-primary)] text-white' : 'text-white/40 hover:text-white hover:bg-white/10'}`}>
+              {s}
+            </button>
+          ))}
+          <div className="w-px h-4 bg-white/15" />
+          {/* Bold / Italic */}
+          <button onClick={() => onUpdate(el.id, { bold: !el.bold })}
+            className={`px-1.5 py-0.5 rounded text-xs font-bold transition-colors ${el.bold ? 'bg-[var(--c-primary)] text-white' : 'text-white/40 hover:text-white hover:bg-white/10'}`}>B</button>
+          <button onClick={() => onUpdate(el.id, { italic: !el.italic })}
+            className={`px-1.5 py-0.5 rounded text-xs italic transition-colors ${el.italic ? 'bg-[var(--c-primary)] text-white' : 'text-white/40 hover:text-white hover:bg-white/10'}`}>I</button>
+        </div>
+      )}
+      <div data-no-drag="true"
+        contentEditable={!readOnly}
+        suppressContentEditableWarning
+        onBlur={e => !readOnly && onUpdate(el.id, { text: e.currentTarget.innerText })}
+        className="w-full outline-none leading-tight break-words"
+        style={{
+          color: el.color || '#ffffff',
+          fontSize: el.fontSize || 18,
+          fontWeight: el.bold ? 700 : 400,
+          fontStyle: el.italic ? 'italic' : 'normal',
+          textShadow: '0 1px 4px rgba(0,0,0,0.6)',
+          minHeight: (el.fontSize || 18) + 8,
+          cursor: readOnly ? 'default' : 'text',
+        }}
+        dangerouslySetInnerHTML={{ __html: el.text || '' }}
+      />
     </div>
   )
 }
