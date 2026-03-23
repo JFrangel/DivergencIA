@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -14,13 +14,13 @@ import { useAutoPopulate } from '../../hooks/useAutoPopulate'
 
 const schema = z.object({
   titulo: z.string().min(3, 'Minimo 3 caracteres'),
-  descripcion: z.string().optional(),
+  descripcion: z.string().optional().transform(v => v || null),
   estado: z.string().default('desarrollo'),
-  area: z.string().optional(),
-  fecha_inicio: z.string().optional(),
-  fecha_fin: z.string().optional(),
-  repositorio_url: z.string().url('URL invalida').optional().or(z.literal('')),
-  publico: z.boolean().default(false),
+  area: z.string().optional().transform(v => v || null),
+  fecha_inicio: z.string().optional().transform(v => v || null),
+  fecha_fin: z.string().optional().transform(v => v || null),
+  repositorio_url: z.string().url('URL invalida').optional().or(z.literal('')).or(z.null()).transform(v => v || null),
+  publico: z.union([z.boolean(), z.null()]).transform(v => v ?? false),
 })
 
 const ESTADOS = [
@@ -46,6 +46,21 @@ export default function ProjectForm({ open, onClose, onSubmit, defaultValues }) 
     resolver: zodResolver(schema),
     defaultValues: defaultValues || { estado: 'desarrollo', publico: false, area: '' },
   })
+
+  useEffect(() => {
+    if (open) {
+      reset(defaultValues ? {
+        titulo: defaultValues.titulo || '',
+        descripcion: defaultValues.descripcion || '',
+        estado: defaultValues.estado || 'desarrollo',
+        area: defaultValues.area || '',
+        fecha_inicio: defaultValues.fecha_inicio ? defaultValues.fecha_inicio.slice(0, 10) : '',
+        fecha_fin: defaultValues.fecha_fin ? defaultValues.fecha_fin.slice(0, 10) : '',
+        repositorio_url: defaultValues.repositorio_url || '',
+        publico: defaultValues.publico ?? false,
+      } : { titulo: '', descripcion: '', estado: 'desarrollo', area: '', fecha_inicio: '', fecha_fin: '', repositorio_url: '', publico: false })
+    }
+  }, [open, defaultValues, reset])
 
   const { suggestTasks, suggestWorkflow } = useAutoPopulate()
   const [autoGenerateTasks, setAutoGenerateTasks] = useState(false)
