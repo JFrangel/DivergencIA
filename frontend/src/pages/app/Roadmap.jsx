@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiMap, FiTarget, FiCheckCircle, FiLoader, FiCircle, FiLock,
@@ -135,7 +136,7 @@ function CronologiaView({ roadmap }) {
           .select('id,nombre,foto_url,area_investigacion,created_at')
           .order('created_at', { ascending: true }),
         supabase.from('proyectos')
-          .select('id,nombre,estado,created_at')
+          .select('id,titulo,estado,area,created_at')
           .order('created_at', { ascending: true }),
       ])
 
@@ -168,8 +169,9 @@ function CronologiaView({ roadmap }) {
       const projectEvents = (projects || []).map(p => ({
         id: `proyecto-${p.id}`,
         tipo: 'proyecto',
-        titulo: p.nombre,
-        desc: p.estado ? `Estado: ${p.estado}` : 'Iniciado',
+        titulo: p.titulo || '(sin nombre)',
+        desc: [p.area, p.estado].filter(Boolean).join(' · ') || 'Iniciado',
+        projectId: p.id,
         date: new Date(p.created_at),
         color: '#FC651F',
       }))
@@ -287,7 +289,16 @@ function CronologiaView({ roadmap }) {
                         <span className="ml-auto text-[10px] text-white/20 tabular-nums">{fmtDate(ev.date)}</span>
                       </div>
 
-                      <p className="text-sm font-semibold text-white/85 leading-snug mb-0.5">{ev.titulo}</p>
+                      {ev.tipo === 'proyecto' && ev.projectId ? (
+                        <Link
+                          to={`/projects/${ev.projectId}`}
+                          className="text-sm font-semibold text-white/85 leading-snug mb-0.5 hover:text-[#FC651F] transition-colors inline-block"
+                        >
+                          {ev.titulo}
+                        </Link>
+                      ) : (
+                        <p className="text-sm font-semibold text-white/85 leading-snug mb-0.5">{ev.titulo}</p>
+                      )}
                       {ev.desc && <p className="text-xs text-white/30 leading-relaxed">{ev.desc}</p>}
 
                       {/* Fase progress bar */}
@@ -349,6 +360,14 @@ function MilestoneRow({ hito, phaseId, phaseColor, isAdmin, onToggle, delay = 0 
   )
 }
 
+/* Map roadmap phase estado → proyectos estado values */
+const PHASE_TO_ESTADOS = {
+  completado:  ['finalizado'],
+  en_progreso: ['activo', 'investigacion', 'desarrollo'],
+  pendiente:   ['idea'],
+  bloqueado:   ['pausa'],
+}
+
 /* ── Main Roadmap page ───────────────────────────────────────────── */
 export default function Roadmap() {
   const { roadmap, loading, updatePhase, toggleMilestone, updatePhaseEstado, createPhase } = useRoadmap()
@@ -363,6 +382,12 @@ export default function Roadmap() {
   const [showNewPhase, setShowNewPhase] = useState(false)
   const [newPhaseForm, setNewPhaseForm] = useState({ titulo: '', descripcion: '', color: '#8B5CF6', fecha_estimada: '' })
   const [creatingPhase, setCreatingPhase] = useState(false)
+  const [allProyectos, setAllProyectos] = useState([])
+
+  useEffect(() => {
+    supabase.from('proyectos').select('id, titulo, estado').order('titulo', { ascending: true })
+      .then(({ data }) => setAllProyectos(data || []))
+  }, [])
 
   if (loading) return <div className="flex justify-center py-20"><Spinner /></div>
 
@@ -688,6 +713,27 @@ export default function Roadmap() {
 
                         <h3 className="text-base font-bold font-title text-white">{phase.titulo}</h3>
                         <p className="text-sm text-white/40 mt-0.5 mb-2">{phase.descripcion}</p>
+
+                        {/* Related projects */}
+                        {(() => {
+                          const estadosFase = PHASE_TO_ESTADOS[phase.estado] || []
+                          const related = allProyectos.filter(p => estadosFase.includes(p.estado)).slice(0, 3)
+                          if (!related.length) return null
+                          return (
+                            <div className="flex flex-wrap gap-1.5 mb-3">
+                              {related.map(p => (
+                                <Link
+                                  key={p.id}
+                                  to={`/projects/${p.id}`}
+                                  className="text-[10px] px-2 py-0.5 rounded-full bg-[#FC651F]/10 text-[#FC651F]/80 hover:bg-[#FC651F]/20 transition-colors flex items-center gap-1"
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  📁 {p.titulo}
+                                </Link>
+                              ))}
+                            </div>
+                          )
+                        })()}
 
                         {phase.totalHitos > 0 && (
                           <ProgressBar pct={phase.progressPct} color={phaseColor} className="mb-3" />

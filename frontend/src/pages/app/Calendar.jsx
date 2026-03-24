@@ -28,7 +28,7 @@ const MONTHS_ES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
 
-const EMPTY_FORM = { titulo: '', tipo: 'reunion', fecha: '', lugar: '', descripcion: '' }
+const EMPTY_FORM = { titulo: '', tipo: 'reunion', fecha: '', lugar: '', descripcion: '', proyecto_id: null }
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 function startOfMonth(date) {
@@ -73,7 +73,7 @@ const FU = (delay = 0) => ({
 const inputClass = "w-full bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[var(--c-primary)]/50 transition-colors"
 
 /* ── Event Form Component ────────────────────────────────────────── */
-function EventForm({ formData, setFormData }) {
+function EventForm({ formData, setFormData, proyectos = [] }) {
   return (
     <div className="space-y-4">
       {/* Titulo */}
@@ -140,6 +140,23 @@ function EventForm({ formData, setFormData }) {
           className={`${inputClass} resize-none`}
         />
       </div>
+
+      {/* Proyecto (opcional) */}
+      {proyectos.length > 0 && (
+        <div>
+          <label className="block text-xs font-medium text-white/50 mb-1.5">Proyecto (opcional)</label>
+          <select
+            value={formData.proyecto_id || ''}
+            onChange={e => setFormData(p => ({ ...p, proyecto_id: e.target.value || null }))}
+            className={inputClass}
+          >
+            <option value="" className="bg-[#0c0608] text-white">— Sin proyecto —</option>
+            {proyectos.map(p => (
+              <option key={p.id} value={p.id} className="bg-[#0c0608] text-white">{p.titulo}</option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   )
 }
@@ -198,6 +215,14 @@ export default function Calendar() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [mobileView, setMobileView] = useState('list')
+  const [proyectos, setProyectos] = useState([])
+
+  /* Fetch active projects once */
+  useEffect(() => {
+    supabase.from('proyectos').select('id, titulo').in('estado', ['activo', 'desarrollo', 'investigacion'])
+      .order('titulo', { ascending: true }).limit(50)
+      .then(({ data }) => setProyectos(data || []))
+  }, [])
 
   /* Fetch events for current month */
   const fetchEvents = async () => {
@@ -205,16 +230,16 @@ export default function Calendar() {
     const start = startOfMonth(currentDate).toISOString()
     const end = endOfMonth(currentDate).toISOString()
 
-    // Try fetching with creator join first; fall back to plain select if creado_por column doesn't exist
+    // Try fetching with creator + proyecto join
     let result = await supabase
       .from('eventos')
-      .select('*, creador:creado_por(id, nombre, foto_url)')
+      .select('*, creador:creado_por(id, nombre, foto_url), proyecto:proyecto_id(id, titulo)')
       .gte('fecha', start)
       .lte('fecha', end)
       .order('fecha', { ascending: true })
 
     if (result.error) {
-      // Fallback: column may not exist yet
+      // Fallback: columns may not exist yet
       result = await supabase
         .from('eventos')
         .select('*')
@@ -311,6 +336,7 @@ export default function Calendar() {
       fecha: toDatetimeLocal(ev.fecha),
       lugar: ev.lugar || '',
       descripcion: ev.descripcion || '',
+      proyecto_id: ev.proyecto_id || null,
     })
     setShowEditModal(true)
   }
@@ -328,6 +354,7 @@ export default function Calendar() {
         fecha: formData.fecha,
         lugar: formData.lugar,
         descripcion: formData.descripcion,
+        proyecto_id: formData.proyecto_id || null,
       })
       .eq('id', editingEvent.id)
 
@@ -597,6 +624,11 @@ export default function Calendar() {
                             <FiMapPin size={10} /> {ev.lugar}
                           </span>
                         )}
+                        {ev.proyecto?.titulo && (
+                          <span className="text-[11px] text-[#FC651F]/70 flex items-center gap-1 truncate">
+                            🗂 {ev.proyecto.titulo}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -687,6 +719,11 @@ export default function Calendar() {
                             <FiMapPin size={11} /> {ev.lugar}
                           </span>
                         )}
+                        {ev.proyecto?.titulo && (
+                          <span className="text-xs text-[#FC651F]/70 flex items-center gap-1">
+                            🗂 {ev.proyecto.titulo}
+                          </span>
+                        )}
                       </div>
                       {ev.descripcion && (
                         <p className="text-xs text-white/30 mt-2 leading-relaxed">{ev.descripcion}</p>
@@ -726,7 +763,7 @@ export default function Calendar() {
         }
       >
         <form onSubmit={handleCreate}>
-          <EventForm formData={formData} setFormData={setFormData} />
+          <EventForm formData={formData} setFormData={setFormData} proyectos={proyectos} />
         </form>
       </Modal>
 
@@ -752,7 +789,7 @@ export default function Calendar() {
         }
       >
         <form onSubmit={handleEdit}>
-          <EventForm formData={formData} setFormData={setFormData} />
+          <EventForm formData={formData} setFormData={setFormData} proyectos={proyectos} />
         </form>
       </Modal>
 
