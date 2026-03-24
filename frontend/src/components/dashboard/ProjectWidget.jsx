@@ -16,18 +16,33 @@ export default function ProjectWidget() {
 
   useEffect(() => {
     if (!user) return
-    supabase
-      .from('proyectos')
-      .select('id, titulo, estado, tareas(estado)')
-      .eq('creador_id', user.id)
-      .neq('estado', 'finalizado')
-      .neq('estado', 'cancelado')
-      .order('created_at', { ascending: false })
-      .limit(4)
-      .then(({ data }) => {
-        setProjects(data || [])
-        setLoading(false)
+    // Fetch projects where user is creator OR collaborator
+    Promise.all([
+      supabase
+        .from('proyectos')
+        .select('id, titulo, estado, tareas(estado)')
+        .eq('creador_id', user.id)
+        .neq('estado', 'finalizado')
+        .neq('estado', 'cancelado'),
+      supabase
+        .from('miembros_proyecto')
+        .select('proyecto:proyecto_id(id, titulo, estado, tareas(estado))')
+        .eq('usuario_id', user.id)
+        .eq('activo', true),
+    ]).then(([{ data: own }, { data: member }]) => {
+      const memberProjects = (member || []).map(m => m.proyecto).filter(Boolean)
+      const all = [...(own || []), ...memberProjects]
+      // Deduplicate by id
+      const seen = new Set()
+      const deduped = all.filter(p => {
+        if (!p || seen.has(p.id)) return false
+        seen.add(p.id)
+        return p.estado !== 'finalizado' && p.estado !== 'cancelado'
       })
+      deduped.sort((a, b) => 0) // preserve Supabase ordering
+      setProjects(deduped.slice(0, 4))
+      setLoading(false)
+    })
   }, [user])
 
   const progress = (p) => {

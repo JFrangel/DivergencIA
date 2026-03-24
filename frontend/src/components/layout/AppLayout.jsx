@@ -5,15 +5,18 @@ import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import GuestBanner from './GuestBanner'
 import { useAuth } from '../../context/AuthContext'
+import { useChannels, useUnreadCounts } from '../../hooks/useChat'
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const { user } = useAuth()
+  const { channels } = useChannels()
+  const { totalUnread: chatUnread } = useUnreadCounts(channels)
   const sidebarW = collapsed ? 64 : 240
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#060304]">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(p => !p)} />
+      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(p => !p)} chatUnreadCount={chatUnread} />
 
       <motion.div
         className="flex flex-col flex-1 overflow-hidden min-w-0"

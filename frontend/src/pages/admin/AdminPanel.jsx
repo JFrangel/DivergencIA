@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { FiShield, FiUsers, FiInbox, FiBarChart2, FiSettings, FiCheck, FiX, FiTrash2, FiEdit2, FiCalendar, FiMail, FiPlus, FiClock, FiFlag, FiSliders, FiSearch, FiStar } from 'react-icons/fi'
+import { FiShield, FiUsers, FiInbox, FiBarChart2, FiSettings, FiCheck, FiX, FiTrash2, FiEdit2, FiCalendar, FiMail, FiPlus, FiClock, FiFlag, FiSliders, FiSearch, FiStar, FiTrendingUp, FiTrendingDown, FiMinus } from 'react-icons/fi'
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts'
 import { supabase } from '../../lib/supabase'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -11,6 +12,8 @@ import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
 import ContentModerator from '../../components/admin/ContentModerator'
 import PlatformConfig from '../../components/admin/PlatformConfig'
+import NodosManager from '../../components/admin/NodosManager'
+import NodeGroupManager from '../../components/admin/NodeGroupManager'
 import { toast } from 'sonner'
 import { timeAgo } from '../../lib/utils'
 
@@ -94,8 +97,12 @@ function UserEditModal({ user, open, onClose, onSave }) {
           <div>
             <label className={labelClass}>Rol</label>
             <select className={inputClass} value={form.rol} onChange={e => setForm(f => ({ ...f, rol: e.target.value }))}>
+              <option value="invitado">Invitado</option>
               <option value="miembro">Miembro</option>
+              <option value="egresado">Egresado</option>
+              <option value="colaborador">Colaborador</option>
               <option value="admin">Admin</option>
+              <option value="directora">Director(a)</option>
             </select>
           </div>
           <div>
@@ -144,6 +151,7 @@ const tabs = [
   { id: 'messages', label: 'Mensajes' },
   { id: 'moderation', label: 'Moderación' },
   { id: 'reports', label: 'Reportes' },
+  { id: 'nodes', label: 'Nodos' },
   { id: 'config', label: 'Configuración' },
 ]
 
@@ -384,6 +392,9 @@ function UserTable() {
                     >
                       <option value="miembro">Miembro</option>
                       <option value="admin">Admin</option>
+                      <option value="directora">Director(a)</option>
+                      <option value="egresado">Egresado</option>
+                      <option value="colaborador">Colaborador</option>
                     </select>
                   </td>
                   <td className="px-4 py-3">
@@ -501,6 +512,21 @@ function RequestsPanel() {
   )
 }
 
+/* ──────── Custom Tooltip for Charts ──────── */
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="bg-[#0a0a0f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white">
+      {label && <p className="text-white/50 mb-1">{label}</p>}
+      {payload.map((p, i) => (
+        <p key={i} style={{ color: p.color || p.fill }}>
+          {p.name}: <span className="font-semibold">{p.value}</span>
+        </p>
+      ))}
+    </div>
+  )
+}
+
 /* ──────── Reports Panel ──────── */
 function ReportsPanel() {
   const [stats, setStats] = useState(null)
@@ -531,6 +557,23 @@ function ReportsPanel() {
       let totalDownloads = 0
       ;(files || []).forEach(f => { fileCounts[f.tipo || 'otro'] = (fileCounts[f.tipo || 'otro'] || 0) + 1; totalDownloads += f.descargas || 0 })
 
+      // Monthly activity from avances
+      const monthlyActivity = {}
+      ;(avs || []).forEach(a => {
+        if (!a.fecha) return
+        const d = new Date(a.fecha)
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        monthlyActivity[key] = (monthlyActivity[key] || 0) + 1
+      })
+      const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+      const activityData = Object.entries(monthlyActivity)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .slice(-12)
+        .map(([key, count]) => {
+          const [, m] = key.split('-')
+          return { name: monthNames[parseInt(m, 10) - 1], avances: count }
+        })
+
       setStats({
         totalUsers: users?.length || 0,
         admins: (users || []).filter(u => u.rol === 'admin').length,
@@ -543,6 +586,7 @@ function ReportsPanel() {
         totalFiles: files?.length || 0,
         fileCounts,
         totalDownloads,
+        activityData,
       })
       setLoading(false)
     })
@@ -551,74 +595,183 @@ function ReportsPanel() {
   if (loading) return <div className="flex justify-center py-10"><Spinner /></div>
 
   const AREA_COLOR = { ML: '#FC651F', NLP: '#8B5CF6', Vision: '#00D1FF', Datos: '#22c55e', General: '#F59E0B', 'Sin área': '#6b7280' }
+  const STATE_COLOR = { idea: '#F59E0B', desarrollo: '#FC651F', investigacion: '#8B5CF6', pruebas: '#00D1FF', finalizado: '#22c55e', cancelado: '#EF4444', pausa: '#6b7280' }
+
+  const pieData = Object.entries(stats.areaCounts).map(([name, value]) => ({ name, value }))
+  const barData = Object.entries(stats.estadoCounts).map(([name, value]) => ({ name, value, fill: STATE_COLOR[name] || '#6b7280' }))
+  const radarData = Object.entries(stats.ideaEstados).map(([name, value]) => ({ subject: name, count: value, fullMark: Math.max(...Object.values(stats.ideaEstados), 1) }))
+  const fileBarData = Object.entries(stats.fileCounts).map(([name, value]) => ({ name, archivos: value }))
+
+  const metricCards = [
+    { label: 'Investigadores', value: stats.totalUsers, color: '#FC651F', icon: FiUsers, trend: stats.totalUsers > 5 ? 'up' : 'neutral' },
+    { label: 'Admins', value: stats.admins, color: '#8B5CF6', icon: FiShield, trend: 'neutral' },
+    { label: 'Proyectos', value: stats.totalProjects, color: '#00D1FF', icon: FiFlag, trend: stats.totalProjects > 3 ? 'up' : 'neutral' },
+    { label: 'Avances', value: stats.totalAvances, color: '#22c55e', icon: FiBarChart2, trend: stats.totalAvances > 10 ? 'up' : 'neutral' },
+    { label: 'Ideas', value: stats.totalIdeas, color: '#F59E0B', icon: FiStar, trend: stats.totalIdeas > 5 ? 'up' : 'neutral' },
+    { label: 'Archivos', value: stats.totalFiles, color: '#EC4899', icon: FiInbox, trend: stats.totalFiles > 0 ? 'up' : 'neutral' },
+  ]
+
+  const TrendIcon = ({ trend, color }) => {
+    if (trend === 'up') return <FiTrendingUp className="w-3.5 h-3.5" style={{ color }} />
+    if (trend === 'down') return <FiTrendingDown className="w-3.5 h-3.5 text-red-400" />
+    return <FiMinus className="w-3.5 h-3.5 text-white/20" />
+  }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {/* General stats */}
-      {[
-        { label: 'Investigadores', value: stats.totalUsers, color: '#FC651F' },
-        { label: 'Admins', value: stats.admins, color: '#8B5CF6' },
-        { label: 'Proyectos', value: stats.totalProjects, color: '#00D1FF' },
-        { label: 'Avances', value: stats.totalAvances, color: '#22c55e' },
-        { label: 'Ideas', value: stats.totalIdeas, color: '#F59E0B' },
-        { label: 'Archivos', value: stats.totalFiles, color: '#EC4899' },
-      ].map(s => (
-        <Card key={s.label}>
-          <p className="text-3xl font-bold font-title" style={{ color: s.color }}>{s.value}</p>
-          <p className="text-xs text-white/35 mt-1">{s.label}</p>
-        </Card>
-      ))}
-
-      {/* Area distribution */}
-      <Card className="md:col-span-2">
-        <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-4">Distribución por área</h3>
-        <div className="space-y-2">
-          {Object.entries(stats.areaCounts).map(([area, count]) => (
-            <div key={area} className="flex items-center gap-3">
-              <span className="text-xs text-white/50 w-20">{area}</span>
-              <div className="flex-1 h-2 rounded-full bg-white/[0.06] overflow-hidden">
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ background: AREA_COLOR[area] || '#6b7280' }}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${(count / stats.totalUsers) * 100}%` }}
-                  transition={{ duration: 0.6, delay: 0.1 }}
-                />
+    <div className="space-y-4">
+      {/* ── Metric Cards ── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {metricCards.map((s, i) => (
+          <motion.div key={s.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: i * 0.05 }}>
+            <Card className="relative overflow-hidden">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-3xl font-bold font-title" style={{ color: s.color }}>{s.value}</p>
+                  <p className="text-xs text-white/35 mt-1">{s.label}</p>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <s.icon className="w-4 h-4 text-white/15" />
+                  <TrendIcon trend={s.trend} color={s.color} />
+                </div>
               </div>
-              <span className="text-xs text-white/30 w-6 text-right">{count}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
+              <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, ${s.color}40, transparent)` }} />
+            </Card>
+          </motion.div>
+        ))}
+      </div>
 
-      {/* Project states */}
-      <Card>
-        <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-4">Estado de proyectos</h3>
-        <div className="space-y-2">
-          {Object.entries(stats.estadoCounts).map(([estado, count]) => (
-            <div key={estado} className="flex justify-between items-center">
-              <Badge estado={estado} size="xs" />
-              <span className="text-sm font-semibold text-white/60">{count}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
+      {/* ── Charts Row 1: Pie + Bar ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Pie chart - User distribution by area */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
+          <Card>
+            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-4">Distribución por área</h3>
+            {pieData.length > 0 ? (
+              <div className="flex items-center gap-4">
+                <div className="w-1/2">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
+                        {pieData.map((entry) => (
+                          <Cell key={entry.name} fill={AREA_COLOR[entry.name] || '#6b7280'} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<ChartTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="w-1/2 space-y-2">
+                  {pieData.map((entry) => (
+                    <div key={entry.name} className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: AREA_COLOR[entry.name] || '#6b7280' }} />
+                      <span className="text-xs text-white/50 flex-1 truncate">{entry.name}</span>
+                      <span className="text-xs font-semibold text-white/70">{entry.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-white/25 text-center py-8">Sin datos</p>
+            )}
+          </Card>
+        </motion.div>
 
-      {/* File types */}
-      <Card>
-        <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-4">Archivos por tipo</h3>
-        <div className="space-y-2">
-          {Object.entries(stats.fileCounts).map(([tipo, count]) => (
-            <div key={tipo} className="flex justify-between items-center">
-              <span className="text-xs text-white/50 capitalize">{tipo}</span>
-              <span className="text-sm font-semibold text-white/60">{count}</span>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 pt-3 border-t border-white/[0.06]">
-          <p className="text-xs text-white/25">Total descargas: <span className="text-[#00D1FF] font-semibold">{stats.totalDownloads}</span></p>
-        </div>
-      </Card>
+        {/* Bar chart - Project states */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }}>
+          <Card>
+            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-4">Estado de proyectos</h3>
+            {barData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={barData} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
+                  <XAxis dataKey="name" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'rgba(255,255,255,0.25)', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={40}>
+                    {barData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-xs text-white/25 text-center py-8">Sin datos</p>
+            )}
+          </Card>
+        </motion.div>
+      </div>
+
+      {/* ── Charts Row 2: Area Chart (full width) ── */}
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.4 }}>
+        <Card>
+          <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-4">Actividad mensual (avances)</h3>
+          {stats.activityData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={stats.activityData} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
+                <defs>
+                  <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#00D1FF" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#00D1FF" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="name" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'rgba(255,255,255,0.25)', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip content={<ChartTooltip />} />
+                <Area type="monotone" dataKey="avances" stroke="#00D1FF" strokeWidth={2} fill="url(#areaGrad)" dot={{ fill: '#00D1FF', r: 3, strokeWidth: 0 }} activeDot={{ r: 5, fill: '#00D1FF', stroke: '#0a0a0f', strokeWidth: 2 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-xs text-white/25 text-center py-8">Sin datos de actividad</p>
+          )}
+        </Card>
+      </motion.div>
+
+      {/* ── Charts Row 3: Radar + File Types ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Radar chart - Ideas by state */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.5 }}>
+          <Card>
+            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-4">Ideas por estado</h3>
+            {radarData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={240}>
+                <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
+                  <PolarGrid stroke="rgba(255,255,255,0.08)" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: 'rgba(255,255,255,0.45)', fontSize: 11 }} />
+                  <PolarRadiusAxis tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 9 }} axisLine={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Radar name="Ideas" dataKey="count" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.2} strokeWidth={2} dot={{ fill: '#F59E0B', r: 3 }} />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-xs text-white/25 text-center py-8">Sin ideas</p>
+            )}
+          </Card>
+        </motion.div>
+
+        {/* Horizontal bar - File types */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.6 }}>
+          <Card>
+            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-4">Archivos por tipo</h3>
+            {fileBarData.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={fileBarData} layout="vertical" margin={{ top: 0, right: 4, bottom: 0, left: 10 }}>
+                    <XAxis type="number" tick={{ fill: 'rgba(255,255,255,0.25)', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fill: 'rgba(255,255,255,0.45)', fontSize: 11 }} axisLine={false} tickLine={false} width={60} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                    <Bar dataKey="archivos" fill="#EC4899" radius={[0, 4, 4, 0]} maxBarSize={20} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-between">
+                  <p className="text-xs text-white/25">Total descargas</p>
+                  <p className="text-sm font-semibold text-[#00D1FF]">{stats.totalDownloads}</p>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-white/25 text-center py-8">Sin archivos</p>
+            )}
+          </Card>
+        </motion.div>
+      </div>
     </div>
   )
 }
@@ -832,6 +985,31 @@ function MessagesPanel() {
   )
 }
 
+/* ──────── Nodes Tab (research nodos + group classification) ──────── */
+function NodesTabContent() {
+  const [subTab, setSubTab] = useState('investigacion')
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: 'rgba(255,255,255,0.04)' }}>
+        {[
+          { id: 'investigacion', label: '🔬 Nodos de Investigación' },
+          { id: 'grupos', label: '👥 Grupos de Usuarios' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setSubTab(t.id)}
+            className="px-4 py-2 rounded-lg text-xs font-medium transition-all"
+            style={subTab === t.id
+              ? { background: 'rgba(255,255,255,0.1)', color: '#fff' }
+              : { color: 'rgba(255,255,255,0.4)' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {subTab === 'investigacion' && <NodosManager />}
+      {subTab === 'grupos' && <NodeGroupManager />}
+    </div>
+  )
+}
+
 /* ──────── Main Admin Panel ──────── */
 export default function AdminPanel() {
   const [tab, setTab] = useState('users')
@@ -861,6 +1039,7 @@ export default function AdminPanel() {
       {tab === 'messages' && <MessagesPanel />}
       {tab === 'moderation' && <ContentModerator />}
       {tab === 'reports' && <ReportsPanel />}
+      {tab === 'nodes' && <NodesTabContent />}
       {tab === 'config' && <PlatformConfig />}
     </div>
   )

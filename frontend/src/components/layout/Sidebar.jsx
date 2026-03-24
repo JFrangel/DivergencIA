@@ -5,12 +5,13 @@ import {
   FiZap, FiGrid, FiFolder, FiStar, FiBook, FiBookOpen, FiLayers,
   FiUsers, FiUser, FiGlobe, FiTerminal, FiShield,
   FiChevronLeft, FiChevronRight, FiBell, FiLogOut, FiSun,
-  FiMap, FiSettings, FiCalendar,
+  FiMap, FiSettings, FiCalendar, FiPlay, FiLayout, FiMessageSquare,
 } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
 import { useZen } from '../../context/ZenContext'
 import Avatar from '../ui/Avatar'
 import ThemeSwitcher from '../ui/ThemeSwitcher'
+import SoundToggle from '../ui/SoundToggle'
 
 const NAV_SECTIONS = [
   {
@@ -26,10 +27,12 @@ const NAV_SECTIONS = [
   {
     label: 'Comunidad',
     items: [
-      { to: '/members',  icon: FiUsers,    label: 'Miembros' },
-      { to: '/universo', icon: FiGlobe,    label: 'Universo' },
-      { to: '/roadmap',  icon: FiMap,      label: 'Roadmap' },
-      { to: '/calendar', icon: FiCalendar, label: 'Calendario' },
+      { to: '/members',  icon: FiUsers,          label: 'Miembros' },
+      { to: '/nodos',    icon: FiZap,            label: 'Nodos' },
+      { to: '/chat',     icon: FiMessageSquare,  label: 'Chat' },
+      { to: '/universo', icon: FiGlobe,          label: 'Universo' },
+      { to: '/roadmap',  icon: FiMap,            label: 'Roadmap' },
+      { to: '/calendar', icon: FiCalendar,       label: 'Calendario' },
     ],
   },
   {
@@ -39,14 +42,23 @@ const NAV_SECTIONS = [
     ],
   },
   {
+    label: 'Personal',
+    items: [
+      { to: '/workspace',      icon: FiFolder, label: 'Mi Espacio' },
+      { to: '/notificaciones', icon: FiBell,   label: 'Notificaciones' },
+    ],
+  },
+  {
     label: 'Herramientas',
     items: [
       { to: '/diagrams', icon: FiLayers, label: 'Diagramas' },
+      { to: '/mural',    icon: FiLayout, label: 'Mural' },
+      { to: '/arcade',   icon: FiPlay,   label: 'Arcade' },
     ],
   },
 ]
 
-export default function Sidebar({ notifCount = 0, collapsed = false, onToggle }) {
+export default function Sidebar({ notifCount = 0, collapsed = false, onToggle, chatUnreadCount = 0 }) {
   const [localCollapsed, setLocalCollapsed] = useState(false)
   const isCollapsed = onToggle ? collapsed : localCollapsed
   const toggle = onToggle ? onToggle : () => setLocalCollapsed(p => !p)
@@ -121,21 +133,54 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle })
               >
                 {({ isActive }) => (
                   <>
-                    <item.icon
-                      size={17}
-                      className="shrink-0"
-                      style={isActive ? { filter: 'drop-shadow(0 0 6px currentColor)' } : {}}
-                    />
+                    <div className="relative shrink-0">
+                      <item.icon
+                        size={17}
+                        style={isActive ? { filter: 'drop-shadow(0 0 6px currentColor)' } : {}}
+                      />
+                      {item.to === '/notificaciones' && notifCount > 0 && isCollapsed && (
+                        <span
+                          className="absolute -top-1 -right-1 min-w-3.5 h-3.5 px-0.5 rounded-full text-[8px] font-bold flex items-center justify-center text-white"
+                          style={{ background: 'var(--c-primary)' }}
+                        >
+                          {notifCount > 9 ? '9+' : notifCount}
+                        </span>
+                      )}
+                      {item.to === '/chat' && chatUnreadCount > 0 && isCollapsed && (
+                        <span
+                          className="absolute -top-1 -right-1 min-w-3.5 h-3.5 px-0.5 rounded-full text-[8px] font-bold flex items-center justify-center text-white"
+                          style={{ background: '#00D1FF' }}
+                        >
+                          {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
+                        </span>
+                      )}
+                    </div>
                     <AnimatePresence>
                       {!isCollapsed && (
                         <motion.span
-                          className="text-sm font-medium whitespace-nowrap"
+                          className="text-sm font-medium whitespace-nowrap flex-1 flex items-center justify-between"
                           initial={{ opacity: 0, x: -6 }}
                           animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0, x: -6 }}
                           transition={{ duration: 0.15 }}
                         >
                           {item.label}
+                          {item.to === '/notificaciones' && notifCount > 0 && (
+                            <span
+                              className="ml-auto min-w-4 h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center text-white"
+                              style={{ background: 'var(--c-primary)' }}
+                            >
+                              {notifCount > 99 ? '99+' : notifCount}
+                            </span>
+                          )}
+                          {item.to === '/chat' && chatUnreadCount > 0 && (
+                            <span
+                              className="ml-auto min-w-4 h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center text-white"
+                              style={{ background: '#00D1FF' }}
+                            >
+                              {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                            </span>
+                          )}
                         </motion.span>
                       )}
                     </AnimatePresence>
@@ -176,6 +221,9 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle })
       <div className="border-t border-white/[0.06] p-2 space-y-1">
         {/* Theme Switcher */}
         <ThemeSwitcher compact={isCollapsed} />
+
+        {/* Sound Toggle */}
+        <SoundToggle compact={isCollapsed} />
 
         {/* Zen Mode */}
         <button

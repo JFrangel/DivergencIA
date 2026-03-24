@@ -3,23 +3,26 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiCalendar, FiChevronLeft, FiChevronRight, FiClock,
   FiMapPin, FiVideo, FiUsers, FiPlus, FiX, FiList, FiGrid,
+  FiEdit2, FiTrash2, FiUser, FiAlertTriangle,
 } from 'react-icons/fi'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
+import { toast } from 'sonner'
+import { createNotification } from '../../hooks/useNotifications'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 
 /* ── Type metadata ──────────────────────────────────────────────── */
 const TYPE_META = {
-  reunion:     { label: 'Reunión',      color: '#FC651F', icon: FiUsers },
+  reunion:     { label: 'Reunion',      color: '#FC651F', icon: FiUsers },
   taller:      { label: 'Taller',       color: '#8B5CF6', icon: FiVideo },
   conferencia: { label: 'Conferencia',  color: '#00D1FF', icon: FiMapPin },
   deadline:    { label: 'Deadline',     color: '#EF4444', icon: FiClock },
   otro:        { label: 'Evento',       color: '#F59E0B', icon: FiCalendar },
 }
 
-const DAYS_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+const DAYS_ES = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom']
 const MONTHS_ES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
@@ -52,6 +55,12 @@ function formatFullDate(dateStr) {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 }
+function toDatetimeLocal(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 
 /* ── Fade-up animation factory ──────────────────────────────────── */
 const FU = (delay = 0) => ({
@@ -60,37 +69,167 @@ const FU = (delay = 0) => ({
   transition: { duration: 0.4, delay },
 })
 
+/* ── Shared form input class ─────────────────────────────────────── */
+const inputClass = "w-full bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[var(--c-primary)]/50 transition-colors"
+
+/* ── Event Form Component ────────────────────────────────────────── */
+function EventForm({ formData, setFormData }) {
+  return (
+    <div className="space-y-4">
+      {/* Titulo */}
+      <div>
+        <label className="block text-xs font-medium text-white/50 mb-1.5">Titulo</label>
+        <input
+          type="text"
+          required
+          value={formData.titulo}
+          onChange={e => setFormData(p => ({ ...p, titulo: e.target.value }))}
+          placeholder="Nombre del evento"
+          className={inputClass}
+        />
+      </div>
+
+      {/* Tipo */}
+      <div>
+        <label className="block text-xs font-medium text-white/50 mb-1.5">Tipo</label>
+        <select
+          value={formData.tipo}
+          onChange={e => setFormData(p => ({ ...p, tipo: e.target.value }))}
+          className={inputClass}
+        >
+          {Object.entries(TYPE_META).map(([key, meta]) => (
+            <option key={key} value={key} className="bg-[#0c0608] text-white">
+              {meta.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Fecha */}
+      <div>
+        <label className="block text-xs font-medium text-white/50 mb-1.5">Fecha y hora</label>
+        <input
+          type="datetime-local"
+          required
+          value={formData.fecha}
+          onChange={e => setFormData(p => ({ ...p, fecha: e.target.value }))}
+          className={inputClass}
+        />
+      </div>
+
+      {/* Lugar */}
+      <div>
+        <label className="block text-xs font-medium text-white/50 mb-1.5">Lugar</label>
+        <input
+          type="text"
+          value={formData.lugar}
+          onChange={e => setFormData(p => ({ ...p, lugar: e.target.value }))}
+          placeholder="Ubicacion o enlace"
+          className={inputClass}
+        />
+      </div>
+
+      {/* Descripcion */}
+      <div>
+        <label className="block text-xs font-medium text-white/50 mb-1.5">Descripcion</label>
+        <textarea
+          value={formData.descripcion}
+          onChange={e => setFormData(p => ({ ...p, descripcion: e.target.value }))}
+          placeholder="Detalles del evento..."
+          rows={3}
+          className={`${inputClass} resize-none`}
+        />
+      </div>
+    </div>
+  )
+}
+
+/* ── Delete Confirmation Modal ───────────────────────────────────── */
+function DeleteConfirmModal({ open, onClose, onConfirm, loading, eventTitle }) {
+  return (
+    <Modal open={open} onClose={onClose} title="Eliminar evento" size="sm">
+      <div className="flex flex-col items-center gap-4 py-2">
+        <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
+          <FiAlertTriangle size={22} className="text-red-400" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm text-white/70">
+            Estas seguro de eliminar el evento
+          </p>
+          <p className="text-sm font-semibold text-white mt-1">&ldquo;{eventTitle}&rdquo;?</p>
+          <p className="text-xs text-white/30 mt-2">Esta accion no se puede deshacer.</p>
+        </div>
+        <div className="flex items-center gap-3 w-full mt-2">
+          <Button variant="ghost" size="sm" onClick={onClose} className="flex-1">
+            Cancelar
+          </Button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-500/15 text-red-400 text-sm font-medium hover:bg-red-500/25 transition-all disabled:opacity-50"
+          >
+            {loading ? (
+              <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+            ) : (
+              <>
+                <FiTrash2 size={14} />
+                Eliminar
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 /* ── Calendar Page ──────────────────────────────────────────────── */
 export default function Calendar() {
-  const { isAdmin } = useAuth()
+  const { user, isAdmin } = useAuth()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDay, setSelectedDay] = useState(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [formData, setFormData] = useState(EMPTY_FORM)
+  const [editingEvent, setEditingEvent] = useState(null)
   const [saving, setSaving] = useState(false)
-  const [mobileView, setMobileView] = useState('list') // 'grid' | 'list'
+  const [deleting, setDeleting] = useState(false)
+  const [mobileView, setMobileView] = useState('list')
 
   /* Fetch events for current month */
-  useEffect(() => {
+  const fetchEvents = async () => {
     setLoading(true)
     const start = startOfMonth(currentDate).toISOString()
     const end = endOfMonth(currentDate).toISOString()
 
-    supabase
+    // Try fetching with creator join first; fall back to plain select if creado_por column doesn't exist
+    let result = await supabase
       .from('eventos')
-      .select('*')
+      .select('*, creador:creado_por(id, nombre, foto_url)')
       .gte('fecha', start)
       .lte('fecha', end)
       .order('fecha', { ascending: true })
-      .then(({ data, error }) => {
-        if (!error) setEvents(data || [])
-        setLoading(false)
-      })
-  }, [currentDate])
 
-  /* Build a map: day number → events */
+    if (result.error) {
+      // Fallback: column may not exist yet
+      result = await supabase
+        .from('eventos')
+        .select('*')
+        .gte('fecha', start)
+        .lte('fecha', end)
+        .order('fecha', { ascending: true })
+    }
+
+    if (!result.error) setEvents(result.data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchEvents() }, [currentDate])
+
+  /* Build a map: day number -> events */
   const eventsByDay = useMemo(() => {
     const map = {}
     events.forEach(ev => {
@@ -106,15 +245,12 @@ export default function Calendar() {
     const year = currentDate.getFullYear()
     const month = currentDate.getMonth()
     const firstDay = new Date(year, month, 1)
-    // Monday = 0 ... Sunday = 6
     let startOffset = firstDay.getDay() - 1
     if (startOffset < 0) startOffset = 6
     const daysInMonth = new Date(year, month + 1, 0).getDate()
 
     const cells = []
-    // Empty cells before first day
     for (let i = 0; i < startOffset; i++) cells.push(null)
-    // Day cells
     for (let d = 1; d <= daysInMonth; d++) cells.push(d)
     return cells
   }, [currentDate])
@@ -139,26 +275,100 @@ export default function Calendar() {
     }
   }
 
+  /* Can user edit/delete this event? */
+  const canEditEvent = (ev) => {
+    if (isAdmin) return true
+    if (ev.creado_por === user?.id) return true
+    return false
+  }
+
   /* Create event */
   const handleCreate = async (e) => {
-    e.preventDefault()
+    e?.preventDefault?.()
     if (!formData.titulo || !formData.fecha) return
     setSaving(true)
-    const { error } = await supabase.from('eventos').insert([formData])
+    const { error } = await supabase.from('eventos').insert([{
+      ...formData,
+      creado_por: user?.id,
+    }])
     setSaving(false)
     if (!error) {
+      toast.success('Evento creado')
       setShowCreateModal(false)
       setFormData(EMPTY_FORM)
-      // Refresh events
-      const start = startOfMonth(currentDate).toISOString()
-      const end = endOfMonth(currentDate).toISOString()
-      const { data } = await supabase
-        .from('eventos')
-        .select('*')
-        .gte('fecha', start)
-        .lte('fecha', end)
-        .order('fecha', { ascending: true })
-      setEvents(data || [])
+      fetchEvents()
+    } else {
+      toast.error('Error al crear evento')
+    }
+  }
+
+  /* Open edit modal */
+  const openEdit = (ev) => {
+    setEditingEvent(ev)
+    setFormData({
+      titulo: ev.titulo || '',
+      tipo: ev.tipo || 'reunion',
+      fecha: toDatetimeLocal(ev.fecha),
+      lugar: ev.lugar || '',
+      descripcion: ev.descripcion || '',
+    })
+    setShowEditModal(true)
+  }
+
+  /* Save edit */
+  const handleEdit = async (e) => {
+    e?.preventDefault?.()
+    if (!editingEvent || !formData.titulo || !formData.fecha) return
+    setSaving(true)
+    const { error } = await supabase
+      .from('eventos')
+      .update({
+        titulo: formData.titulo,
+        tipo: formData.tipo,
+        fecha: formData.fecha,
+        lugar: formData.lugar,
+        descripcion: formData.descripcion,
+      })
+      .eq('id', editingEvent.id)
+
+    setSaving(false)
+    if (!error) {
+      toast.success('Evento actualizado')
+      setShowEditModal(false)
+      setEditingEvent(null)
+      setFormData(EMPTY_FORM)
+      // Update selectedDay events too
+      setSelectedDay(null)
+      fetchEvents()
+    } else {
+      toast.error('Error al actualizar evento')
+    }
+  }
+
+  /* Open delete confirmation */
+  const openDeleteConfirm = (ev) => {
+    setEditingEvent(ev)
+    setShowDeleteConfirm(true)
+  }
+
+  /* Delete event */
+  const handleDelete = async () => {
+    if (!editingEvent) return
+    setDeleting(true)
+    const { error } = await supabase
+      .from('eventos')
+      .delete()
+      .eq('id', editingEvent.id)
+
+    setDeleting(false)
+    if (!error) {
+      toast.success('Evento eliminado')
+      setShowDeleteConfirm(false)
+      setEditingEvent(null)
+      setSelectedDay(null)
+      fetchEvents()
+    } else {
+      toast.error('Error al eliminar evento')
     }
   }
 
@@ -170,7 +380,7 @@ export default function Calendar() {
       <motion.div {...FU(0)} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold font-title text-white flex items-center gap-3">
-            <FiCalendar className="text-[#FC651F]" />
+            <FiCalendar className="text-[var(--c-primary)]" />
             Calendario
           </h1>
           <p className="text-white/40 text-sm mt-1">Eventos y actividades del colectivo</p>
@@ -180,13 +390,13 @@ export default function Calendar() {
           <div className="flex sm:hidden items-center gap-1 bg-white/[0.05] rounded-lg p-0.5">
             <button
               onClick={() => setMobileView('grid')}
-              className={`p-1.5 rounded-md transition-colors ${mobileView === 'grid' ? 'bg-[#FC651F]/20 text-[#FC651F]' : 'text-white/40'}`}
+              className={`p-1.5 rounded-md transition-colors ${mobileView === 'grid' ? 'bg-[var(--c-primary)]/20 text-[var(--c-primary)]' : 'text-white/40'}`}
             >
               <FiGrid size={16} />
             </button>
             <button
               onClick={() => setMobileView('list')}
-              className={`p-1.5 rounded-md transition-colors ${mobileView === 'list' ? 'bg-[#FC651F]/20 text-[#FC651F]' : 'text-white/40'}`}
+              className={`p-1.5 rounded-md transition-colors ${mobileView === 'list' ? 'bg-[var(--c-primary)]/20 text-[var(--c-primary)]' : 'text-white/40'}`}
             >
               <FiList size={16} />
             </button>
@@ -196,7 +406,7 @@ export default function Calendar() {
               variant="solid"
               size="sm"
               icon={<FiPlus size={15} />}
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => { setFormData(EMPTY_FORM); setShowCreateModal(true) }}
             >
               Evento
             </Button>
@@ -221,7 +431,7 @@ export default function Calendar() {
               {!(currentDate.getMonth() === todayDate.getMonth() && currentDate.getFullYear() === todayDate.getFullYear()) && (
                 <button
                   onClick={goToday}
-                  className="text-xs text-[#FC651F] hover:text-[#FC651F]/80 transition-colors font-medium"
+                  className="text-xs text-[var(--c-primary)] hover:text-[var(--c-primary)]/80 transition-colors font-medium"
                 >
                   Hoy
                 </button>
@@ -237,7 +447,7 @@ export default function Calendar() {
         </Card>
       </motion.div>
 
-      {/* Calendar grid — hidden on mobile if list view */}
+      {/* Calendar grid */}
       <motion.div {...FU(0.1)} className={mobileView === 'list' ? 'hidden sm:block' : ''}>
         <Card className="!p-4">
           {/* Day headers */}
@@ -276,7 +486,7 @@ export default function Calendar() {
                       aspect-square rounded-lg flex flex-col items-center justify-center gap-1
                       transition-all duration-150 relative
                       ${today
-                        ? 'bg-[#FC651F]/10 border-2 border-[#FC651F]/50'
+                        ? 'bg-[var(--c-primary)]/10 border-2 border-[var(--c-primary)]/50'
                         : 'border border-white/[0.04] hover:border-white/[0.1] hover:bg-white/[0.04]'
                       }
                       ${hasEvents ? 'cursor-pointer' : 'cursor-default'}
@@ -284,7 +494,7 @@ export default function Calendar() {
                     whileHover={hasEvents ? { scale: 1.05 } : {}}
                     whileTap={hasEvents ? { scale: 0.97 } : {}}
                   >
-                    <span className={`text-sm font-medium ${today ? 'text-[#FC651F] font-bold' : 'text-white/60'}`}>
+                    <span className={`text-sm font-medium ${today ? 'text-[var(--c-primary)] font-bold' : 'text-white/60'}`}>
                       {day}
                     </span>
                     {hasEvents && (
@@ -316,8 +526,8 @@ export default function Calendar() {
       <motion.div {...FU(0.15)}>
         <Card>
           <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider flex items-center gap-2 mb-4">
-            <FiClock size={12} className="text-[#FC651F]" />
-            Próximos eventos
+            <FiClock size={12} className="text-[var(--c-primary)]" />
+            Proximos eventos
           </h3>
 
           {loading ? (
@@ -329,7 +539,7 @@ export default function Calendar() {
           ) : upcomingEvents.length === 0 ? (
             <div className="text-center py-8">
               <FiCalendar size={32} className="mx-auto text-white/10 mb-3" />
-              <p className="text-sm text-white/25">No hay eventos próximos este mes</p>
+              <p className="text-sm text-white/25">No hay eventos proximos este mes</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -371,7 +581,7 @@ export default function Calendar() {
                         )}
                         {tomorrow && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#F59E0B]/15 text-[#F59E0B] font-semibold shrink-0">
-                            Mañana
+                            Manana
                           </span>
                         )}
                       </div>
@@ -389,6 +599,26 @@ export default function Calendar() {
                         )}
                       </div>
                     </div>
+
+                    {/* Edit/Delete buttons (visible on hover for admins/creators) */}
+                    {canEditEvent(ev) && (
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button
+                          onClick={() => openEdit(ev)}
+                          className="p-1.5 rounded-lg text-white/25 hover:text-[var(--c-accent)] hover:bg-[var(--c-accent)]/10 transition-all"
+                          title="Editar evento"
+                        >
+                          <FiEdit2 size={13} />
+                        </button>
+                        <button
+                          onClick={() => openDeleteConfirm(ev)}
+                          className="p-1.5 rounded-lg text-white/25 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                          title="Eliminar evento"
+                        >
+                          <FiTrash2 size={13} />
+                        </button>
+                      </div>
+                    )}
                   </motion.div>
                 )
               })}
@@ -421,7 +651,27 @@ export default function Calendar() {
                       <Icon size={18} style={{ color: meta.color }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-semibold text-white">{ev.titulo}</h4>
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="text-sm font-semibold text-white">{ev.titulo}</h4>
+                        {canEditEvent(ev) && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => { setSelectedDay(null); openEdit(ev) }}
+                              className="p-1.5 rounded-lg text-white/25 hover:text-[var(--c-accent)] hover:bg-[var(--c-accent)]/10 transition-all"
+                              title="Editar"
+                            >
+                              <FiEdit2 size={13} />
+                            </button>
+                            <button
+                              onClick={() => { setSelectedDay(null); openDeleteConfirm(ev) }}
+                              className="p-1.5 rounded-lg text-white/25 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                              title="Eliminar"
+                            >
+                              <FiTrash2 size={13} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <div className="flex flex-wrap items-center gap-3 mt-1.5">
                         <span className="text-xs text-white/40 flex items-center gap-1">
                           <FiClock size={11} /> {formatTime(ev.fecha)}
@@ -440,6 +690,15 @@ export default function Calendar() {
                       </div>
                       {ev.descripcion && (
                         <p className="text-xs text-white/30 mt-2 leading-relaxed">{ev.descripcion}</p>
+                      )}
+                      {/* Show creator */}
+                      {ev.creador && (
+                        <div className="flex items-center gap-1.5 mt-3 pt-2 border-t border-white/[0.04]">
+                          <FiUser size={10} className="text-white/20" />
+                          <span className="text-[10px] text-white/25">
+                            Creado por {ev.creador.nombre}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -466,73 +725,45 @@ export default function Calendar() {
           </>
         }
       >
-        <form onSubmit={handleCreate} className="space-y-4">
-          {/* Titulo */}
-          <div>
-            <label className="block text-xs font-medium text-white/50 mb-1.5">Título</label>
-            <input
-              type="text"
-              required
-              value={formData.titulo}
-              onChange={e => setFormData(p => ({ ...p, titulo: e.target.value }))}
-              placeholder="Nombre del evento"
-              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#FC651F]/50 transition-colors"
-            />
-          </div>
-
-          {/* Tipo */}
-          <div>
-            <label className="block text-xs font-medium text-white/50 mb-1.5">Tipo</label>
-            <select
-              value={formData.tipo}
-              onChange={e => setFormData(p => ({ ...p, tipo: e.target.value }))}
-              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FC651F]/50 transition-colors"
-            >
-              {Object.entries(TYPE_META).map(([key, meta]) => (
-                <option key={key} value={key} className="bg-[#0c0608] text-white">
-                  {meta.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Fecha */}
-          <div>
-            <label className="block text-xs font-medium text-white/50 mb-1.5">Fecha y hora</label>
-            <input
-              type="datetime-local"
-              required
-              value={formData.fecha}
-              onChange={e => setFormData(p => ({ ...p, fecha: e.target.value }))}
-              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FC651F]/50 transition-colors"
-            />
-          </div>
-
-          {/* Lugar */}
-          <div>
-            <label className="block text-xs font-medium text-white/50 mb-1.5">Lugar</label>
-            <input
-              type="text"
-              value={formData.lugar}
-              onChange={e => setFormData(p => ({ ...p, lugar: e.target.value }))}
-              placeholder="Ubicación o enlace"
-              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#FC651F]/50 transition-colors"
-            />
-          </div>
-
-          {/* Descripcion */}
-          <div>
-            <label className="block text-xs font-medium text-white/50 mb-1.5">Descripción</label>
-            <textarea
-              value={formData.descripcion}
-              onChange={e => setFormData(p => ({ ...p, descripcion: e.target.value }))}
-              placeholder="Detalles del evento..."
-              rows={3}
-              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#FC651F]/50 transition-colors resize-none"
-            />
-          </div>
+        <form onSubmit={handleCreate}>
+          <EventForm formData={formData} setFormData={setFormData} />
         </form>
       </Modal>
+
+      {/* ── Edit event modal ────────────────────────────────────── */}
+      <Modal
+        open={showEditModal}
+        onClose={() => { setShowEditModal(false); setEditingEvent(null); setFormData(EMPTY_FORM) }}
+        title={
+          <span className="flex items-center gap-2">
+            <FiEdit2 size={15} className="text-[var(--c-accent)]" />
+            Editar evento
+          </span>
+        }
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => { setShowEditModal(false); setEditingEvent(null); setFormData(EMPTY_FORM) }}>
+              Cancelar
+            </Button>
+            <Button variant="solid" size="sm" loading={saving} onClick={handleEdit}>
+              Guardar cambios
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleEdit}>
+          <EventForm formData={formData} setFormData={setFormData} />
+        </form>
+      </Modal>
+
+      {/* ── Delete confirmation modal ───────────────────────────── */}
+      <DeleteConfirmModal
+        open={showDeleteConfirm}
+        onClose={() => { setShowDeleteConfirm(false); setEditingEvent(null) }}
+        onConfirm={handleDelete}
+        loading={deleting}
+        eventTitle={editingEvent?.titulo || ''}
+      />
     </div>
   )
 }

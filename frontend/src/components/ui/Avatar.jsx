@@ -1,4 +1,5 @@
 import { initials, areaColor } from '../../lib/utils'
+import DynamicAvatar, { parseAnimatedSrc } from '../profile/DynamicAvatar'
 
 const sizes = {
   xs:  { px: 24,  text: 'text-[10px]' },
@@ -13,10 +14,17 @@ export default function Avatar({ name = '', src, area, size = 'md', className = 
   const { px, text } = sizes[size] || sizes.md
   const color = isFounded ? '#F59E0B' : (area ? areaColor(area) : '#FC651F')
   const init  = initials(name)
+  const animType = parseAnimatedSrc(src)
 
   return (
     <div className={`relative inline-flex shrink-0 ${className}`} style={{ width: px, height: px }}>
-      {src ? (
+      {animType ? (
+        <DynamicAvatar
+          type={animType}
+          size={px}
+          style={{ border: `2px solid ${color}60`, borderRadius: '50%' }}
+        />
+      ) : src ? (
         <img
           src={src}
           alt={name}

@@ -1,14 +1,27 @@
 import { memo } from 'react'
 import { Handle, Position } from 'reactflow'
-import { FiGitBranch } from 'react-icons/fi'
+import { FiGitBranch, FiEdit2 } from 'react-icons/fi'
 
 function DecisionNode({ data }) {
   return (
-    <div className="relative flex items-center justify-center" style={{ width: 72, height: 72 }}>
+    <div className="relative flex items-center justify-center group cursor-pointer" style={{ width: 72, height: 72 }}>
       <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-white/20 !border-white/10" />
       <Handle type="source" position={Position.Right} id="yes" className="!w-2 !h-2 !bg-[#22c55e]/50 !border-[#22c55e]/30" style={{ top: '30%' }} />
       <Handle type="source" position={Position.Right} id="no" className="!w-2 !h-2 !bg-[#EF4444]/50 !border-[#EF4444]/30" style={{ top: '70%' }} />
       <Handle type="source" position={Position.Bottom} className="!w-2 !h-2 !bg-white/20 !border-white/10" />
+
+      {/* Edit hint on hover */}
+      <div className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+        <div
+          className="w-5 h-5 rounded-full flex items-center justify-center"
+          style={{
+            background: 'rgba(12,6,8,0.95)',
+            border: '1px solid color-mix(in srgb, var(--c-accent) 30%, transparent)',
+          }}
+        >
+          <FiEdit2 size={9} style={{ color: 'var(--c-accent)' }} />
+        </div>
+      </div>
 
       {/* Diamond */}
       <div

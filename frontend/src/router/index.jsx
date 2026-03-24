@@ -29,6 +29,12 @@ const Settings      = lazy(() => import('../pages/app/Settings'))
 const Calendar      = lazy(() => import('../pages/app/Calendar'))
 const Learning      = lazy(() => import('../pages/app/Learning'))
 const Diagrams      = lazy(() => import('../pages/app/Diagrams'))
+const Arcade        = lazy(() => import('../pages/app/Arcade'))
+const Mural         = lazy(() => import('../pages/app/Mural'))
+const Workspace     = lazy(() => import('../pages/app/Workspace'))
+const NotificationCenter = lazy(() => import('../components/notifications/NotificationCenter'))
+const Chat               = lazy(() => import('../pages/app/Chat'))
+const Nodos              = lazy(() => import('../pages/app/Nodos'))
 
 // Lazy imports — admin
 const AdminPanel = lazy(() => import('../pages/admin/AdminPanel'))
@@ -64,8 +70,10 @@ export const router = createBrowserRouter([
     children: [
       { path: '/members',     element: withSuspense(Members) },
       { path: '/members/:id', element: withSuspense(MemberProfile) },
+      { path: '/nodos',       element: withSuspense(Nodos) },
       { path: '/universo',    element: withSuspense(Universo) },
       { path: '/ideas',       element: withSuspense(Ideas) },
+      { path: '/ideas/:id',   element: withSuspense(Ideas) },
       { path: '/projects',    element: withSuspense(Projects) },
       { path: '/roadmap',     element: withSuspense(Roadmap) },
       { path: '/calendar',    element: withSuspense(Calendar) },
@@ -84,6 +92,11 @@ export const router = createBrowserRouter([
       { path: '/athenia',      element: withSuspense(Athenia) },
       { path: '/settings',     element: withSuspense(Settings) },
       { path: '/diagrams',     element: withSuspense(Diagrams) },
+      { path: '/mural',        element: withSuspense(Mural) },
+      { path: '/arcade',       element: withSuspense(Arcade) },
+      { path: '/workspace',      element: withSuspense(Workspace) },
+      { path: '/notificaciones', element: withSuspense(NotificationCenter) },
+      { path: '/chat',           element: withSuspense(Chat) },
     ],
   },
 

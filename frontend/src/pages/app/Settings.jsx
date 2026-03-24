@@ -63,9 +63,13 @@ export default function Settings() {
     try { return JSON.parse(localStorage.getItem('divergencia_notif_prefs') || '{}') } catch { return {} }
   })
 
-  // Privacy prefs
-  const [privacyPrefs, setPrivacyPrefs] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('divergencia_privacy_prefs') || '{}') } catch { return {} }
+  // Privacy prefs — synced to Supabase usuarios table
+  const [privacyPrefs, setPrivacyPrefs] = useState({
+    publicProfile: true,
+    showEmail: false,
+    showActivity: true,
+    showInGraph: true,
+    atheniaMemory: true,
   })
 
   useEffect(() => {
@@ -74,6 +78,14 @@ export default function Settings() {
       setCorreo(profile.correo || '')
       setCarrera(profile.carrera || '')
       setSemestre(profile.semestre?.toString() || '')
+      // Load privacy prefs from DB columns
+      setPrivacyPrefs({
+        publicProfile: profile.perfil_privado !== true,
+        showEmail: profile.mostrar_correo === true,
+        showActivity: profile.mostrar_actividad !== false,
+        showInGraph: profile.mostrar_en_grafo !== false,
+        atheniaMemory: true,
+      })
     }
   }, [profile])
 
@@ -83,22 +95,44 @@ export default function Settings() {
     localStorage.setItem('divergencia_notif_prefs', JSON.stringify(next))
   }
 
-  const savePrivacyPrefs = (key, val) => {
+  const savePrivacyPrefs = async (key, val) => {
     const next = { ...privacyPrefs, [key]: val }
     setPrivacyPrefs(next)
-    localStorage.setItem('divergencia_privacy_prefs', JSON.stringify(next))
+    // Persist to DB
+    const dbMap = {
+      publicProfile: { perfil_privado: !val },
+      showEmail:     { mostrar_correo: val },
+      showActivity:  { mostrar_actividad: val },
+      showInGraph:   { mostrar_en_grafo: val },
+    }
+    if (dbMap[key] && user) {
+      await supabase.from('usuarios').update(dbMap[key]).eq('id', user.id)
+    }
   }
 
   const handleSaveAccount = async () => {
     setSaving(true)
-    const { error } = await updateProfile({
-      nombre,
-      carrera,
-      semestre: semestre ? parseInt(semestre) : null,
-    })
-    setSaving(false)
-    if (error) toast.error('Error al guardar')
-    else toast.success('Cuenta actualizada')
+    try {
+      // If email changed, update via Supabase Auth (sends verification email)
+      if (correo && correo !== (profile?.correo || '')) {
+        const { error: emailError } = await supabase.auth.updateUser({ email: correo })
+        if (emailError) {
+          toast.error('Error al cambiar correo: ' + emailError.message)
+          setSaving(false)
+          return
+        }
+        toast.info('Se envió un enlace de verificación al nuevo correo')
+      }
+      const { error } = await updateProfile({
+        nombre,
+        carrera,
+        semestre: semestre ? parseInt(semestre) : null,
+      })
+      if (error) toast.error('Error al guardar')
+      else toast.success('Cuenta actualizada')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleChangePassword = async () => {
@@ -185,9 +219,19 @@ export default function Settings() {
               <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-5">Información de cuenta</h2>
               <div className="space-y-4">
                 <Input label="Nombre completo" value={nombre} onChange={e => setNombre(e.target.value)} icon={<FiUser size={14} />} />
-                <Input label="Correo electrónico" value={correo} disabled icon={<FiMail size={14} />}
-                  className="opacity-50 cursor-not-allowed" />
-                <p className="text-[10px] text-white/20 -mt-2">El correo no se puede cambiar desde aquí</p>
+                <div className="space-y-1">
+                  <Input label="Correo electrónico" value={correo} onChange={e => setCorreo(e.target.value)} icon={<FiMail size={14} />} />
+                  {correo !== (profile?.correo || '') && (
+                    <p className="text-[11px] text-[var(--c-accent)]">
+                      Se enviará un enlace de verificación al nuevo correo para confirmar el cambio.
+                    </p>
+                  )}
+                  {correo === (profile?.correo || '') && (
+                    <p className="text-[10px] text-white/20">
+                      Al cambiar el correo, recibirás un email de verificación en la nueva dirección.
+                    </p>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <Input label="Carrera" value={carrera} onChange={e => setCarrera(e.target.value)} />
                   <Input label="Semestre" type="number" min={1} max={12} value={semestre} onChange={e => setSemestre(e.target.value)} />

@@ -30,20 +30,26 @@ export function useProjects({ userId, all = false } = {}) {
       .from('proyectos')
       .select(`
         *,
-        creador:usuarios!proyectos_creador_id_fkey(id, nombre, foto_url, area_investigacion),
+        creador:usuarios!creador_id(id, nombre, foto_url, area_investigacion),
         miembros:miembros_proyecto(
+          usuario_id,
           usuario:usuarios(id, nombre, foto_url, area_investigacion),
-          rol_equipo, activo
+          rol_equipo, roles, activo
         )
       `)
       .order('created_at', { ascending: false })
 
     if (!all && userId) {
-      // proyectos donde el usuario es miembro o creador
-      query = query.or(`creador_id.eq.${userId},id.in.(${
-        // subquery via rpc no disponible directamente, usar join
-        'select-placeholder'
-      })`)
+      // Fetch all then filter client-side since subqueries are not directly supported
+      const { data, error } = await query
+      if (error) { console.error(error); setLoading(false); return }
+      const filtered = (data || []).filter(p =>
+        p.creador_id === userId ||
+        p.miembros?.some(m => m.usuario?.id === userId && m.activo)
+      )
+      setProjects(filtered)
+      setLoading(false)
+      return
     }
 
     const { data, error } = await query
@@ -55,12 +61,66 @@ export function useProjects({ userId, all = false } = {}) {
   useEffect(() => { fetch() }, [fetch])
 
   const create = async (payload) => {
+    const { _suggestedTasks, _suggestedWorkflow, _teamMembers, ...projectData } = payload
     const { data, error } = await supabase
       .from('proyectos')
-      .insert({ ...payload, creador_id: user?.id })
+      .insert({ ...projectData, creador_id: user?.id })
       .select()
       .single()
     if (error) { toast.error('Error al crear proyecto'); return { error } }
+
+    // Add creator as a team member automatically
+    if (data && user?.id) {
+      await supabase.from('miembros_proyecto').insert({
+        proyecto_id: data.id,
+        usuario_id: user.id,
+        rol_equipo: 'lider',
+        activo: true,
+      })
+    }
+
+    // Add selected team members
+    if (data && _teamMembers?.length > 0) {
+      const memberInserts = _teamMembers
+        .filter(id => id !== user?.id)
+        .map(uid => ({
+          proyecto_id: data.id,
+          usuario_id: uid,
+          rol_equipo: 'miembro',
+          activo: true,
+        }))
+      if (memberInserts.length > 0) {
+        await supabase.from('miembros_proyecto').insert(memberInserts)
+        // Notify each added member
+        for (const uid of _teamMembers.filter(id => id !== user?.id)) {
+          createNotification(
+            uid,
+            'proyectos',
+            `Te han agregado al proyecto "${data.titulo || 'Nuevo proyecto'}"`,
+            data.id
+          )
+        }
+      }
+    }
+
+    // Create suggested tasks if requested
+    if (data && _suggestedTasks?.length > 0) {
+      const taskInserts = _suggestedTasks.map((t, i) => ({
+        ...t,
+        proyecto_id: data.id,
+        orden: i,
+      }))
+      await supabase.from('tareas').insert(taskInserts)
+    }
+
+    // Save workflow data if provided
+    if (data && _suggestedWorkflow) {
+      await supabase
+        .from('proyectos')
+        .update({ workflow_data: _suggestedWorkflow })
+        .eq('id', data.id)
+    }
+
     setProjects(p => [data, ...p])
     toast.success('Proyecto creado')
     return { data }
@@ -74,12 +134,16 @@ export function useProjects({ userId, all = false } = {}) {
       .select()
       .single()
     if (error) { toast.error('Error al actualizar'); return { error } }
-    setProjects(p => p.map(x => x.id === id ? data : x))
+    setProjects(p => p.map(x => x.id === id ? { ...x, ...data } : x))
     toast.success('Proyecto actualizado')
     return { data }
   }
 
   const remove = async (id) => {
+    // Delete related records first
+    await supabase.from('miembros_proyecto').delete().eq('proyecto_id', id)
+    await supabase.from('tareas').delete().eq('proyecto_id', id)
+    await supabase.from('avances').delete().eq('proyecto_id', id)
     const { error } = await supabase.from('proyectos').delete().eq('id', id)
     if (error) { toast.error('Error al eliminar'); return { error } }
     setProjects(p => p.filter(x => x.id !== id))
@@ -97,27 +161,128 @@ export function useProject(id) {
   const fetch = useCallback(async () => {
     if (!id) return
     setLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('proyectos')
       .select(`
         *,
         creador:usuarios!proyectos_creador_id_fkey(id, nombre, foto_url, area_investigacion),
         miembros:miembros_proyecto(
-          usuario:usuarios(id, nombre, foto_url, area_investigacion),
-          rol_equipo, activo
+          usuario_id,
+          usuario:usuarios!miembros_proyecto_usuario_id_fkey(id, nombre, foto_url, area_investigacion, rol, es_fundador, carrera),
+          rol_equipo, roles, activo
         ),
-        avances(*, autor:usuarios(id, nombre, foto_url)),
-        tareas(*, asignado:usuarios(id, nombre, foto_url))
+        avances(*, autor:usuarios!avances_autor_id_fkey(id, nombre, foto_url)),
+        tareas(*, asignado:usuarios!tareas_asignado_a_fkey(id, nombre, foto_url))
       `)
       .eq('id', id)
       .single()
+    if (error) console.error('Error fetching project:', error)
     setProject(data)
     setLoading(false)
   }, [id])
 
   useEffect(() => { fetch() }, [fetch])
 
-  return { project, loading, refetch: fetch, setProject }
+  const updateProject = async (payload) => {
+    if (!id) return { error: 'No project id' }
+    const { data, error } = await supabase
+      .from('proyectos')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) { toast.error('Error al actualizar proyecto'); return { error } }
+    setProject(p => ({ ...p, ...data }))
+    toast.success('Proyecto actualizado')
+    return { data }
+  }
+
+  const deleteProject = async () => {
+    if (!id) return { error: 'No project id' }
+    await supabase.from('miembros_proyecto').delete().eq('proyecto_id', id)
+    await supabase.from('tareas').delete().eq('proyecto_id', id)
+    await supabase.from('avances').delete().eq('proyecto_id', id)
+    const { error } = await supabase.from('proyectos').delete().eq('id', id)
+    if (error) { toast.error('Error al eliminar'); return { error } }
+    toast.success('Proyecto eliminado')
+    return {}
+  }
+
+  const addMember = async (userId, rolEquipo = 'miembro') => {
+    if (!id || !userId) return { error: 'Missing data' }
+    // Check if already a member (possibly inactive)
+    const { data: existing } = await supabase
+      .from('miembros_proyecto')
+      .select('id, activo')
+      .eq('proyecto_id', id)
+      .eq('usuario_id', userId)
+      .maybeSingle()
+
+    if (existing) {
+      if (!existing.activo) {
+        // Reactivate
+        const { error } = await supabase
+          .from('miembros_proyecto')
+          .update({ activo: true, rol_equipo: rolEquipo })
+          .eq('id', existing.id)
+        if (error) { toast.error('Error al agregar miembro'); return { error } }
+      } else {
+        toast.info('Ya es miembro del proyecto')
+        return {}
+      }
+    } else {
+      const { error } = await supabase.from('miembros_proyecto').insert({
+        proyecto_id: id,
+        usuario_id: userId,
+        rol_equipo: rolEquipo,
+        activo: true,
+      })
+      if (error) { toast.error('Error al agregar miembro'); return { error } }
+    }
+
+    // Notify the added member
+    const { data: proj } = await supabase.from('proyectos').select('titulo').eq('id', id).single()
+    createNotification(userId, 'proyectos', `Te han agregado al proyecto "${proj?.titulo || ''}"`, id)
+
+    toast.success('Miembro agregado')
+    await fetch() // Refresh project data
+    return {}
+  }
+
+  const removeMember = async (userId) => {
+    if (!id || !userId) return { error: 'Missing data' }
+    const { error } = await supabase
+      .from('miembros_proyecto')
+      .update({ activo: false })
+      .eq('proyecto_id', id)
+      .eq('usuario_id', userId)
+    if (error) { toast.error('Error al remover miembro'); return { error } }
+    toast.success('Miembro removido')
+    await fetch()
+    return {}
+  }
+
+  const updateMemberRole = async (userId, rolEquipo, rolesArray) => {
+    if (!id || !userId) return { error: 'Missing data' }
+    const update = {}
+    if (rolesArray !== undefined) update.roles = rolesArray
+    if (rolEquipo !== undefined) update.rol_equipo = rolEquipo ?? (rolesArray?.[0] ?? null)
+    const { error } = await supabase
+      .from('miembros_proyecto')
+      .update(update)
+      .eq('proyecto_id', id)
+      .eq('usuario_id', userId)
+    if (error) { toast.error('Error al actualizar roles'); return { error } }
+    toast.success('Roles actualizados')
+    await fetch()
+    return {}
+  }
+
+  return {
+    project, loading, refetch: fetch, setProject,
+    updateProject, deleteProject,
+    addMember, removeMember, updateMemberRole,
+  }
 }
 
 export function useAdvances(projectId) {

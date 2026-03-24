@@ -11,14 +11,29 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
 
   const fetch = useCallback(async () => {
     setLoading(true)
+
+    // Get current user role to check if admin/directora
+    const { data: perfil } = await supabase
+      .from('usuarios')
+      .select('rol')
+      .eq('id', user?.id)
+      .single()
+    const isAdminUser = perfil?.rol === 'admin' || perfil?.rol === 'directora'
+
     let query = supabase
       .from('archivos')
-      .select('*, subido:usuarios(id, nombre, foto_url)')
+      .select('*, subido:usuarios(id, nombre, foto_url, es_fundador, area_investigacion)')
       .order('fecha_subida', { ascending: false })
 
     if (projectId) query = query.eq('proyecto_id', projectId)
     if (tipo) query = query.eq('tipo', tipo)
     if (tag) query = query.contains('tags', [tag])
+
+    // Visibility filter — admins see all, others filtered
+    if (!isAdminUser) {
+      // Show: todos, miembros (authenticated = miembro), or own files
+      query = query.or(`visibilidad.eq.todos,visibilidad.eq.miembros,visibilidad.is.null,subido_por.eq.${user?.id}`)
+    }
 
     const { data } = await query
     setFiles(data || [])
@@ -33,7 +48,7 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
 
     const ext = file.name.split('.').pop()
     const path = `${user.id}/${Date.now()}.${ext}`
-    const bucket = metadata.publico ? 'archivos' : 'archivos'
+    const bucket = 'archivos'
 
     const { error: uploadError } = await supabase.storage
       .from(bucket)
@@ -63,9 +78,10 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
         tipo: tipoMap[ext?.toLowerCase()] || 'general',
         tamanio_bytes: file.size,
         subido_por: user.id,
+        visibilidad: metadata.visibilidad || 'miembros',
         ...metadata,
       })
-      .select('*, subido:usuarios(id, nombre, foto_url)')
+      .select('*, subido:usuarios(id, nombre, foto_url, es_fundador, area_investigacion)')
       .single()
 
     setUploading(false)
@@ -77,8 +93,16 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
   }
 
   const remove = async (id, url) => {
-    // Extraer path del storage desde la URL
-    const path = url?.split('/archivos/')[1]
+    const extractPath = (u) => {
+      if (!u) return null
+      try {
+        const marker = '/object/public/archivos/'
+        const idx = u.indexOf(marker)
+        if (idx !== -1) return decodeURIComponent(u.slice(idx + marker.length).split('?')[0])
+        return u.split('/archivos/')[1]?.split('?')[0] || null
+      } catch { return null }
+    }
+    const path = extractPath(url)
     if (path) await supabase.storage.from('archivos').remove([path])
     await supabase.from('archivos').delete().eq('id', id)
     setFiles(f => f.filter(x => x.id !== id))
@@ -89,5 +113,43 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
     await supabase.rpc('increment_descargas', { archivo_id: id }).catch(() => {})
   }
 
-  return { files, loading, uploading, refetch: fetch, upload, remove, incrementDescargas }
+  const updateFile = async (id, updates) => {
+    const { error } = await supabase.from('archivos').update(updates).eq('id', id)
+    if (error) { toast.error('Error al actualizar archivo'); return { error } }
+    setFiles(f => f.map(x => x.id === id ? { ...x, ...updates } : x))
+    toast.success('Archivo actualizado')
+    return {}
+  }
+
+  const updateVisibilidad = async (id, visibilidad, visibilidadUsuarios = []) => {
+    const { error } = await supabase
+      .from('archivos')
+      .update({ visibilidad, visibilidad_usuarios: visibilidadUsuarios })
+      .eq('id', id)
+    if (error) { toast.error('Error al actualizar visibilidad'); return { error } }
+    setFiles(f => f.map(x => x.id === id ? { ...x, visibilidad, visibilidad_usuarios: visibilidadUsuarios } : x))
+    toast.success('Visibilidad actualizada')
+    return {}
+  }
+
+  const updateContent = async (id, url, text) => {
+    const extractPath = (u) => {
+      if (!u) return null
+      try {
+        const marker = '/object/public/archivos/'
+        const idx = u.indexOf(marker)
+        if (idx !== -1) return decodeURIComponent(u.slice(idx + marker.length).split('?')[0])
+        return u.split('/archivos/')[1]?.split('?')[0] || null
+      } catch { return null }
+    }
+    const path = extractPath(url)
+    if (!path) { toast.error('No se pudo identificar el archivo'); return { error: 'path not found' } }
+    const blob = new Blob([text], { type: 'text/plain' })
+    const { error } = await supabase.storage.from('archivos').upload(path, blob, { upsert: true })
+    if (error) { toast.error('Error al guardar el archivo'); return { error } }
+    toast.success('Archivo guardado')
+    return {}
+  }
+
+  return { files, loading, uploading, refetch: fetch, upload, remove, incrementDescargas, updateVisibilidad, updateFile, updateContent }
 }

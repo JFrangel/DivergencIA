@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 
-export default function Tabs({ tabs = [], defaultTab, onChange, className = '' }) {
-  const [active, setActive] = useState(defaultTab || tabs[0]?.id)
+export default function Tabs({ tabs = [], defaultTab, value, onChange, className = '' }) {
+  const [internalActive, setInternalActive] = useState(defaultTab || tabs[0]?.id)
+  const active = value !== undefined ? value : internalActive
 
   const handleChange = (id) => {
-    setActive(id)
+    if (value === undefined) setInternalActive(id)
     onChange?.(id)
   }
 

@@ -79,22 +79,22 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ─── Neon Effects ────────────────────────────────────────────────────────── */
 .neon-border {
-  border: 1px solid rgba(252, 101, 31, 0.4);
-  box-shadow: var(--shadow-primary), inset 0 0 12px rgba(252, 101, 31, 0.05);
+  border: 1px solid color-mix(in srgb, var(--c-primary) 40%, transparent);
+  box-shadow: var(--shadow-primary), inset 0 0 12px color-mix(in srgb, var(--c-primary) 5%, transparent);
 }
 
 .neon-border-accent {
-  border: 1px solid rgba(0, 209, 255, 0.4);
-  box-shadow: var(--shadow-accent), inset 0 0 12px rgba(0, 209, 255, 0.05);
+  border: 1px solid color-mix(in srgb, var(--c-accent) 40%, transparent);
+  box-shadow: var(--shadow-accent), inset 0 0 12px color-mix(in srgb, var(--c-accent) 5%, transparent);
 }
 
 .neon-border-secondary {
-  border: 1px solid rgba(139, 92, 246, 0.4);
-  box-shadow: var(--shadow-secondary), inset 0 0 12px rgba(139, 92, 246, 0.05);
+  border: 1px solid color-mix(in srgb, var(--c-secondary) 40%, transparent);
+  box-shadow: var(--shadow-secondary), inset 0 0 12px color-mix(in srgb, var(--c-secondary) 5%, transparent);
 }
 
 .glow-text-primary {
-  text-shadow: 0 0 20px rgba(252, 101, 31, 0.6);
+  text-shadow: 0 0 20px color-mix(in srgb, var(--c-primary) 60%, transparent);
 }
 
 .glow-text-accent {
@@ -210,14 +210,22 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
 ::-webkit-scrollbar-thumb {
-  background: rgba(252, 101, 31, 0.3);
+  background: color-mix(in srgb, var(--c-primary) 35%, transparent);
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(252, 101, 31, 0.5); }
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--c-primary) 55%, transparent);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--c-primary) 35%, transparent) transparent;
+}
 
 /* ─── Selection ────────────────────────────────────────────────────────────── */
 ::selection {
-  background: rgba(139, 92, 246, 0.35);
+  background: color-mix(in srgb, var(--c-secondary) 40%, transparent);
   color: #fff;
 }
 
@@ -231,6 +239,20 @@ h1, h2, h3, h4, h5, h6 {
 .area-vision { color: var(--c-accent); }
 .area-datos  { color: var(--c-success); }
 .area-other  { color: var(--c-warning); }
+
+/* ─── Achievement Unlock ─────────────────────────────────────────────────── */
+@keyframes achievement-glow {
+  0%, 100% { box-shadow: 0 0 12px var(--glow-color, rgba(252,101,31,0.2)); }
+  50%       { box-shadow: 0 0 28px var(--glow-color, rgba(252,101,31,0.4)), 0 0 48px var(--glow-color, rgba(252,101,31,0.15)); }
+}
+.achievement-glow { animation: achievement-glow 2s ease-in-out infinite; }
+
+@keyframes achievement-pop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.achievement-pop { animation: achievement-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 
 /* ─── React Flow Custom ─────────────────────────────────────────────────── */
 .react-flow__background {

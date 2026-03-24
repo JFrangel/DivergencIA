@@ -15,9 +15,9 @@ function timeAgoShort(date) {
   return `${Math.floor(diff / 86400)}d`
 }
 
-export default function CommentSection({ avanceId, ideaId, proyectoId, maxHeight = 300 }) {
+export default function CommentSection({ avanceId, ideaId, proyectoId, archivoId, maxHeight = 300 }) {
   const { user } = useAuth()
-  const { comentarios, loading, addComentario, deleteComentario } = useComentarios({ avanceId, ideaId, proyectoId })
+  const { comentarios, loading, addComentario, deleteComentario } = useComentarios({ avanceId, ideaId, proyectoId, archivoId })
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
 

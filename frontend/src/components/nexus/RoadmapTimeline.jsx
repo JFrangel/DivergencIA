@@ -5,16 +5,16 @@ import { useRoadmap } from '../../hooks/useRoadmap'
 import { useAuth } from '../../context/AuthContext'
 
 const STATE_CFG = {
-  completado:  { icon: FiCheckCircle, label: '✓ Completado' },
-  en_progreso: { icon: FiLoader, label: '● En progreso' },
-  pendiente:   { icon: FiCircle, label: '○ Próxima' },
-  bloqueado:   { icon: FiLock, label: '⊘ Bloqueada' },
+  completado:  { icon: FiCheckCircle, label: 'Completado', color: '#22c55e' },
+  en_progreso: { icon: FiLoader, label: 'En progreso', color: '#FC651F' },
+  pendiente:   { icon: FiCircle, label: 'Proxima', color: '#8B5CF6' },
+  bloqueado:   { icon: FiLock, label: 'Bloqueada', color: '#ef4444' },
 }
 
 const ESTADO_OPTIONS = [
   { value: 'completada', label: 'Completada' },
   { value: 'actual', label: 'Fase actual' },
-  { value: 'proxima', label: 'Próxima' },
+  { value: 'proxima', label: 'Proxima' },
   { value: 'bloqueada', label: 'Bloqueada' },
 ]
 
@@ -37,7 +37,6 @@ export default function RoadmapTimeline({ onEditPhase }) {
   async function handleToggleMilestone(phaseId, milestoneTitle) {
     try {
       await toggleMilestone(phaseId, milestoneTitle)
-      toast.success('Hito actualizado')
     } catch {
       toast.error('Error al actualizar el hito')
     }
@@ -63,6 +62,7 @@ export default function RoadmapTimeline({ onEditPhase }) {
           const cfg = STATE_CFG[item.estado] || STATE_CFG.pendiente
           const Icon = cfg.icon
           const isActive = item.estado === 'en_progreso'
+          const isCompleted = item.estado === 'completado'
 
           return (
             <motion.div
@@ -72,22 +72,41 @@ export default function RoadmapTimeline({ onEditPhase }) {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.12, duration: 0.4 }}
             >
-              {/* Node dot */}
+              {/* Node dot with mini progress ring */}
               <div className="relative z-10 shrink-0 mt-1">
-                <motion.div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center"
-                  style={{
-                    background: `${color}12`,
-                    border: `1.5px solid ${color}40`,
-                    boxShadow: isActive ? `0 0 12px ${color}25` : 'none',
-                  }}
-                  animate={isActive ? {
-                    boxShadow: [`0 0 8px ${color}20`, `0 0 18px ${color}40`, `0 0 8px ${color}20`],
-                  } : {}}
-                  transition={{ repeat: Infinity, duration: 2 }}
-                >
-                  <Icon size={16} style={{ color }} />
-                </motion.div>
+                {item.totalHitos > 0 ? (
+                  <div className="relative w-10 h-10">
+                    <svg className="w-full h-full -rotate-90" viewBox="0 0 40 40">
+                      <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="3" />
+                      <motion.circle
+                        cx="20" cy="20" r="16" fill="none"
+                        stroke={cfg.color} strokeWidth="3" strokeLinecap="round"
+                        strokeDasharray={2 * Math.PI * 16}
+                        initial={{ strokeDashoffset: 2 * Math.PI * 16 }}
+                        animate={{ strokeDashoffset: 2 * Math.PI * 16 * (1 - item.progressPct / 100) }}
+                        transition={{ duration: 1, ease: 'easeOut', delay: i * 0.1 }}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Icon size={12} style={{ color: cfg.color }} />
+                    </div>
+                  </div>
+                ) : (
+                  <motion.div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{
+                      background: `${color}12`,
+                      border: `1.5px solid ${color}40`,
+                      boxShadow: isActive ? `0 0 12px ${color}25` : 'none',
+                    }}
+                    animate={isActive ? {
+                      boxShadow: [`0 0 8px ${color}20`, `0 0 18px ${color}40`, `0 0 8px ${color}20`],
+                    } : {}}
+                    transition={{ repeat: Infinity, duration: 2 }}
+                  >
+                    <Icon size={16} style={{ color }} />
+                  </motion.div>
+                )}
               </div>
 
               {/* Content */}
@@ -95,16 +114,21 @@ export default function RoadmapTimeline({ onEditPhase }) {
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span
                     className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
-                    style={{ background: `${color}12`, color: `${color}bb` }}
+                    style={{ background: `${cfg.color}12`, color: `${cfg.color}bb` }}
                   >
                     Fase {item.orden}
                   </span>
+                  {item.totalHitos > 0 && (
+                    <span className="text-[9px] text-white/25 font-mono">
+                      {item.completedHitos}/{item.totalHitos}
+                    </span>
+                  )}
                   {item.fecha_estimada && (
                     <span className="text-[9px] text-white/20">
                       {new Date(item.fecha_estimada).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </span>
                   )}
-                  <span className="text-[9px] uppercase tracking-wider" style={{ color: `${color}80` }}>
+                  <span className="text-[9px] uppercase tracking-wider" style={{ color: `${cfg.color}80` }}>
                     {cfg.label}
                   </span>
                   {isAdmin && (
@@ -131,42 +155,59 @@ export default function RoadmapTimeline({ onEditPhase }) {
                 </div>
 
                 <h4 className="text-base font-bold font-title text-white/80 mb-1">{item.titulo}</h4>
-                <p className="text-sm text-white/35 leading-relaxed mb-3">{item.descripcion}</p>
+                <p className="text-sm text-white/35 leading-relaxed mb-2">{item.descripcion}</p>
+
+                {/* Phase progress bar */}
+                {item.totalHitos > 0 && (
+                  <div className="mb-3">
+                    <div className="h-1 rounded-full bg-white/[0.04] overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ background: `linear-gradient(90deg, ${cfg.color}, ${cfg.color}88)` }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${item.progressPct}%` }}
+                        transition={{ duration: 1, ease: 'easeOut', delay: i * 0.1 }}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Milestones with completion status */}
                 {item.hitos?.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="space-y-1">
                     {item.hitos.map(hito => {
-                      const pillStyle = {
-                        background: hito.completado ? `${color}10` : 'rgba(255,255,255,0.03)',
-                        color: hito.completado ? `${color}90` : 'rgba(255,255,255,0.25)',
-                        border: `1px solid ${hito.completado ? `${color}25` : 'rgba(255,255,255,0.05)'}`,
-                      }
+                      const isDone = hito.completado
 
                       if (isAdmin) {
                         return (
                           <button
                             key={hito.titulo}
                             onClick={() => handleToggleMilestone(item.id, hito.titulo)}
-                            className="text-[10px] px-2 py-0.5 rounded-md flex items-center gap-1 transition-all hover:scale-105 cursor-pointer"
-                            style={pillStyle}
-                            title={hito.completado ? 'Marcar como pendiente' : 'Marcar como completado'}
+                            className={`w-full text-left text-[11px] px-2.5 py-1.5 rounded-lg flex items-center gap-2 transition-all hover:bg-white/[0.03] cursor-pointer ${
+                              isDone ? 'bg-emerald-500/[0.04]' : 'bg-white/[0.01]'
+                            }`}
+                            title={isDone ? 'Marcar como pendiente' : 'Marcar como completado'}
                           >
-                            {hito.completado ? <FiCheckCircle size={8} /> : <FiCircle size={8} />}
-                            {hito.titulo}
+                            <motion.div animate={isDone ? { scale: [1, 1.15, 1] } : {}} transition={{ duration: 0.25 }}>
+                              {isDone ? <FiCheckCircle size={10} className="text-emerald-400" /> : <FiCircle size={10} style={{ color: `${color}40` }} />}
+                            </motion.div>
+                            <span className={isDone ? 'text-white/50 line-through' : 'text-white/30'}>{hito.titulo}</span>
+                            {isDone && <span className="ml-auto text-[8px] text-emerald-400/50 font-bold uppercase">Listo</span>}
                           </button>
                         )
                       }
 
                       return (
-                        <span
+                        <div
                           key={hito.titulo}
-                          className="text-[10px] px-2 py-0.5 rounded-md flex items-center gap-1"
-                          style={pillStyle}
+                          className={`text-[11px] px-2.5 py-1.5 rounded-lg flex items-center gap-2 ${
+                            isDone ? 'bg-emerald-500/[0.04]' : 'bg-white/[0.01]'
+                          }`}
                         >
-                          {hito.completado ? <FiCheckCircle size={8} /> : <FiTarget size={8} />}
-                          {hito.titulo}
-                        </span>
+                          {isDone ? <FiCheckCircle size={10} className="text-emerald-400" /> : <FiTarget size={10} style={{ color: `${color}40` }} />}
+                          <span className={isDone ? 'text-white/50 line-through' : 'text-white/30'}>{hito.titulo}</span>
+                          {isDone && <span className="ml-auto text-[8px] text-emerald-400/50 font-bold uppercase">Listo</span>}
+                        </div>
                       )
                     })}
                   </div>

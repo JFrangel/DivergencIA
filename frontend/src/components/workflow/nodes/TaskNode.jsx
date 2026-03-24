@@ -1,11 +1,11 @@
 import { memo } from 'react'
 import { Handle, Position } from 'reactflow'
-import { FiCheckCircle, FiClock, FiAlertCircle, FiLoader } from 'react-icons/fi'
+import { FiCheckCircle, FiClock, FiAlertCircle, FiLoader, FiEdit2 } from 'react-icons/fi'
 
 const STATE = {
   pendiente:   { color: '#6b7280', icon: FiClock, label: 'Pendiente' },
   en_progreso: { color: 'var(--c-primary)', icon: FiLoader, label: 'En progreso' },
-  revision:    { color: '#F59E0B', icon: FiAlertCircle, label: 'Revisión' },
+  revision:    { color: '#F59E0B', icon: FiAlertCircle, label: 'Revision' },
   completada:  { color: '#22c55e', icon: FiCheckCircle, label: 'Completada' },
 }
 
@@ -19,7 +19,7 @@ function TaskNode({ data }) {
 
   return (
     <div
-      className="px-4 py-3 rounded-xl text-xs min-w-[160px] max-w-[200px] group"
+      className="px-4 py-3 rounded-xl text-xs min-w-[160px] max-w-[200px] group cursor-pointer"
       style={{
         background: `color-mix(in srgb, ${st.color} 3%, transparent)`,
         border: `1px solid color-mix(in srgb, ${st.color} 20%, transparent)`,
@@ -28,6 +28,19 @@ function TaskNode({ data }) {
     >
       <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-white/20 !border-white/10" />
       <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-white/20 !border-white/10" />
+
+      {/* Edit hint on hover */}
+      <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div
+          className="w-5 h-5 rounded-full flex items-center justify-center"
+          style={{
+            background: 'rgba(12,6,8,0.95)',
+            border: `1px solid color-mix(in srgb, ${st.color} 30%, transparent)`,
+          }}
+        >
+          <FiEdit2 size={9} style={{ color: st.color }} />
+        </div>
+      </div>
 
       {/* Header */}
       <div className="flex items-center gap-1.5 mb-2">
@@ -44,6 +57,11 @@ function TaskNode({ data }) {
 
       {/* Title */}
       <p className="text-white/80 font-medium truncate leading-snug">{data.label}</p>
+
+      {/* Description */}
+      {data.descripcion && (
+        <p className="text-[10px] text-white/30 mt-1 truncate">{data.descripcion}</p>
+      )}
 
       {/* Assignee */}
       {data.asignado && (

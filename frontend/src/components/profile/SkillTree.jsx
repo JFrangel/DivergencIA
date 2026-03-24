@@ -1,6 +1,20 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FiCpu, FiDatabase, FiEye, FiMessageSquare, FiCode, FiChevronDown } from 'react-icons/fi'
+
+// Map learning topic categories to skill tree category ids
+const LEARNING_TO_SKILL_MAP = {
+  'Machine Learning': 'ml',
+  'ML': 'ml',
+  'NLP': 'nlp',
+  'Procesamiento de Lenguaje': 'nlp',
+  'Computer Vision': 'vision',
+  'Vision': 'vision',
+  'Datos': 'data',
+  'Datos & Analytics': 'data',
+  'Desarrollo': 'dev',
+  'General': 'dev',
+}
 
 const CATEGORIES = [
   {
@@ -40,10 +54,15 @@ const CATEGORIES = [
   },
 ]
 
-function SkillBranch({ category, userSkills, expanded, onToggle }) {
+function SkillBranch({ category, userSkills, expanded, onToggle, level = 0 }) {
   const Icon = category.icon
   const matchCount = category.skills.filter(s => userSkills.includes(s)).length
-  const pct = category.skills.length ? Math.round((matchCount / category.skills.length) * 100) : 0
+  const basePct = category.skills.length ? Math.round((matchCount / category.skills.length) * 100) : 0
+  // Boost percentage based on calculated level (each level adds up to ~5%)
+  const levelBoost = Math.min(level * 5, 100 - basePct)
+  const pct = Math.min(100, basePct + levelBoost)
+  // Scale icon size based on level
+  const iconSize = Math.min(22, 16 + level)
 
   return (
     <div className="group">
@@ -53,10 +72,16 @@ function SkillBranch({ category, userSkills, expanded, onToggle }) {
         className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/[0.03]"
       >
         <div
-          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-          style={{ background: `${category.color}12`, border: `1px solid ${category.color}25` }}
+          className="rounded-lg flex items-center justify-center shrink-0 transition-all duration-300"
+          style={{
+            width: Math.min(42, 36 + level),
+            height: Math.min(42, 36 + level),
+            background: level > 0 ? `color-mix(in srgb, ${category.color} ${Math.min(20, 8 + level * 3)}%, transparent)` : `${category.color}12`,
+            border: `1px solid ${category.color}${level > 2 ? '50' : '25'}`,
+            boxShadow: level > 3 ? `0 0 12px ${category.color}20` : 'none',
+          }}
         >
-          <Icon size={16} style={{ color: category.color }} />
+          <Icon size={iconSize} style={{ color: category.color }} />
         </div>
         <div className="flex-1 text-left">
           <p className="text-sm font-medium text-white/80">{category.label}</p>
@@ -121,20 +146,57 @@ function SkillBranch({ category, userSkills, expanded, onToggle }) {
   )
 }
 
-export default function SkillTree({ habilidades = [] }) {
+export default function SkillTree({ habilidades = [], learningProgress, projects }) {
   const [expanded, setExpanded] = useState(null)
   const userSkills = habilidades.map(h => h.trim())
 
+  // Calculate levels per category based on learning data and projects
+  const categoryLevels = useMemo(() => {
+    const levels = {}
+    CATEGORIES.forEach(c => { levels[c.id] = 0 })
+
+    if (learningProgress && typeof learningProgress === 'object') {
+      Object.entries(learningProgress).forEach(([, entry]) => {
+        // Each completed topic in a category = +1 level
+        if (entry.completed) {
+          // Try to map by the category stored in the entry, or distribute generally
+          const catId = entry.categoria ? (LEARNING_TO_SKILL_MAP[entry.categoria] || null) : null
+          if (catId && levels[catId] !== undefined) {
+            levels[catId] += 1
+          }
+        }
+        // Each started topic gives a partial boost
+        if (entry.completedSections?.length > 0 && !entry.completed) {
+          const catId = entry.categoria ? (LEARNING_TO_SKILL_MAP[entry.categoria] || null) : null
+          if (catId && levels[catId] !== undefined) {
+            levels[catId] += 0.5
+          }
+        }
+      })
+    }
+
+    // Projects contributed to = +2 levels to 'dev' category
+    if (Array.isArray(projects) && projects.length > 0) {
+      levels.dev = (levels.dev || 0) + projects.length * 2
+    }
+
+    // Round levels
+    Object.keys(levels).forEach(k => { levels[k] = Math.round(levels[k]) })
+
+    return levels
+  }, [learningProgress, projects])
+
   const totalSkills = CATEGORIES.reduce((acc, c) => acc + c.skills.length, 0)
   const totalMatch = CATEGORIES.reduce((acc, c) => acc + c.skills.filter(s => userSkills.includes(s)).length, 0)
-  const globalPct = totalSkills ? Math.round((totalMatch / totalSkills) * 100) : 0
+  const totalLevels = Object.values(categoryLevels).reduce((a, b) => a + b, 0)
+  const globalPct = totalSkills ? Math.min(100, Math.round(((totalMatch + totalLevels) / totalSkills) * 100)) : 0
 
   return (
     <div className="space-y-1">
       {/* Global progress */}
       <div className="flex items-center justify-between px-4 pb-3 mb-1 border-b border-white/[0.06]">
         <div>
-          <p className="text-sm font-semibold text-white/60 uppercase tracking-wider">Árbol de Habilidades</p>
+          <p className="text-sm font-semibold text-white/60 uppercase tracking-wider">Arbol de Habilidades</p>
           <p className="text-[11px] text-white/25 mt-0.5">{totalMatch} de {totalSkills} habilidades desbloqueadas</p>
         </div>
         <div className="text-right">
@@ -154,6 +216,7 @@ export default function SkillTree({ habilidades = [] }) {
           userSkills={userSkills}
           expanded={expanded === cat.id}
           onToggle={() => setExpanded(e => e === cat.id ? null : cat.id)}
+          level={categoryLevels[cat.id] || 0}
         />
       ))}
     </div>

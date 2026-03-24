@@ -1,0 +1,180 @@
+import { useState, useEffect, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
+import { toast } from 'sonner'
+import { useAuth } from '../context/AuthContext'
+
+export function useNodos() {
+  const { user } = useAuth()
+  const [nodos, setNodos] = useState([])
+  const [members, setMembers] = useState([])   // all platform users
+  const [loading, setLoading] = useState(true)
+
+  const fetchNodos = useCallback(async () => {
+    setLoading(true)
+    const [{ data: nodosData }, { data: miembrosData }, { data: usersData }] = await Promise.all([
+      supabase.from('nodos').select('*').eq('activo', true).order('orden').order('created_at'),
+      supabase.from('nodo_miembros').select('nodo_id, usuario_id, rol, joined_at, usuario:usuarios(id, nombre, foto_url, area_investigacion, rol, es_fundador)'),
+      supabase.from('usuarios').select('id, nombre, foto_url, area_investigacion, rol, es_fundador, activo').eq('activo', true).order('nombre'),
+    ])
+
+    if (nodosData) {
+      // Build user lookup as fallback when FK join is unavailable
+      const usersMap = {}
+      ;(usersData || []).forEach(u => { usersMap[u.id] = u })
+
+      const membersByNodo = {}
+      ;(miembrosData || []).forEach(m => {
+        if (!membersByNodo[m.nodo_id]) membersByNodo[m.nodo_id] = []
+        // Use FK join result if available, else fall back to usersMap lookup
+        const user = m.usuario || usersMap[m.usuario_id]
+        if (user) membersByNodo[m.nodo_id].push({ ...user, rol_nodo: m.rol, joined_at: m.joined_at })
+      })
+      setNodos(nodosData.map(n => ({ ...n, miembros: membersByNodo[n.id] || [] })))
+    }
+    setMembers(usersData || [])
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { fetchNodos() }, [fetchNodos])
+
+  // ── CRUD ──────────────────────────────────────────────────────────────────
+  const createNodo = useCallback(async ({ nombre, descripcion, color, icono, parent_id }) => {
+    if (!user) return null
+    const maxOrden = nodos.filter(n => n.parent_id === (parent_id || null)).length
+    const { data, error } = await supabase
+      .from('nodos')
+      .insert({ nombre, descripcion, color, icono, parent_id: parent_id || null, creado_por: user.id, orden: maxOrden })
+      .select()
+      .single()
+    if (error) { toast.error('Error al crear nodo'); return null }
+
+    // Auto-create chat channel for this nodo
+    const canalNombre = nombre.trim().toLowerCase().replace(/\s+/g, '-')
+    const { data: canal } = await supabase
+      .from('canales')
+      .insert({ tipo: 'nodo', nombre: canalNombre, descripcion: `Canal del nodo ${nombre}`, nodo_id: data.id, nodo_tipo: 'investigacion', creado_por: user.id })
+      .select()
+      .single()
+    if (canal) {
+      await supabase.from('canal_miembros').insert({ canal_id: canal.id, usuario_id: user.id, puede_escribir: true })
+    }
+
+    toast.success(`Nodo "${nombre}" creado`)
+    await fetchNodos()
+    return data
+  }, [user, nodos, fetchNodos])
+
+  const updateNodo = useCallback(async (id, updates) => {
+    const { error } = await supabase.from('nodos').update(updates).eq('id', id)
+    if (error) { toast.error('Error al actualizar nodo'); return false }
+    toast.success('Nodo actualizado')
+    await fetchNodos()
+    return true
+  }, [fetchNodos])
+
+  const deleteNodo = useCallback(async (id) => {
+    // Reparent children to grandparent
+    const nodo = nodos.find(n => n.id === id)
+    if (nodo) {
+      await supabase.from('nodos').update({ parent_id: nodo.parent_id || null }).eq('parent_id', id)
+    }
+    const { error } = await supabase.from('nodos').update({ activo: false }).eq('id', id)
+    if (error) { toast.error('Error al eliminar nodo'); return false }
+    toast.success('Nodo eliminado')
+    await fetchNodos()
+    return true
+  }, [nodos, fetchNodos])
+
+  const duplicateNodo = useCallback(async (id) => {
+    const nodo = nodos.find(n => n.id === id)
+    if (!nodo || !user) return null
+    const { data, error } = await supabase
+      .from('nodos')
+      .insert({
+        nombre: `${nodo.nombre} (copia)`,
+        descripcion: nodo.descripcion,
+        color: nodo.color,
+        icono: nodo.icono,
+        parent_id: nodo.parent_id,
+        creado_por: user.id,
+        orden: nodo.orden + 1,
+      })
+      .select()
+      .single()
+    if (error) { toast.error('Error al duplicar nodo'); return null }
+    // Copy members
+    if (nodo.miembros?.length > 0) {
+      await supabase.from('nodo_miembros').insert(
+        nodo.miembros.map(m => ({ nodo_id: data.id, usuario_id: m.id, rol: m.rol_nodo || 'miembro' }))
+      )
+    }
+    toast.success(`Nodo duplicado como "${data.nombre}"`)
+    await fetchNodos()
+    return data
+  }, [nodos, user, fetchNodos])
+
+  // ── MEMBER MANAGEMENT ────────────────────────────────────────────────────
+  const addMembersToNodo = useCallback(async (nodoId, userIds, rol = 'miembro') => {
+    const existing = nodos.find(n => n.id === nodoId)?.miembros?.map(m => m.id) || []
+    const toAdd = userIds.filter(id => !existing.includes(id))
+    if (!toAdd.length) { toast.info('Todos ya son miembros'); return }
+    const { error } = await supabase.from('nodo_miembros').insert(
+      toAdd.map(uid => ({ nodo_id: nodoId, usuario_id: uid, rol }))
+    )
+    if (error) { toast.error('Error al agregar miembros'); return }
+    toast.success(`${toAdd.length} miembro(s) agregado(s)`)
+    await fetchNodos()
+  }, [nodos, fetchNodos])
+
+  const removeMembersFromNodo = useCallback(async (nodoId, userIds) => {
+    const { error } = await supabase
+      .from('nodo_miembros')
+      .delete()
+      .eq('nodo_id', nodoId)
+      .in('usuario_id', userIds)
+    if (error) { toast.error('Error al remover miembros'); return }
+    toast.success('Miembro(s) removido(s)')
+    await fetchNodos()
+  }, [fetchNodos])
+
+  const moveMembersToNodo = useCallback(async (fromNodoId, toNodoId, userIds) => {
+    // Remove from source
+    await supabase.from('nodo_miembros').delete().eq('nodo_id', fromNodoId).in('usuario_id', userIds)
+    // Add to target (upsert to avoid duplicates)
+    await supabase.from('nodo_miembros').upsert(
+      userIds.map(uid => ({ nodo_id: toNodoId, usuario_id: uid, rol: 'miembro' })),
+      { onConflict: 'nodo_id,usuario_id' }
+    )
+    toast.success(`${userIds.length} miembro(s) movido(s)`)
+    await fetchNodos()
+  }, [fetchNodos])
+
+  const updateMemberRole = useCallback(async (nodoId, userId, rol) => {
+    await supabase.from('nodo_miembros').update({ rol }).eq('nodo_id', nodoId).eq('usuario_id', userId)
+    await fetchNodos()
+  }, [fetchNodos])
+
+  // Build tree structure
+  const tree = buildTree(nodos)
+
+  return {
+    nodos, tree, members, loading, refetch: fetchNodos,
+    createNodo, updateNodo, deleteNodo, duplicateNodo,
+    addMembersToNodo, removeMembersFromNodo, moveMembersToNodo, updateMemberRole,
+  }
+}
+
+// Build hierarchical tree from flat list
+function buildTree(nodos) {
+  const map = {}
+  const roots = []
+  nodos.forEach(n => { map[n.id] = { ...n, children: [] } })
+  nodos.forEach(n => {
+    if (n.parent_id && map[n.parent_id]) {
+      map[n.parent_id].children.push(map[n.id])
+    } else {
+      roots.push(map[n.id])
+    }
+  })
+  return roots
+}

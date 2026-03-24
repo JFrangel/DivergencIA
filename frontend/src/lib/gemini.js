@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+const GEMINI_MODEL = 'gemini-2.5-flash-lite'
 
 let genAI = null
 function getClient() {
@@ -28,7 +29,7 @@ export async function atheniaChat(history = [], userMessage, semilleroContext = 
   if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
 
   const model = client.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: GEMINI_MODEL,
     systemInstruction: ATHENIA_SYSTEM + (semilleroContext ? `\n\nCONTEXTO ACTUAL DEL SEMILLERO:\n${semilleroContext}` : ''),
   })
 
@@ -48,7 +49,7 @@ export async function analyzeChalkboard(imageBase64, mimeType = 'image/jpeg') {
   const client = getClient()
   if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
 
-  const model = client.getGenerativeModel({ model: 'gemini-1.5-flash' })
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL })
 
   const result = await model.generateContent([
     {
@@ -79,12 +80,219 @@ Responde SOLO con el JSON válido, sin markdown ni texto adicional.`,
   }
 }
 
+// ─── Generador de mensajes de broadcast ──────────────────────────────────
+export async function generateBroadcastMessages(tipo, contexto, count = 3) {
+  const client = getClient()
+  if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
+
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL })
+
+  const TIPO_LABELS = {
+    admin_broadcast:    'anuncio general del semillero',
+    evento_proximo:     'evento académico próximo',
+    recordatorio:       'recordatorio de actividad',
+    alerta:             'alerta importante',
+    sugerencia:         'sugerencia de aprendizaje o mejora',
+    reconocimiento:     'reconocimiento al equipo o miembros',
+    voto_recordatorio:  'recordatorio para votar en ideas',
+    bienvenida:         'mensaje de bienvenida a nuevos miembros',
+  }
+
+  const prompt = `Eres el coordinador de comunicaciones de "DivergencIA", un semillero universitario de investigación en Inteligencia Artificial (IA).
+Debes generar ${count} variaciones de una notificación de tipo "${TIPO_LABELS[tipo] || tipo}".
+${contexto ? `Contexto adicional: ${contexto}` : ''}
+
+Reglas:
+- Cada mensaje máximo 120 caracteres
+- Tono profesional pero cálido, en español
+- Específico para un semillero universitario de investigación en IA
+- Usa emojis de forma moderada (1-2 por mensaje máximo)
+- Sin markdown, solo texto plano
+
+Devuelve EXACTAMENTE un JSON válido con este formato (sin código markdown ni texto adicional):
+{"mensajes": ["mensaje 1", "mensaje 2", "mensaje 3"]}`
+
+  const result = await model.generateContent(prompt)
+  const text = result.response.text().trim()
+  try {
+    const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
+    const parsed = JSON.parse(cleaned)
+    return parsed.mensajes || []
+  } catch {
+    return []
+  }
+}
+
+// ─── Helper: extrae texto de secciones del topic ─────────────────────────
+function buildTopicContext(topic) {
+  const sections = Array.isArray(topic.contenido) ? topic.contenido : []
+  const textContent = sections
+    .filter(s => s.tipo === 'texto' || s.tipo === 'codigo')
+    .map(s => `[${s.titulo || s.tipo}]: ${typeof s.contenido === 'string' ? s.contenido.slice(0, 600) : ''}`)
+    .join('\n')
+  return textContent ? `\nCONTENIDO:\n${textContent.slice(0, 3000)}` : ''
+}
+
+// ─── Generador de Flashcards ──────────────────────────────────────────────
+export async function generateFlashcards(topic, count = 8) {
+  const client = getClient()
+  if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
+
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL })
+  const ctx = buildTopicContext(topic)
+
+  const prompt = `Eres un asistente educativo especializado en IA y Machine Learning.
+Genera exactamente ${count} flashcards educativas basadas en este tema.
+
+TEMA: ${topic.titulo}
+CATEGORÍA: ${topic.categoria || 'General'}
+NIVEL: ${topic.nivel || 'basico'}${ctx}
+
+Reglas:
+- Pregunta clara y directa (máx 120 chars)
+- Respuesta explicativa pero concisa (máx 250 chars)
+- Cubre conceptos clave del tema, progresión básico → avanzado
+- En español técnico accesible
+
+Devuelve SOLO JSON válido sin markdown:
+{"flashcards": [{"pregunta": "...", "respuesta": "..."}, ...]}`
+
+  const result = await model.generateContent(prompt)
+  const text = result.response.text().trim().replace(/```json\n?|\n?```/g, '').trim()
+  const parsed = JSON.parse(text)
+  return parsed.flashcards || []
+}
+
+// ─── Generador de Quiz Dinámico ───────────────────────────────────────────
+export async function generateDynamicQuiz(topic, count = 5) {
+  const client = getClient()
+  if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
+
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL })
+  const ctx = buildTopicContext(topic)
+
+  const prompt = `Eres un evaluador académico de IA y Machine Learning.
+Genera exactamente ${count} preguntas de opción múltiple para evaluar comprensión del tema.
+
+TEMA: ${topic.titulo}
+CATEGORÍA: ${topic.categoria || 'General'}
+NIVEL: ${topic.nivel || 'basico'}${ctx}
+
+Reglas:
+- 4 opciones por pregunta (A, B, C, D)
+- Una sola respuesta correcta por pregunta
+- Incluye una explicación breve (máx 150 chars) de por qué es correcta
+- Dificultad progresiva: primeras preguntas más fáciles
+- En español técnico accesible
+
+Devuelve SOLO JSON válido sin markdown:
+{"preguntas": [{"pregunta": "...", "opciones": ["A", "B", "C", "D"], "respuesta_correcta": 0, "explicacion": "..."}, ...]}`
+
+  const result = await model.generateContent(prompt)
+  const text = result.response.text().trim().replace(/```json\n?|\n?```/g, '').trim()
+  const parsed = JSON.parse(text)
+  return parsed.preguntas || []
+}
+
+// ─── Generador de layout para el Mural ───────────────────────────────────
+export async function generateMuralSuggestions(prompt) {
+  const client = getClient()
+  if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
+
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL })
+
+  const result = await model.generateContent(`Eres un diseñador experto de tableros visuales colaborativos para el semillero de IA DivergencIA.
+El usuario pide: "${prompt}"
+
+Genera un layout visual completo y rico. Usa una mezcla variada de estos tipos de elementos disponibles:
+- "titulo": tarjeta principal destacada (titulo + subtitulo). Usala 1 vez como encabezado.
+- "sticky": nota adhesiva colorida con idea corta (titulo + texto). Usa 3-6.
+- "texto": tarjeta de notas con mas detalle (titulo + cuerpo). Usa 1-3.
+- "etiqueta": texto libre flotante, como un encabezado de seccion o anotacion (texto corto). Usa 1-3.
+- "forma": elemento visual decorativo/organizador. Tipos: rect, circle, diamond, hexagon, callout, arrow. Indica tipo + etiqueta corta opcional. Usa 1-3.
+- "checklist": lista de pasos o tareas (titulo + items: array de strings, max 5 items). Usa 0-2.
+- "link": tarjeta de referencia (titulo + url + descripcion). Usa 0-2.
+
+Organiza el layout en secciones logicas. Varia los tipos para crear un mural visual interesante.
+Genera entre 8 y 14 elementos en total.
+
+IMPORTANTE: Responde UNICAMENTE con el JSON puro, sin explicaciones, sin bloques de codigo, sin markdown.
+El JSON debe tener exactamente esta estructura:
+{"titulo_layout":"...","resumen":"...","elementos":[{"tipo":"titulo","titulo":"...","subtitulo":"..."},{"tipo":"sticky","titulo":"...","texto":"..."},{"tipo":"texto","titulo":"...","cuerpo":"..."},{"tipo":"etiqueta","texto":"..."},{"tipo":"forma","forma":"rect","etiqueta":"..."},{"tipo":"checklist","titulo":"...","items":["item1","item2"]},{"tipo":"link","titulo":"...","url":"https://example.com","descripcion":"..."}]}`)
+
+  const raw = result.response.text()
+  console.log('[Gemini Mural] response length:', raw.length)
+
+  let text = raw.trim()
+  // Strip any markdown code fences
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+  // Extract first valid JSON object
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start === -1 || end === -1) {
+    console.error('[Gemini Mural] No JSON found in response:', text.slice(0, 300))
+    throw new Error('Gemini no devolvio JSON valido')
+  }
+  text = text.slice(start, end + 1)
+
+  try {
+    return JSON.parse(text)
+  } catch (err) {
+    console.error('[Gemini Mural] JSON parse error:', err.message, '\nText:', text.slice(0, 200))
+    throw new Error(`Error al procesar respuesta de IA: ${err.message}`)
+  }
+}
+
+// ─── Auto-categorización de temas de aprendizaje ─────────────────────────────
+export async function autoCategorize(titulo, descripcion = '') {
+  const client = getClient()
+  if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL })
+  const result = await model.generateContent(
+    `Clasifica este tema de investigación en IA/ML.
+TÍTULO: ${titulo}
+${descripcion ? `DESCRIPCIÓN: ${descripcion.slice(0, 400)}` : ''}
+
+Devuelve SOLO JSON sin markdown:
+{"categoria":"ML|NLP|Vision|Datos|General","nivel":"basico|intermedio|avanzado","tags":["tag1","tag2","tag3"]}`
+  )
+  const text = result.response.text().trim().replace(/```json\n?|\n?```/g, '').trim()
+  try { return JSON.parse(text) } catch { return null }
+}
+
+// ─── Tarjeta ilustrativa AI para temas de aprendizaje ─────────────────────────
+export async function generateIllustrativeCard(topic) {
+  const client = getClient()
+  if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL })
+  const ctx = buildTopicContext(topic)
+  const result = await model.generateContent(
+    `Eres un experto en IA y aprendizaje visual. Genera una tarjeta ilustrativa para este tema.
+
+TEMA: ${topic.titulo}
+CATEGORÍA: ${topic.categoria || 'General'}
+NIVEL: ${topic.nivel || 'basico'}${ctx}
+
+Incluye:
+- concepto: frase que capture la esencia (máx 100 chars)
+- ejemplo: ejemplo concreto o analogía (máx 180 chars)
+- tip: dato curioso o consejo práctico (máx 120 chars)
+- emoji: emoji que represente el tema
+- color: hex temático ("ML"→"#FC651F","NLP"→"#8B5CF6","Vision"→"#00D1FF","Datos"→"#22c55e")
+
+Devuelve SOLO JSON sin markdown:
+{"concepto":"...","ejemplo":"...","tip":"...","emoji":"...","color":"#hexcolor"}`
+  )
+  const text = result.response.text().trim().replace(/```json\n?|\n?```/g, '').trim()
+  try { return JSON.parse(text) } catch { return null }
+}
+
 // ─── Conexión semántica entre temas ───────────────────────────────────────
 export async function connectTopics(topicA, topicB, context = '') {
   const client = getClient()
   if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
 
-  const model = client.getGenerativeModel({ model: 'gemini-1.5-flash' })
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL })
 
   const result = await model.generateContent(
     `En el contexto de investigación en IA, analiza la conexión semántica entre:

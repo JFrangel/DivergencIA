@@ -1,8 +1,7 @@
-import { useCallback, useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
 import ReactFlow, {
   ReactFlowProvider, Background, MiniMap,
-  useNodesState, useEdgesState, useReactFlow,
-  Handle, Position,
+  useReactFlow, useNodesState, useEdgesState, Handle, Position,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import GraphControls from './GraphControls'
@@ -244,8 +243,158 @@ function ContextMenu({ x, y, node, onClose }) {
   )
 }
 
+/* ──────── Layout algorithms ──────── */
+
+/**
+ * Build an adjacency list from edges, returning { adjacency, edgeMap }
+ */
+function buildAdjacency(nodes, edges) {
+  const adjacency = {}
+  nodes.forEach(n => { adjacency[n.id] = [] })
+  edges.forEach(e => {
+    if (adjacency[e.source]) adjacency[e.source].push(e.target)
+    if (adjacency[e.target]) adjacency[e.target].push(e.source)
+  })
+  return adjacency
+}
+
+/**
+ * BFS from a root node, returns Map<nodeId, depth>
+ */
+function bfs(rootId, adjacency) {
+  const visited = new Map()
+  const queue = [rootId]
+  visited.set(rootId, 0)
+  while (queue.length > 0) {
+    const current = queue.shift()
+    const depth = visited.get(current)
+    const neighbors = adjacency[current] || []
+    for (const nb of neighbors) {
+      if (!visited.has(nb)) {
+        visited.set(nb, depth + 1)
+        queue.push(nb)
+      }
+    }
+  }
+  return visited
+}
+
+/**
+ * Radial layout: concentric circles from center hub.
+ * Hub at (0,0), each depth level at increasing radius.
+ */
+function applyRadialLayout(nodes, edges) {
+  const adjacency = buildAdjacency(nodes, edges)
+  const hubNode = nodes.find(n => n.type === 'hub')
+  const rootId = hubNode ? hubNode.id : nodes[0]?.id
+  if (!rootId) return nodes
+
+  const depths = bfs(rootId, adjacency)
+
+  // Group nodes by depth
+  const levels = {}
+  depths.forEach((depth, id) => {
+    if (!levels[depth]) levels[depth] = []
+    levels[depth].push(id)
+  })
+
+  // Any unvisited nodes go to the outermost ring
+  const maxDepth = Math.max(...Object.keys(levels).map(Number), 0)
+  nodes.forEach(n => {
+    if (!depths.has(n.id)) {
+      const ring = maxDepth + 1
+      if (!levels[ring]) levels[ring] = []
+      levels[ring].push(n.id)
+    }
+  })
+
+  const RADIUS_STEP = 250
+  const positionMap = {}
+
+  Object.entries(levels).forEach(([depthStr, ids]) => {
+    const depth = Number(depthStr)
+    if (depth === 0) {
+      ids.forEach(id => { positionMap[id] = { x: 0, y: 0 } })
+      return
+    }
+    const radius = depth * RADIUS_STEP
+    const angleStep = (2 * Math.PI) / ids.length
+    ids.forEach((id, i) => {
+      const angle = i * angleStep - Math.PI / 2
+      positionMap[id] = {
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+      }
+    })
+  })
+
+  return nodes.map(n => ({
+    ...n,
+    position: positionMap[n.id] || n.position,
+  }))
+}
+
+/**
+ * Tree layout: hierarchical top-down from hub.
+ * Each depth is a horizontal row, nodes spaced evenly.
+ */
+function applyTreeLayout(nodes, edges) {
+  const adjacency = buildAdjacency(nodes, edges)
+  const hubNode = nodes.find(n => n.type === 'hub')
+  const rootId = hubNode ? hubNode.id : nodes[0]?.id
+  if (!rootId) return nodes
+
+  const depths = bfs(rootId, adjacency)
+
+  // Group by depth
+  const levels = {}
+  depths.forEach((depth, id) => {
+    if (!levels[depth]) levels[depth] = []
+    levels[depth].push(id)
+  })
+
+  const maxDepth = Math.max(...Object.keys(levels).map(Number), 0)
+  nodes.forEach(n => {
+    if (!depths.has(n.id)) {
+      const ring = maxDepth + 1
+      if (!levels[ring]) levels[ring] = []
+      levels[ring].push(n.id)
+    }
+  })
+
+  const LEVEL_HEIGHT = 200
+  const NODE_SPACING = 180
+  const positionMap = {}
+
+  Object.entries(levels).forEach(([depthStr, ids]) => {
+    const depth = Number(depthStr)
+    const y = depth * LEVEL_HEIGHT
+    const totalWidth = (ids.length - 1) * NODE_SPACING
+    const startX = -totalWidth / 2
+    ids.forEach((id, i) => {
+      positionMap[id] = { x: startX + i * NODE_SPACING, y }
+    })
+  })
+
+  return nodes.map(n => ({
+    ...n,
+    position: positionMap[n.id] || n.position,
+  }))
+}
+
+/**
+ * Apply the selected layout to a set of nodes.
+ * 'force' keeps the original positions from useGraph (default radial-ish layout).
+ */
+function applyLayout(layout, originalNodes, edges) {
+  if (layout === 'radial') return applyRadialLayout(originalNodes, edges)
+  if (layout === 'tree') return applyTreeLayout(originalNodes, edges)
+  // 'force' — return original positions from useGraph
+  return originalNodes
+}
+
 /* ──────── Graph Controls Wrapper (must be inside ReactFlowProvider) ──────── */
-function GraphControlsWrapper({ onToggleFullscreen }) {
+function GraphControlsWrapper({ layout, onLayoutChange, onToggleFullscreen }) {
   const { zoomIn, zoomOut, fitView } = useReactFlow()
   return (
     <GraphControls
@@ -253,6 +402,8 @@ function GraphControlsWrapper({ onToggleFullscreen }) {
       onZoomOut={zoomOut}
       onFitView={fitView}
       onToggleFullscreen={onToggleFullscreen}
+      layout={layout}
+      onLayoutChange={onLayoutChange}
     />
   )
 }
@@ -274,20 +425,41 @@ function FocusNode({ highlightedNodeId }) {
   return null
 }
 
-/* ──────── Main ──────── */
-export default function UniversalGraph({ initialNodes, initialEdges, highlightedNodeId }) {
-  const [nodes, , onNodesChange] = useNodesState(initialNodes || [])
-  const [edges, , onEdgesChange] = useEdgesState(initialEdges || [])
+/* ──────── FitView helper — auto fit after layout change ──────── */
+function FitAfterLayout({ layoutKey }) {
+  const { fitView } = useReactFlow()
+  useEffect(() => {
+    // Small delay to let React Flow measure new positions
+    const t = setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 50)
+    return () => clearTimeout(t)
+  }, [layoutKey, fitView])
+  return null
+}
+
+/* ──────── Inner graph (must be inside ReactFlowProvider) ──────── */
+function InnerGraph({ initialNodes, initialEdges, highlightedNodeId, layout, onLayoutChange }) {
+  const [nodes, setNodes, onNodesChange] = useNodesState([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [selectedNode, setSelectedNode] = useState(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [contextMenu, setContextMenu] = useState(null)
+  const prevLayoutRef = useRef(layout)
 
-  // Update nodes/edges when props change (from filtering)
+  // Sync nodes/edges when layout, initialNodes, or initialEdges change
   useEffect(() => {
-    // useNodesState doesn't auto-sync with prop changes, so we re-init via a key approach
-    // Actually we need to use setNodes but useNodesState doesn't expose it cleanly
-    // So we handle it through a key remount approach in the parent
-  }, [initialNodes, initialEdges])
+    const safeNodes = initialNodes || []
+    const safeEdges = initialEdges || []
+    if (safeNodes.length === 0) {
+      setNodes([])
+      setEdges(safeEdges)
+      return
+    }
+    const laidOut = applyLayout(layout, safeNodes, safeEdges)
+    // Add draggable: true to each node
+    setNodes(laidOut.map(n => ({ ...n, draggable: true })))
+    setEdges(safeEdges)
+    prevLayoutRef.current = layout
+  }, [layout, initialNodes, initialEdges, setNodes, setEdges])
 
   const onNodeClick = useCallback((_, node) => {
     setContextMenu(null)
@@ -308,20 +480,26 @@ export default function UniversalGraph({ initialNodes, initialEdges, highlighted
     setContextMenu(null)
   }, [])
 
-  // Key based on node count to force remount when filters change
-  const graphKey = `graph-${initialNodes?.length}-${initialEdges?.length}`
+  // Track layout + node count for FitAfterLayout
+  const layoutKey = `${layout}-${nodes.length}-${edges.length}`
 
   return (
-    <div className="relative w-full h-full">
-      <ReactFlowProvider>
+    <>
       <ReactFlow
-        key={graphKey}
-        nodes={initialNodes || []}
-        edges={initialEdges || []}
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
         onNodeContextMenu={onNodeContextMenu}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
+        nodesDraggable
+        nodesConnectable
+        elementsSelectable
+        panOnDrag
+        zoomOnScroll
+        zoomOnPinch
         fitView
         fitViewOptions={{ padding: 0.15 }}
         minZoom={0.15}
@@ -330,8 +508,13 @@ export default function UniversalGraph({ initialNodes, initialEdges, highlighted
         proOptions={{ hideAttribution: true }}
       >
         <Background color="#ffffff08" gap={40} size={1} />
-        <GraphControlsWrapper onToggleFullscreen={() => setIsFullscreen(f => !f)} />
+        <GraphControlsWrapper
+          layout={layout}
+          onLayoutChange={onLayoutChange}
+          onToggleFullscreen={() => setIsFullscreen(f => !f)}
+        />
         <FocusNode highlightedNodeId={highlightedNodeId} />
+        <FitAfterLayout layoutKey={layoutKey} />
         <MiniMap
           nodeColor={n => {
             const type = n.type
@@ -349,7 +532,6 @@ export default function UniversalGraph({ initialNodes, initialEdges, highlighted
           maskColor="rgba(6,3,4,0.7)"
         />
       </ReactFlow>
-      </ReactFlowProvider>
 
       <AnimatePresence>
         {selectedNode && (
@@ -367,6 +549,29 @@ export default function UniversalGraph({ initialNodes, initialEdges, highlighted
           />
         )}
       </AnimatePresence>
+    </>
+  )
+}
+
+/* ──────── Main ──────── */
+export default function UniversalGraph({ initialNodes, initialEdges, highlightedNodeId }) {
+  const [layout, setLayout] = useState('force')
+
+  const handleLayoutChange = useCallback((newLayout) => {
+    setLayout(newLayout)
+  }, [])
+
+  return (
+    <div className="relative w-full h-full">
+      <ReactFlowProvider>
+        <InnerGraph
+          initialNodes={initialNodes}
+          initialEdges={initialEdges}
+          highlightedNodeId={highlightedNodeId}
+          layout={layout}
+          onLayoutChange={handleLayoutChange}
+        />
+      </ReactFlowProvider>
     </div>
   )
 }

@@ -1,10 +1,11 @@
-import { useState } from 'react'
-import { FiPlus, FiTrash2, FiArrowUp, FiArrowDown } from 'react-icons/fi'
+import { useState, useEffect } from 'react'
+import { FiPlus, FiTrash2, FiArrowUp, FiArrowDown, FiZap } from 'react-icons/fi'
 import Modal from '../ui/Modal'
 import Input from '../ui/Input'
 import Textarea from '../ui/Textarea'
 import Select from '../ui/Select'
 import Button from '../ui/Button'
+import { autoCategorize } from '../../lib/gemini'
 
 const CATEGORIA_OPTIONS = [
   { value: 'ML', label: 'Machine Learning' },
@@ -36,12 +37,44 @@ export default function TopicForm({ open, onClose, onSave, initialData, loading 
   const [descripcion, setDescripcion] = useState(initialData?.descripcion || '')
   const [categoria, setCategoria] = useState(initialData?.categoria || '')
   const [nivel, setNivel] = useState(initialData?.nivel || '')
+  const [tags, setTags] = useState(initialData?.tags || [])
+  const [aiLoading, setAiLoading] = useState(false)
   const [sections, setSections] = useState(
     initialData?.contenido?.length ? initialData.contenido : [emptySection()]
   )
   const [recursos, setRecursos] = useState(
     initialData?.recursos?.length ? initialData.recursos : []
   )
+
+  // Reset form state when initialData changes (edit mode vs create mode)
+  useEffect(() => {
+    if (open) {
+      setTitulo(initialData?.titulo || '')
+      setDescripcion(initialData?.descripcion || '')
+      setCategoria(initialData?.categoria || '')
+      setNivel(initialData?.nivel || '')
+      setTags(initialData?.tags || [])
+      setSections(initialData?.contenido?.length ? initialData.contenido : [emptySection()])
+      setRecursos(initialData?.recursos?.length ? initialData.recursos : [])
+    }
+  }, [open, initialData])
+
+  const handleAutoCategorize = async () => {
+    if (!titulo.trim()) return
+    setAiLoading(true)
+    try {
+      const result = await autoCategorize(titulo, descripcion)
+      if (result) {
+        if (result.categoria) setCategoria(result.categoria)
+        if (result.nivel) setNivel(result.nivel)
+        if (result.tags) setTags(result.tags)
+      }
+    } catch (e) {
+      console.error('autoCategorize error:', e)
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   const addSection = () => {
     setSections(s => [...s, { ...emptySection(), orden: s.length }])
@@ -76,6 +109,7 @@ export default function TopicForm({ open, onClose, onSave, initialData, loading 
       descripcion: descripcion.trim(),
       categoria,
       nivel,
+      tags: tags.length ? tags : undefined,
       contenido: sections,
       recursos: recursos.filter(r => r.titulo && r.url),
     })
@@ -118,6 +152,29 @@ export default function TopicForm({ open, onClose, onSave, initialData, loading 
             onChange={e => setNivel(e.target.value)}
             options={NIVEL_OPTIONS}
           />
+        </div>
+
+        {/* AI Auto-categorize */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleAutoCategorize}
+            disabled={aiLoading || !titulo.trim()}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-40"
+            style={{ background: 'rgba(139,92,246,0.12)', color: 'var(--c-secondary)', border: '1px solid rgba(139,92,246,0.25)' }}
+          >
+            <FiZap size={12} className={aiLoading ? 'animate-pulse' : ''} />
+            {aiLoading ? 'Analizando...' : 'Auto-categorizar con IA'}
+          </button>
+          {tags.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              {tags.map(tag => (
+                <span key={tag} className="px-2 py-0.5 rounded-full text-[10px]" style={{ background: 'rgba(139,92,246,0.1)', color: 'rgba(139,92,246,0.8)', border: '1px solid rgba(139,92,246,0.2)' }}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         <Textarea

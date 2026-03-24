@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
-  closestCenter,
+  closestCenter, useDroppable,
 } from '@dnd-kit/core'
 import {
   SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
@@ -13,13 +13,21 @@ import Badge from '../ui/Badge'
 import Avatar from '../ui/Avatar'
 import TaskEditModal from './TaskEditModal'
 import { formatDate } from '../../lib/utils'
+import { PRIORIDAD_COLORES } from '../../lib/supabase'
 
 const COLUMNS = [
   { id: 'pendiente',   label: 'Pendiente',   color: '#6b7280' },
-  { id: 'en_progreso', label: 'En progreso', color: 'var(--c-accent)' },
+  { id: 'en_progreso', label: 'En progreso', color: '#00D1FF' },
   { id: 'revision',    label: 'Revisión',    color: '#F59E0B' },
   { id: 'completada',  label: 'Completada',  color: '#22c55e' },
 ]
+
+const STATUS_STYLES = {
+  pendiente:   { border: '#6b7280',  bg: 'rgba(107,114,128,0.06)' },
+  en_progreso: { border: '#00D1FF',  bg: 'rgba(0,209,255,0.06)'   },
+  revision:    { border: '#F59E0B',  bg: 'rgba(245,158,11,0.06)'  },
+  completada:  { border: '#22c55e',  bg: 'rgba(34,197,94,0.06)'   },
+}
 
 function TaskCard({ task, isDragging, onClickTask }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id })
@@ -42,20 +50,31 @@ function TaskCard({ task, isDragging, onClickTask }) {
     pointerStart.current = null
   }
 
+  const priorityColor = PRIORIDAD_COLORES[task.prioridad] || '#6b7280'
+  const statusStyle = STATUS_STYLES[task.estado] || STATUS_STYLES.pendiente
+
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        borderLeftColor: priorityColor,
+        borderTopColor: statusStyle.border,
+        background: statusStyle.bg,
+      }}
       {...attributes}
       {...listeners}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
-      className="glass rounded-xl p-3 cursor-grab active:cursor-grabbing select-none"
+      className="rounded-xl p-3 cursor-grab active:cursor-grabbing select-none border-l-[3px] border-t-[2px] border-r border-b border-r-white/[0.06] border-b-white/[0.06]"
     >
       <p className="text-sm text-white/80 leading-snug mb-2">{task.titulo}</p>
+      {task.descripcion && (
+        <p className="text-xs text-white/30 leading-relaxed mb-2 line-clamp-2">{task.descripcion}</p>
+      )}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Badge prioridad={task.prioridad} size="xs" />
+          <Badge preset={task.prioridad} size="xs" dot />
           {task.fecha_limite && (
             <span className="text-[10px] text-white/30 flex items-center gap-0.5">
               <FiCalendar size={9} /> {formatDate(task.fecha_limite)}
@@ -63,7 +82,12 @@ function TaskCard({ task, isDragging, onClickTask }) {
           )}
         </div>
         {task.asignado && (
-          <Avatar name={task.asignado.nombre} area={task.asignado.area_investigacion} size="xs" />
+          <Avatar
+            name={task.asignado.nombre || ''}
+            src={task.asignado.foto_url}
+            area={task.asignado.area_investigacion}
+            size="xs"
+          />
         )}
       </div>
     </div>
@@ -71,6 +95,8 @@ function TaskCard({ task, isDragging, onClickTask }) {
 }
 
 function KanbanColumn({ column, tasks, onAddTask, onClickTask }) {
+  const { setNodeRef, isOver } = useDroppable({ id: column.id })
+
   return (
     <div className="flex flex-col min-w-[220px] flex-1">
       {/* Header */}
@@ -93,10 +119,13 @@ function KanbanColumn({ column, tasks, onAddTask, onClickTask }) {
         </button>
       </div>
 
-      {/* Cards */}
+      {/* Cards — droppable zone */}
       <div
-        className="flex flex-col gap-2 flex-1 p-2 rounded-xl min-h-[100px]"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}
+        ref={setNodeRef}
+        className={`flex flex-col gap-2 flex-1 p-2 rounded-xl min-h-[100px] transition-colors ${
+          isOver ? 'ring-1 ring-white/15 bg-white/[0.04]' : ''
+        }`}
+        style={{ background: isOver ? undefined : 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}
       >
         <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map(task => (
@@ -126,36 +155,53 @@ export default function ProjectKanban({ tasks, setTasks, onUpdateTask, onAddTask
 
   const handleDragEnd = async ({ active, over }) => {
     setActiveId(null)
-    if (!over || active.id === over.id) return
+    if (!over) return
 
-    // Detectar si se cambió de columna (over puede ser una columna o una tarea)
-    const activeTask = tasks.find(t => t.id === active.id)
+    const draggedTask = tasks.find(t => t.id === active.id)
+    if (!draggedTask) return
+
+    // Determine the target column: over could be a column id or a task id
+    const overCol = COLUMNS.find(c => c.id === over.id)
     const overTask = tasks.find(t => t.id === over.id)
+    const newEstado = overCol ? overCol.id : overTask?.estado
 
-    if (overTask && activeTask.estado !== overTask.estado) {
-      // cambio de columna
-      const newStatus = overTask.estado
-      setTasks(t => t.map(x => x.id === active.id ? { ...x, estado: newStatus } : x))
-      onUpdateTask?.(active.id, { estado: newStatus })
-    } else if (overTask && activeTask.estado === overTask.estado) {
-      // reordenar dentro de la misma columna
-      const col = tasks.filter(t => t.estado === activeTask.estado)
+    if (!newEstado) return
+
+    if (newEstado !== draggedTask.estado) {
+      // Column change — update local state and persist to Supabase
+      setTasks(t => t.map(x => x.id === active.id ? { ...x, estado: newEstado } : x))
+      await onUpdateTask?.(active.id, { estado: newEstado })
+    } else if (overTask && active.id !== over.id) {
+      // Reorder within the same column
+      const col = tasks.filter(t => t.estado === draggedTask.estado)
       const oldIdx = col.findIndex(t => t.id === active.id)
       const newIdx = col.findIndex(t => t.id === over.id)
-      const reordered = arrayMove(col, oldIdx, newIdx)
-      setTasks(t => {
-        const others = t.filter(x => x.estado !== activeTask.estado)
-        return [...others, ...reordered]
-      })
+      if (oldIdx !== -1 && newIdx !== -1) {
+        const reordered = arrayMove(col, oldIdx, newIdx)
+        setTasks(t => {
+          const others = t.filter(x => x.estado !== draggedTask.estado)
+          return [...others, ...reordered]
+        })
+      }
     }
   }
 
   const handleDragOver = ({ active, over }) => {
     if (!over) return
-    const activeTask = tasks.find(t => t.id === active.id)
+    const draggedTask = tasks.find(t => t.id === active.id)
+    if (!draggedTask) return
+
+    // Check if hovering over a column droppable
     const overCol = COLUMNS.find(c => c.id === over.id)
-    if (overCol && activeTask && activeTask.estado !== overCol.id) {
+    if (overCol && draggedTask.estado !== overCol.id) {
       setTasks(t => t.map(x => x.id === active.id ? { ...x, estado: overCol.id } : x))
+      return
+    }
+
+    // Check if hovering over a task in a different column
+    const overTask = tasks.find(t => t.id === over.id)
+    if (overTask && draggedTask.estado !== overTask.estado) {
+      setTasks(t => t.map(x => x.id === active.id ? { ...x, estado: overTask.estado } : x))
     }
   }
 

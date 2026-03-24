@@ -6,18 +6,20 @@ const NotifContext = createContext(null)
 
 // Map notification types (from DB) to Settings pref keys
 const TYPE_TO_PREF = {
-  comments:     'comments',
-  comentarios:  'comments',
-  votos:        'votes',
-  votes:        'votes',
-  avances:      'advances',
-  advances:     'advances',
-  tareas:       'tasks',
-  tasks:        'tasks',
-  logros:       'achievements',
-  achievements: 'achievements',
-  solicitudes:  'joinRequests',
-  joinRequests: 'joinRequests',
+  comments:        'comments',
+  comentarios:     'comments',
+  votos:           'votes',
+  votes:           'votes',
+  avances:         'advances',
+  advances:        'advances',
+  tareas:          'tasks',
+  tasks:           'tasks',
+  logros:          'achievements',
+  achievements:    'achievements',
+  solicitudes:     'joinRequests',
+  joinRequests:    'joinRequests',
+  mensaje_nuevo:   'messages',
+  mensaje_directo: 'messages',
 }
 
 function getNotifPrefs() {
@@ -36,6 +38,7 @@ export function NotifProvider({ children }) {
   const { user } = useAuth()
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
+  const [lastIncoming, setLastIncoming] = useState(null)
 
   // Fetch notifications
   const fetchNotifs = useCallback(async () => {
@@ -68,6 +71,7 @@ export function NotifProvider({ children }) {
         setNotifications(prev => [payload.new, ...prev])
         if (!notifType || shouldNotify(notifType)) {
           setUnreadCount(c => c + 1)
+          setLastIncoming(payload.new)
         }
       })
       .subscribe()
@@ -88,12 +92,12 @@ export function NotifProvider({ children }) {
   }, [user])
 
   return (
-    <NotifContext.Provider value={{ notifications, unreadCount, markAsRead, markAllRead, refresh: fetchNotifs, shouldNotify }}>
+    <NotifContext.Provider value={{ notifications, unreadCount, lastIncoming, markAsRead, markAllRead, refresh: fetchNotifs, shouldNotify }}>
       {children}
     </NotifContext.Provider>
   )
 }
 
 export function useNotifs() {
-  return useContext(NotifContext) || { notifications: [], unreadCount: 0, markAsRead: () => {}, markAllRead: () => {} }
+  return useContext(NotifContext) || { notifications: [], unreadCount: 0, lastIncoming: null, markAsRead: () => {}, markAllRead: () => {} }
 }

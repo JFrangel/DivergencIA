@@ -22,13 +22,21 @@ export default function TasksWidget() {
     if (!user) return
     supabase
       .from('tareas')
-      .select('id, titulo, estado, prioridad, proyecto:proyecto_id(id, titulo)')
+      .select('id, titulo, estado, prioridad, fecha_limite, proyecto:proyecto_id(id, titulo)')
       .eq('asignado_a', user.id)
       .neq('estado', 'completada')
-      .order('created_at', { ascending: false })
-      .limit(6)
+      .limit(20)
       .then(({ data }) => {
-        setTasks(data || [])
+        const PRIO = { critica: 0, alta: 1, media: 2, baja: 3 }
+        const sorted = (data || []).sort((a, b) => {
+          const pd = (PRIO[a.prioridad] ?? 4) - (PRIO[b.prioridad] ?? 4)
+          if (pd !== 0) return pd
+          if (a.fecha_limite && b.fecha_limite) return new Date(a.fecha_limite) - new Date(b.fecha_limite)
+          if (a.fecha_limite) return -1
+          if (b.fecha_limite) return 1
+          return 0
+        })
+        setTasks(sorted.slice(0, 6))
         setLoading(false)
       })
   }, [user])
