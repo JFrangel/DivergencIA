@@ -391,6 +391,8 @@ function SlashItemPicker({ picker, items, loading, search, onSearch, onSelect, o
   )
 }
 
+const MAX_RECORD_SECS = 300 // 5 minutes max recording
+
 // ─── Main ChatInput ───────────────────────────────────────────────────────────
 export default function ChatInput({
   onSend, sending, disabled,
@@ -535,20 +537,37 @@ export default function ChatInput({
   }
 
   // Voice recording
+  const autoStopRef = useRef(null)
+
   const toggleRecording = async () => {
     if (recording) {
+      clearTimeout(autoStopRef.current)
       mediaRecorderRef.current?.stop()
       return
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       audioChunksRef.current = []
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+
+      // Pick best supported mimeType (opus = smaller + faster)
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : ''
+
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+
+      // timeslice=100 → chunks arrive every 100ms → onstop fires immediately
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
+
       recorder.onstop = async () => {
+        clearTimeout(autoStopRef.current)
         stream.getTracks().forEach(t => t.stop())
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        const blob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' })
         setUploading(true)
+        setRecording(false)
+        setRecordingTime(0)
         const fileName = `chat/audio_${Date.now()}.webm`
         const { error } = await supabase.storage.from('chat-files').upload(fileName, blob)
         if (!error) {
@@ -558,20 +577,28 @@ export default function ChatInput({
           toast.error('Error enviando nota de voz')
         }
         setUploading(false)
-        setRecordingTime(0)
       }
-      recorder.start()
+
+      recorder.start(100) // collect chunks every 100ms — eliminates finalization delay
       mediaRecorderRef.current = recorder
       setRecording(true)
       setRecordingTime(0)
+
+      // Auto-stop at max duration
+      autoStopRef.current = setTimeout(() => {
+        if (mediaRecorderRef.current?.state === 'recording') {
+          mediaRecorderRef.current.stop()
+          toast.info('Nota de voz — límite de 5 min alcanzado')
+        }
+      }, MAX_RECORD_SECS * 1000)
     } catch {
       toast.error('Sin acceso al micrófono')
     }
   }
 
   const stopRecording = () => {
+    clearTimeout(autoStopRef.current)
     mediaRecorderRef.current?.stop()
-    setRecording(false)
   }
 
   const fmtTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
@@ -613,26 +640,38 @@ export default function ChatInput({
       <AnimatePresence>
         {recording && (
           <motion.div
-            className="flex items-center gap-3 px-3 py-2 mb-2 rounded-xl"
-            style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            className="mb-2 rounded-xl overflow-hidden"
+            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
           >
-            <motion.div
-              className="w-2 h-2 rounded-full bg-red-500 shrink-0"
-              animate={{ opacity: [1, 0, 1] }}
-              transition={{ duration: 1, repeat: Infinity }}
-            />
-            <span className="text-sm text-red-400 font-mono flex-1">{fmtTime(recordingTime)}</span>
-            <span className="text-xs text-white/40">Grabando nota de voz...</span>
-            <button
-              onClick={stopRecording}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all hover:opacity-80"
-              style={{ background: '#EF4444', color: 'white' }}
-            >
-              <FiSquare size={10} /> Enviar
-            </button>
+            {/* Progress bar */}
+            <div className="h-0.5 bg-white/5">
+              <motion.div
+                className="h-full bg-red-500"
+                style={{ width: `${Math.min((recordingTime / MAX_RECORD_SECS) * 100, 100)}%` }}
+                transition={{ duration: 0.5 }}
+              />
+            </div>
+            <div className="flex items-center gap-3 px-3 py-2">
+              <motion.div
+                className="w-2 h-2 rounded-full bg-red-500 shrink-0"
+                animate={{ opacity: [1, 0.2, 1] }}
+                transition={{ duration: 1, repeat: Infinity }}
+              />
+              <span className="text-sm text-red-400 font-mono">{fmtTime(recordingTime)}</span>
+              <span className="text-xs text-white/30 flex-1">
+                Grabando · {fmtTime(MAX_RECORD_SECS - recordingTime)} restante
+              </span>
+              <button
+                onClick={stopRecording}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all hover:opacity-80"
+                style={{ background: '#EF4444', color: 'white' }}
+              >
+                <FiSquare size={10} /> Enviar
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
