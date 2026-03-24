@@ -3,13 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiPlus, FiTrash2, FiArrowUp, FiArrowDown, FiZap, FiCheck, FiX,
   FiType, FiCode, FiAward, FiImage, FiVideo, FiChevronDown, FiChevronUp,
-  FiExternalLink, FiSearch,
+  FiExternalLink, FiSearch, FiPaperclip,
 } from 'react-icons/fi'
 import Modal from '../ui/Modal'
 import Input from '../ui/Input'
 import Textarea from '../ui/Textarea'
 import Select from '../ui/Select'
 import Button from '../ui/Button'
+import LibraryPickerModal from '../library/LibraryPickerModal'
 import { autoCategorize, generateTopicSections, suggestSectionImages, suggestSectionTitle } from '../../lib/gemini'
 
 // ─── Section type metadata ────────────────────────────────────────────────────
@@ -389,6 +390,7 @@ export default function TopicForm({ open, onClose, onSave, initialData, loading,
   const [recursos, setRecursos] = useState(
     initialData?.recursos?.length ? initialData.recursos : []
   )
+  const [showLibPicker, setShowLibPicker] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -669,7 +671,18 @@ export default function TopicForm({ open, onClose, onSave, initialData, loading,
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-medium text-white/70">Recursos adicionales</p>
-            <Button variant="ghost" size="xs" icon={<FiPlus size={14} />} onClick={addResource}>Agregar recurso</Button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowLibPicker(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors"
+                style={{ background: 'rgba(0,209,255,0.08)', color: '#00D1FF', border: '1px solid rgba(0,209,255,0.2)' }}
+              >
+                <FiPaperclip size={12} />
+                Desde Biblioteca
+              </button>
+              <Button variant="ghost" size="xs" icon={<FiPlus size={14} />} onClick={addResource}>URL manual</Button>
+            </div>
           </div>
           <div className="space-y-2">
             {recursos.map((res, idx) => (
@@ -682,6 +695,16 @@ export default function TopicForm({ open, onClose, onSave, initialData, loading,
           </div>
         </div>
       </div>
+
+      <LibraryPickerModal
+        open={showLibPicker}
+        onClose={() => setShowLibPicker(false)}
+        title="Añadir recurso desde Biblioteca"
+        onSelect={(archivo) => {
+          setRecursos(r => [...r, { titulo: archivo.nombre, url: archivo.url, tipo: archivo.tipo || 'enlace' }])
+          setShowLibPicker(false)
+        }}
+      />
     </Modal>
   )
 }

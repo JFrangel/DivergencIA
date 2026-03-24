@@ -14,9 +14,10 @@ import 'reactflow/dist/style.css'
 import { toast } from 'sonner'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
+import { useLibrary } from '../../hooks/useLibrary'
 import {
   FiTrash2, FiSave, FiPlus, FiDownload, FiUpload, FiChevronDown,
-  FiCheck, FiEdit2, FiImage, FiFileMinus,
+  FiCheck, FiEdit2, FiImage, FiFileMinus, FiBookmark,
 } from 'react-icons/fi'
 
 // Class diagram nodes
@@ -186,6 +187,7 @@ const TIPO_ICON = {
 export default function DiagramEditor({ projectId } = {}) {
   const reactFlowWrapper = useRef(null)
   const { user } = useAuth()
+  const { upload } = useLibrary()
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [edgeType, setEdgeType] = useState('default')
@@ -199,6 +201,7 @@ export default function DiagramEditor({ projectId } = {}) {
   const [dropdownRect, setDropdownRect] = useState(null)
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [savingToLib, setSavingToLib] = useState(false)
 
   const listBtnRef = useRef(null)
   const dropdownRef = useRef(null)
@@ -441,6 +444,29 @@ export default function DiagramEditor({ projectId } = {}) {
     }
   }, [diagramTitle, exportJSON])
 
+  const saveToLibrary = useCallback(async () => {
+    if (!reactFlowWrapper.current) return
+    setSavingToLib(true)
+    try {
+      const el = reactFlowWrapper.current.querySelector('.react-flow__renderer')
+      if (!el) { toast.error('Diagrama vacío — no se puede guardar'); return }
+      const { default: html2canvas } = await import('html2canvas').catch(() => ({ default: null }))
+      if (!html2canvas) { toast.error('html2canvas no disponible'); return }
+      const canvas = await html2canvas(el, { backgroundColor: '#0c0608', scale: 2 })
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+      const fileName = `${(diagramTitle || 'diagrama').replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.png`
+      const file = new File([blob], fileName, { type: 'image/png' })
+      const { error } = await upload(file, { visibilidad: 'miembros', tipo: 'imagen' })
+      if (error) throw error
+      toast.success('✓ Diagrama guardado en Biblioteca')
+    } catch (err) {
+      console.error(err)
+      toast.error(`Error al guardar: ${err.message || 'intenta de nuevo'}`)
+    } finally {
+      setSavingToLib(false)
+    }
+  }, [reactFlowWrapper, diagramTitle, upload])
+
   const minimapNodeColor = (n) => ({
     classNode: '#FC651F', interfaceNode: '#8B5CF6', noteNode: '#F59E0B',
     actorNode: '#00D1FF', lifelineNode: '#00D1FF',
@@ -542,6 +568,21 @@ export default function DiagramEditor({ projectId } = {}) {
             title="Importar JSON"
           >
             <FiUpload size={12} /> Importar
+          </button>
+
+          {/* Save to Library */}
+          <button
+            onClick={saveToLibrary}
+            disabled={savingToLib}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
+            style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.25)', color: '#8B5CF6' }}
+            title="Guardar imagen del diagrama en Biblioteca"
+          >
+            {savingToLib
+              ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              : <FiBookmark size={12} />
+            }
+            {savingToLib ? 'Guardando...' : 'Biblioteca'}
           </button>
 
           {/* Mis Diagramas — button only; dropdown rendered via Portal */}
