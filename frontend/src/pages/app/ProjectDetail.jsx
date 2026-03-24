@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiArrowLeft, FiPlus, FiEdit2, FiActivity, FiClock, FiTrash2, FiAlertTriangle, FiCamera, FiPaperclip, FiSearch, FiX, FiFile, FiImage, FiFilm, FiCode, FiDatabase, FiFileText } from 'react-icons/fi'
+import { FiArrowLeft, FiPlus, FiEdit2, FiActivity, FiClock, FiTrash2, FiAlertTriangle, FiCamera, FiPaperclip, FiSearch, FiX, FiFile, FiImage, FiFilm, FiCode, FiDatabase, FiFileText, FiLightbulb, FiLink } from 'react-icons/fi'
 import { useProject, useAdvances, useTasks } from '../../hooks/useProjects'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
@@ -144,6 +144,12 @@ export default function ProjectDetail() {
 
   const { files: projectFiles, loading: filesLoading, refetch: refetchFiles } = useLibrary({ projectId: id })
   const [showLibraryPicker, setShowLibraryPicker] = useState(false)
+  const [linkedIdeas, setLinkedIdeas] = useState([])
+  const [ideasLoading, setIdeasLoading] = useState(false)
+  const [showIdeaPicker, setShowIdeaPicker] = useState(false)
+  const [allIdeas, setAllIdeas] = useState([])
+  const [ideaSearch, setIdeaSearch] = useState('')
+  const [linkingIdea, setLinkingIdea] = useState(null)
 
   const coverInputRef = useRef(null)
   const [tab, setTab] = useState('overview')
@@ -153,6 +159,13 @@ export default function ProjectDetail() {
   const [deleting, setDeleting] = useState(false)
   const [metrics, setMetrics] = useState(project?.metricas || [])
   const [coverUploading, setCoverUploading] = useState(false)
+
+  useEffect(() => {
+    if (!id) return
+    setIdeasLoading(true)
+    supabase.from('ideas').select('id, titulo, estado, votos_favor, autor:usuarios!ideas_autor_id_fkey(nombre)').eq('proyecto_origen_id', id)
+      .then(({ data }) => { setLinkedIdeas(data || []); setIdeasLoading(false) })
+  }, [id])
 
   if (loading) return <div className="flex justify-center py-20"><Spinner /></div>
   if (!project) return <div className="text-center py-20 text-white/30">Proyecto no encontrado</div>
@@ -199,6 +212,7 @@ export default function ProjectDetail() {
     { id: 'overview', label: 'Resumen' },
     { id: 'tasks', label: 'Kanban', count: totalTareas },
     { id: 'advances', label: 'Avances', count: advances.length },
+    { id: 'ideas', label: '💡 Ideas', count: linkedIdeas.length || undefined },
     { id: 'biblioteca', label: 'Biblioteca', count: projectFiles.length || undefined },
     { id: 'metrics', label: 'Métricas' },
     { id: 'workflow', label: 'Workflow' },
@@ -406,6 +420,116 @@ export default function ProjectDetail() {
             </div>
           )}
         </div>
+      )}
+
+      {tab === 'ideas' && (
+        <Card>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-white/70 flex items-center gap-2">
+              <FiLightbulb size={14} className="text-[#F59E0B]" /> Ideas vinculadas
+            </h3>
+            {canManageTeam && (
+              <Button size="sm" onClick={async () => {
+                const { data } = await supabase.from('ideas').select('id, titulo, estado').is('proyecto_origen_id', null).limit(50)
+                setAllIdeas(data || [])
+                setIdeaSearch('')
+                setShowIdeaPicker(true)
+              }}>
+                <FiLink size={13} /> Vincular idea
+              </Button>
+            )}
+          </div>
+          {ideasLoading ? (
+            <div className="text-white/30 text-sm py-6 text-center">Cargando ideas...</div>
+          ) : linkedIdeas.length === 0 ? (
+            <div className="text-white/20 text-sm py-10 text-center flex flex-col items-center gap-2">
+              <FiLightbulb size={24} />
+              <span>No hay ideas vinculadas a este proyecto.</span>
+              {canManageTeam && <span className="text-white/15">Usa "Vincular idea" para asociar ideas del banco.</span>}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {linkedIdeas.map(idea => (
+                <div key={idea.id} className="flex items-center gap-3 p-3 rounded-xl border border-white/[0.07] hover:border-white/15 transition-colors group"
+                  style={{ background: 'rgba(255,255,255,0.02)' }}>
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(245,158,11,0.12)' }}>
+                    <FiLightbulb size={14} className="text-[#F59E0B]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white/80 font-medium truncate">{idea.titulo}</p>
+                    <p className="text-[11px] text-white/30">{idea.autor?.nombre} · {idea.estado} · {idea.votos_favor || 0} votos</p>
+                  </div>
+                  <Link to={`/ideas/${idea.id}`} className="p-1.5 rounded-lg text-white/30 hover:text-[#F59E0B] hover:bg-[#F59E0B]/10 transition-colors" title="Ver idea">
+                    <FiLightbulb size={13} />
+                  </Link>
+                  {canManageTeam && (
+                    <button
+                      onClick={async () => {
+                        await supabase.from('ideas').update({ proyecto_origen_id: null }).eq('id', idea.id)
+                        setLinkedIdeas(prev => prev.filter(i => i.id !== idea.id))
+                      }}
+                      className="p-1.5 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100" title="Desvincular"
+                    >
+                      <FiX size={13} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Idea picker modal */}
+          <AnimatePresence>
+            {showIdeaPicker && (
+              <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <motion.div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowIdeaPicker(false)} />
+                <motion.div className="relative w-full max-w-lg rounded-2xl border border-white/10 shadow-2xl flex flex-col"
+                  style={{ background: 'rgba(12,6,8,0.97)', maxHeight: '80vh' }}
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}>
+                  <div className="flex items-center justify-between p-4 border-b border-white/[0.07]">
+                    <h3 className="text-sm font-semibold text-white/80">Vincular idea al proyecto</h3>
+                    <button onClick={() => setShowIdeaPicker(false)} className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/[0.06] transition-colors"><FiX size={15} /></button>
+                  </div>
+                  <div className="px-4 py-3 border-b border-white/[0.04]">
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.07]">
+                      <FiSearch size={13} className="text-white/30 shrink-0" />
+                      <input value={ideaSearch} onChange={e => setIdeaSearch(e.target.value)} placeholder="Buscar idea..."
+                        className="flex-1 bg-transparent text-sm text-white/80 placeholder-white/20 outline-none" autoFocus />
+                    </div>
+                  </div>
+                  <div className="overflow-y-auto flex-1 p-3 space-y-1.5">
+                    {allIdeas.filter(i => i.titulo?.toLowerCase().includes(ideaSearch.toLowerCase())).length === 0 ? (
+                      <div className="text-center py-8 text-white/25 text-sm">Sin ideas disponibles</div>
+                    ) : allIdeas.filter(i => i.titulo?.toLowerCase().includes(ideaSearch.toLowerCase())).map(idea => (
+                      <button key={idea.id} disabled={linkingIdea === idea.id}
+                        onClick={async () => {
+                          setLinkingIdea(idea.id)
+                          await supabase.from('ideas').update({ proyecto_origen_id: id }).eq('id', idea.id)
+                          setLinkedIdeas(prev => [...prev, { ...idea }])
+                          setAllIdeas(prev => prev.filter(i => i.id !== idea.id))
+                          setLinkingIdea(null)
+                          setShowIdeaPicker(false)
+                        }}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.05] transition-colors text-left group">
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(245,158,11,0.12)' }}>
+                          <FiLightbulb size={13} className="text-[#F59E0B]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white/75 font-medium truncate">{idea.titulo}</p>
+                          <p className="text-[10px] text-white/25">{idea.estado}</p>
+                        </div>
+                        <span className="text-[11px] text-white/30 group-hover:text-[#F59E0B] transition-colors shrink-0">
+                          {linkingIdea === idea.id ? 'Vinculando...' : 'Vincular →'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Card>
       )}
 
       {tab === 'metrics' && (

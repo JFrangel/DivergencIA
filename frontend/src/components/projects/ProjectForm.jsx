@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { FiSave, FiX, FiZap, FiCheckSquare } from 'react-icons/fi'
+import { FiSave, FiX, FiZap, FiCheckSquare, FiLightbulb } from 'react-icons/fi'
 import { motion, AnimatePresence } from 'framer-motion'
 import Input from '../ui/Input'
 import Textarea from '../ui/Textarea'
@@ -11,6 +11,7 @@ import Button from '../ui/Button'
 import Modal from '../ui/Modal'
 import Badge from '../ui/Badge'
 import { useAutoPopulate } from '../../hooks/useAutoPopulate'
+import { supabase } from '../../lib/supabase'
 
 const schema = z.object({
   titulo: z.string().min(3, 'Minimo 3 caracteres'),
@@ -49,6 +50,14 @@ export default function ProjectForm({ open, onClose, onSubmit, defaultValues }) 
 
   useEffect(() => {
     if (open) {
+      supabase.from('ideas').select('id, titulo').in('estado', ['aprobada', 'en_desarrollo']).order('votos_favor', { ascending: false }).limit(30)
+        .then(({ data }) => setIdeasDisponibles(data || []))
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (open) {
+      setIdeaOrigenId(defaultValues?.idea_origen_id || null)
       reset(defaultValues ? {
         titulo: defaultValues.titulo || '',
         descripcion: defaultValues.descripcion || '',
@@ -67,6 +76,8 @@ export default function ProjectForm({ open, onClose, onSubmit, defaultValues }) 
   const [showTemplate, setShowTemplate] = useState(false)
   const [suggestedTasks, setSuggestedTasks] = useState([])
   const [suggestedWorkflow, setSuggestedWorkflow] = useState(null)
+  const [ideaOrigenId, setIdeaOrigenId] = useState(defaultValues?.idea_origen_id || null)
+  const [ideasDisponibles, setIdeasDisponibles] = useState([])
 
   const selectedArea = watch('area')
 
@@ -76,6 +87,7 @@ export default function ProjectForm({ open, onClose, onSubmit, defaultValues }) 
     setShowTemplate(false)
     setSuggestedTasks([])
     setSuggestedWorkflow(null)
+    setIdeaOrigenId(null)
     onClose()
   }
 
@@ -93,6 +105,9 @@ export default function ProjectForm({ open, onClose, onSubmit, defaultValues }) 
     }
     if (suggestedWorkflow) {
       payload._suggestedWorkflow = suggestedWorkflow
+    }
+    if (ideaOrigenId) {
+      payload.idea_origen_id = ideaOrigenId
     }
     await onSubmit(payload)
     handleClose()
@@ -158,6 +173,28 @@ export default function ProjectForm({ open, onClose, onSubmit, defaultValues }) 
           />
           <span className="text-sm text-white/60">Proyecto publico (visible sin login)</span>
         </label>
+
+        {/* Idea de origen (solo si hay ideas disponibles) */}
+        {ideasDisponibles.length > 0 && (
+          <div>
+            <label className="flex items-center gap-1.5 text-[11px] text-white/40 uppercase tracking-wider font-semibold mb-1.5">
+              <FiLightbulb size={11} className="text-[#F59E0B]" /> Idea de origen (opcional)
+            </label>
+            <select
+              value={ideaOrigenId || ''}
+              onChange={e => setIdeaOrigenId(e.target.value || null)}
+              className="w-full px-3 py-2 rounded-lg text-sm text-white/80 focus:outline-none transition-all [&>option]:bg-[#0c0608]"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
+              onFocus={e => (e.target.style.borderColor = '#F59E0B50')}
+              onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
+            >
+              <option value="">— Sin idea vinculada —</option>
+              {ideasDisponibles.map(idea => (
+                <option key={idea.id} value={idea.id}>{idea.titulo}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Auto-population section - only for new projects */}
         {isNew && (
