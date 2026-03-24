@@ -46,16 +46,21 @@ const SECTION_TYPE_OPTIONS = [
 
 function renderInline(text, keyPrefix = '') {
   if (!text) return text
-  const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)/g
+  const regex = /(\!\[([^\]]*)\]\(([^)]+)\)|\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)/g
   const parts = []
   let lastIndex = 0
   let match
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index))
     const key = `${keyPrefix}-${match.index}`
-    if (match[2]) parts.push(<strong key={key} className="text-white font-semibold">{match[2]}</strong>)
-    else if (match[3]) parts.push(<em key={key} className="text-white/80 italic">{match[3]}</em>)
-    else if (match[4]) parts.push(<code key={key} className="px-1 py-0.5 rounded text-[0.9em] font-mono" style={{ background: 'rgba(0,209,255,0.1)', color: '#00D1FF' }}>{match[4]}</code>)
+    if (match[3]) {
+      // ![alt](url) inline image
+      parts.push(
+        <img key={key} src={match[3]} alt={match[2] || ''} className="inline-block max-h-32 rounded object-contain align-middle mx-1" onError={e => { e.target.style.display = 'none' }} />
+      )
+    } else if (match[4]) parts.push(<strong key={key} className="text-white font-semibold">{match[4]}</strong>)
+    else if (match[5]) parts.push(<em key={key} className="text-white/80 italic">{match[5]}</em>)
+    else if (match[6]) parts.push(<code key={key} className="px-1 py-0.5 rounded text-[0.9em] font-mono" style={{ background: 'rgba(0,209,255,0.1)', color: '#00D1FF' }}>{match[6]}</code>)
     lastIndex = match.index + match[0].length
   }
   if (lastIndex < text.length) parts.push(text.slice(lastIndex))
@@ -82,7 +87,21 @@ function MarkdownText({ text }) {
   }
 
   lines.forEach((line, i) => {
-    if (line.startsWith('### ')) {
+    // Block-level image: line is exactly ![alt](url)
+    const imgMatch = line.trim().match(/^!\[([^\]]*)\]\(([^)]+)\)$/)
+    if (imgMatch) {
+      flushList()
+      elements.push(
+        <div key={i} className="my-3 flex justify-center">
+          <img
+            src={imgMatch[2]}
+            alt={imgMatch[1] || ''}
+            className="max-w-full rounded-lg border border-white/10 max-h-72 object-contain"
+            onError={e => { e.target.style.display = 'none' }}
+          />
+        </div>
+      )
+    } else if (line.startsWith('### ')) {
       flushList()
       elements.push(<h4 key={i} className="text-white font-semibold text-base mt-4 mb-1">{renderInline(line.slice(4), `h4-${i}`)}</h4>)
     } else if (line.startsWith('## ')) {
@@ -374,10 +393,33 @@ function FlashcardItem({ card, index, total }) {
   )
 }
 
+/* ─── AI cache helpers ────────────────────────────────────────────────── */
+
+const AI_CACHE_KEY = 'divergencia_ai_cache'
+
+function loadAiCache(topicId, type) {
+  try {
+    const raw = localStorage.getItem(AI_CACHE_KEY)
+    const all = raw ? JSON.parse(raw) : {}
+    return all[topicId]?.[type] ?? null
+  } catch { return null }
+}
+
+function saveAiCache(topicId, type, data) {
+  try {
+    const raw = localStorage.getItem(AI_CACHE_KEY)
+    const all = raw ? JSON.parse(raw) : {}
+    if (!all[topicId]) all[topicId] = {}
+    all[topicId][type] = data
+    all[topicId][`${type}_date`] = new Date().toISOString()
+    localStorage.setItem(AI_CACHE_KEY, JSON.stringify(all))
+  } catch {}
+}
+
 /* ─── AI Illustrated Card Panel ──────────────────────────────────────── */
 
 function AIIllustrativeCardPanel({ topic }) {
-  const [card, setCard] = useState(null)
+  const [card, setCard] = useState(() => loadAiCache(topic.id, 'card'))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -386,7 +428,7 @@ function AIIllustrativeCardPanel({ topic }) {
     setError('')
     try {
       const result = await generateIllustrativeCard(topic)
-      if (result) setCard(result)
+      if (result) { setCard(result); saveAiCache(topic.id, 'card', result) }
       else setError('No se pudo generar la tarjeta')
     } catch (e) {
       setError(e.message || 'Error al generar')
@@ -478,7 +520,7 @@ function AIIllustrativeCardPanel({ topic }) {
 }
 
 function FlashcardsPanel({ topic }) {
-  const [cards, setCards] = useState([])
+  const [cards, setCards] = useState(() => loadAiCache(topic.id, 'flashcards') || [])
   const [loading, setLoading] = useState(false)
   const [current, setCurrent] = useState(0)
   const [error, setError] = useState(null)
@@ -490,6 +532,7 @@ function FlashcardsPanel({ topic }) {
       const result = await generateFlashcards(topic)
       setCards(result)
       setCurrent(0)
+      saveAiCache(topic.id, 'flashcards', result)
     } catch {
       setError('Error generando flashcards. Verifica tu API key de Gemini.')
     } finally {
@@ -577,11 +620,11 @@ function FlashcardsPanel({ topic }) {
 /* ─── AI Dynamic Quiz Panel ───────────────────────────────────────────── */
 
 function AIDynamicQuizPanel({ topic }) {
-  const [questions, setQuestions] = useState([])
+  const [questions, setQuestions] = useState(() => loadAiCache(topic.id, 'quiz') || [])
   const [loading, setLoading] = useState(false)
   const [current, setCurrent] = useState(0)
-  const [answers, setAnswers] = useState({})   // { idx: selectedOption }
-  const [revealed, setRevealed] = useState({}) // { idx: true }
+  const [answers, setAnswers] = useState({})
+  const [revealed, setRevealed] = useState({})
   const [finished, setFinished] = useState(false)
   const [error, setError] = useState(null)
 
@@ -595,6 +638,7 @@ function AIDynamicQuizPanel({ topic }) {
     try {
       const result = await generateDynamicQuiz(topic)
       setQuestions(result)
+      saveAiCache(topic.id, 'quiz', result)
     } catch {
       setError('Error generando quiz. Verifica tu API key de Gemini.')
     } finally {

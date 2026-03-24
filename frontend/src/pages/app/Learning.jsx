@@ -14,7 +14,7 @@ import Button from '../../components/ui/Button'
 import Spinner from '../../components/ui/Spinner'
 import Badge from '../../components/ui/Badge'
 
-const CATEGORIAS = ['ML', 'NLP', 'Vision', 'Datos', 'General']
+const CATEGORIAS_BASE = ['ML', 'NLP', 'Vision', 'Datos', 'General']
 const NIVELES = ['basico', 'intermedio', 'avanzado']
 
 const NIVEL_LABELS = {
@@ -42,6 +42,12 @@ export default function Learning() {
 
   const { progress, markSectionComplete, unmarkSection, saveQuizScore, getTopicProgress } = useLearningProgress()
   const stats = useLearningStats(topics)
+
+  // Dynamic categories: presets + any custom ones from DB
+  const allCategorias = useMemo(() => {
+    const fromTopics = topics.map(t => t.categoria).filter(Boolean)
+    return [...new Set([...CATEGORIAS_BASE, ...fromTopics])]
+  }, [topics])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return topics
@@ -171,74 +177,75 @@ export default function Learning() {
       )}
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col gap-2">
         <Input
           icon={<FiSearch size={15} />}
           placeholder="Buscar temas..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          containerClass="flex-1 max-w-md"
+          containerClass="max-w-md"
         />
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Categoria filters */}
-          <button
-            onClick={() => setFilterCategoria('')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
-              !filterCategoria
-                ? 'bg-[var(--c-primary)]/15 text-[var(--c-primary)] border border-[var(--c-primary)]/30'
-                : 'bg-white/[0.04] text-white/50 border border-white/10 hover:bg-white/[0.08]'
-            }`}
-            style={!filterCategoria ? {
-              background: 'color-mix(in srgb, var(--c-primary) 15%, transparent)',
-              color: 'var(--c-primary)',
-              borderColor: 'color-mix(in srgb, var(--c-primary) 30%, transparent)',
-            } : undefined}
-          >
-            Todas
-          </button>
-          {CATEGORIAS.map(cat => (
+        {/* Scrollable filter pills */}
+        <div className="overflow-x-auto scrollbar-none -mx-1 px-1">
+          <div className="flex items-center gap-1.5 min-w-max">
+            {/* Categoria filters */}
             <button
-              key={cat}
-              onClick={() => setFilterCategoria(filterCategoria === cat ? '' : cat)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
-                filterCategoria === cat
-                  ? ''
-                  : 'bg-white/[0.04] text-white/50 border border-white/10 hover:bg-white/[0.08]'
-              }`}
-              style={filterCategoria === cat ? {
+              onClick={() => setFilterCategoria('')}
+              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150"
+              style={!filterCategoria ? {
                 background: 'color-mix(in srgb, var(--c-primary) 15%, transparent)',
                 color: 'var(--c-primary)',
-                borderColor: 'color-mix(in srgb, var(--c-primary) 30%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--c-primary) 30%, transparent)',
-              } : undefined}
+              } : {
+                background: 'rgba(255,255,255,0.04)',
+                color: 'rgba(255,255,255,0.5)',
+                border: '1px solid rgba(255,255,255,0.1)',
+              }}
             >
-              {cat}
+              Todas
             </button>
-          ))}
+            {allCategorias.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setFilterCategoria(filterCategoria === cat ? '' : cat)}
+                className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150"
+                style={filterCategoria === cat ? {
+                  background: 'color-mix(in srgb, var(--c-primary) 15%, transparent)',
+                  color: 'var(--c-primary)',
+                  border: '1px solid color-mix(in srgb, var(--c-primary) 30%, transparent)',
+                } : {
+                  background: 'rgba(255,255,255,0.04)',
+                  color: 'rgba(255,255,255,0.5)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                }}
+              >
+                {cat}
+              </button>
+            ))}
 
-          {/* Divider */}
-          <div className="w-px h-5 bg-white/10 mx-1 hidden sm:block" />
+            {/* Divider */}
+            <div className="w-px h-5 bg-white/10 mx-0.5 shrink-0" />
 
-          {/* Nivel filters */}
-          {NIVELES.map(nv => (
-            <button
-              key={nv}
-              onClick={() => setFilterNivel(filterNivel === nv ? '' : nv)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
-                filterNivel === nv
-                  ? ''
-                  : 'bg-white/[0.04] text-white/50 border border-white/10 hover:bg-white/[0.08]'
-              }`}
-              style={filterNivel === nv ? {
-                background: 'color-mix(in srgb, var(--c-secondary) 15%, transparent)',
-                color: 'var(--c-secondary)',
-                borderColor: 'color-mix(in srgb, var(--c-secondary) 30%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--c-secondary) 30%, transparent)',
-              } : undefined}
-            >
-              {NIVEL_LABELS[nv]}
-            </button>
-          ))}
+            {/* Nivel filters */}
+            {NIVELES.map(nv => (
+              <button
+                key={nv}
+                onClick={() => setFilterNivel(filterNivel === nv ? '' : nv)}
+                className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150"
+                style={filterNivel === nv ? {
+                  background: 'color-mix(in srgb, var(--c-secondary) 15%, transparent)',
+                  color: 'var(--c-secondary)',
+                  border: '1px solid color-mix(in srgb, var(--c-secondary) 30%, transparent)',
+                } : {
+                  background: 'rgba(255,255,255,0.04)',
+                  color: 'rgba(255,255,255,0.5)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                }}
+              >
+                {NIVEL_LABELS[nv]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -327,6 +334,7 @@ export default function Learning() {
         onSave={handleFormSave}
         initialData={editingTopic}
         loading={saving}
+        existingCategories={[...new Set(topics.map(t => t.categoria).filter(Boolean))]}
       />
     </div>
   )

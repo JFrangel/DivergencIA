@@ -244,20 +244,63 @@ El JSON debe tener exactamente esta estructura:
 }
 
 // ─── Auto-categorización de temas de aprendizaje ─────────────────────────────
-export async function autoCategorize(titulo, descripcion = '') {
+export async function autoCategorize(titulo, descripcion = '', existingCategories = []) {
   const client = getClient()
   if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
   const model = client.getGenerativeModel({ model: GEMINI_MODEL })
+
+  const catHint = existingCategories.length
+    ? `Categorías existentes: ${existingCategories.join(', ')}. Usa una de estas si aplica; si no encaja, crea una nueva (máx 2 palabras en español).`
+    : 'Categorías comunes: ML, NLP, Vision, Datos, General.'
+
   const result = await model.generateContent(
-    `Clasifica este tema de investigación en IA/ML.
+    `Clasifica este tema de investigación en IA/ML y sugiere 1-2 recursos de referencia.
 TÍTULO: ${titulo}
 ${descripcion ? `DESCRIPCIÓN: ${descripcion.slice(0, 400)}` : ''}
 
+${catHint}
+Niveles: basico, intermedio, avanzado.
+
 Devuelve SOLO JSON sin markdown:
-{"categoria":"ML|NLP|Vision|Datos|General","nivel":"basico|intermedio|avanzado","tags":["tag1","tag2","tag3"]}`
+{"categoria":"nombre","nivel":"basico|intermedio|avanzado","tags":["tag1","tag2","tag3"],"recursos":[{"titulo":"Nombre recurso","url":"https://...","tipo":"paper|tutorial|video|enlace"}]}`
   )
   const text = result.response.text().trim().replace(/```json\n?|\n?```/g, '').trim()
   try { return JSON.parse(text) } catch { return null }
+}
+
+// ─── Generador de secciones de contenido para un tema ────────────────────────
+export async function generateTopicSections(titulo, descripcion = '', categoria = '', nivel = '') {
+  const client = getClient()
+  if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL })
+
+  const result = await model.generateContent(
+    `Eres un experto en pedagogía de IA y Machine Learning.
+Genera un plan de secciones de aprendizaje para este tema.
+
+TÍTULO: ${titulo}
+${descripcion ? `DESCRIPCIÓN: ${descripcion.slice(0, 400)}` : ''}
+CATEGORÍA: ${categoria || 'General'}
+NIVEL: ${nivel || 'basico'}
+
+Crea entre 4 y 7 secciones variadas y pedagógicamente ordenadas.
+Tipos disponibles: texto, codigo, quiz, imagen, video.
+- "texto": explicación conceptual (genera el contenido completo, mínimo 3 párrafos separados por \\n\\n)
+- "codigo": ejemplo de código real y funcional (genera el código completo)
+- "quiz": pregunta de opción múltiple (en formato JSON exacto)
+- "video": solo el título y URL de YouTube relevante (si conoces uno real)
+- "imagen": solo el título y URL de imagen explicativa
+
+Devuelve SOLO JSON sin markdown:
+{"secciones":[
+  {"titulo":"Nombre de la sección","tipo":"texto|codigo|quiz|video|imagen","contenido":"contenido completo","preview":"resumen 1 línea"}
+]}`
+  )
+  const text = result.response.text().trim().replace(/```json\n?|\n?```/g, '').trim()
+  try {
+    const parsed = JSON.parse(text)
+    return parsed.secciones || []
+  } catch { return [] }
 }
 
 // ─── Tarjeta ilustrativa AI para temas de aprendizaje ─────────────────────────
@@ -285,6 +328,54 @@ Devuelve SOLO JSON sin markdown:
   )
   const text = result.response.text().trim().replace(/```json\n?|\n?```/g, '').trim()
   try { return JSON.parse(text) } catch { return null }
+}
+
+// ─── Sugerencia de imágenes para secciones ────────────────────────────────
+export async function suggestSectionImages(topicTitle, sectionTitle = '', contenido = '') {
+  const client = getClient()
+  if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL })
+
+  const result = await model.generateContent(
+    `Eres un asistente de investigación académica en IA y Machine Learning.
+Sugiere 3 imágenes educativas reales para ilustrar este tema/sección.
+
+TEMA: ${topicTitle}
+${sectionTitle ? `SECCIÓN: ${sectionTitle}` : ''}
+${contenido ? `CONTENIDO (primeras 300 chars): ${contenido.slice(0, 300)}` : ''}
+
+Para cada imagen proporciona:
+- Una URL real y estable de Wikimedia Commons, Wikipedia, arXiv o un recurso educativo conocido
+- Si no conoces una URL exacta, usa el patrón: https://upload.wikimedia.org/wikipedia/commons/thumb/... que conozcas
+- Como alternativa usa URLs de recursos de ML reconocidos (papers with code, distill.pub, etc.)
+- Una descripción corta de qué muestra la imagen
+- La fuente (Wikipedia, Wikimedia, arXiv, etc.)
+
+También incluye 2 queries de búsqueda en inglés para que el usuario busque manualmente.
+
+Devuelve SOLO JSON sin markdown:
+{"imagenes":[{"url":"https://...","descripcion":"...","fuente":"Wikipedia"},{"url":"https://...","descripcion":"...","fuente":"arXiv"},{"url":"https://...","descripcion":"...","fuente":"Wikimedia"}],"queries":["query 1 en inglés","query 2 en inglés"]}`
+  )
+  const text = result.response.text().trim().replace(/```json\n?|\n?```/g, '').trim()
+  try { return JSON.parse(text) } catch { return { imagenes: [], queries: [] } }
+}
+
+// ─── Sugerencia de título para sección ────────────────────────────────────
+export async function suggestSectionTitle(topicTitle, tipo, contenido = '') {
+  const client = getClient()
+  if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL })
+
+  const result = await model.generateContent(
+    `Genera un título conciso y descriptivo (máx 6 palabras en español) para esta sección de aprendizaje.
+
+TEMA DEL TOPIC: ${topicTitle}
+TIPO DE SECCIÓN: ${tipo}
+CONTENIDO (primeras 200 chars): ${contenido.slice(0, 200)}
+
+Devuelve SOLO el título como texto plano, sin comillas ni formato extra.`
+  )
+  return result.response.text().trim().replace(/^["']|["']$/g, '')
 }
 
 // ─── Conexión semántica entre temas ───────────────────────────────────────
