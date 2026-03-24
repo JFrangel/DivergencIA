@@ -60,6 +60,10 @@ export const COMMANDS = {
     usage: '/export',
     desc: 'Exporta el historial de la terminal',
   },
+  mural: {
+    usage: '/mural [sugerir <tema> | analizar]',
+    desc: 'Mural: resumen, sugerir layout con IA, o analizar elementos',
+  },
   clear: {
     usage: '/clear',
     desc: 'Limpia la terminal',

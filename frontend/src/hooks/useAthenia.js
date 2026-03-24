@@ -39,15 +39,57 @@ export function useAthenia() {
     setHistory([])
   }, [user])
 
-  // Build context string for Gemini
+  // Build rich context string for Gemini
   const buildContext = useCallback(async () => {
-    const [{ count: miembros }, { count: proyectos }, { count: ideas }] = await Promise.all([
-      supabase.from('usuarios').select('*', { count: 'exact', head: true }),
+    const [
+      { count: miembros },
+      { count: totalProyectos },
+      { count: totalIdeas },
+      { data: proyectosActivos },
+      { data: ideasTop },
+      { data: muralesUsuario },
+    ] = await Promise.all([
+      supabase.from('usuarios').select('*', { count: 'exact', head: true }).eq('activo', true),
       supabase.from('proyectos').select('*', { count: 'exact', head: true }),
       supabase.from('ideas').select('*', { count: 'exact', head: true }),
+      supabase.from('proyectos').select('titulo, estado, area').in('estado', ['activo', 'investigacion', 'desarrollo']).limit(5),
+      supabase.from('ideas').select('titulo, votos_favor').order('votos_favor', { ascending: false }).limit(3),
+      user ? supabase.from('murales').select('titulo, tipo, data').eq('creador_id', user.id).order('updated_at', { ascending: false }).limit(3) : Promise.resolve({ data: [] }),
     ])
-    return `Semillero DivergencIA: ${miembros} investigadores, ${proyectos} proyectos activos, ${ideas} ideas en el banco. Plataforma universitaria de investigación en IA.`
-  }, [])
+
+    const projectList = proyectosActivos?.length
+      ? proyectosActivos.map(p => `• ${p.titulo} (${p.estado}${p.area ? ', ' + p.area : ''})`).join('\n')
+      : '• Sin proyectos activos registrados'
+
+    const ideasList = ideasTop?.length
+      ? ideasTop.map(i => `• [${i.votos_favor || 0}v] ${i.titulo}`).join('\n')
+      : '• Sin ideas en el banco aún'
+
+    const muralesCtx = muralesUsuario?.length
+      ? muralesUsuario.map(m => {
+          const elementos = m.data?.elements || []
+          const tipos = elementos.reduce((acc, el) => {
+            const t = el.type || 'otro'
+            acc[t] = (acc[t] || 0) + 1
+            return acc
+          }, {})
+          const resumen = Object.entries(tipos).map(([t, n]) => `${n} ${t}`).join(', ')
+          return `• "${m.titulo}" (${m.tipo}): ${elementos.length} elementos${resumen ? ' — ' + resumen : ''}`
+        }).join('\n')
+      : '• Sin murales creados aún'
+
+    return `=== SEMILLERO DivergencIA ===
+Miembros activos: ${miembros || 0} | Proyectos totales: ${totalProyectos || 0} | Ideas en banco: ${totalIdeas || 0}
+
+PROYECTOS EN CURSO:
+${projectList}
+
+IDEAS DESTACADAS (por votos):
+${ideasList}
+
+MIS MURALES:
+${muralesCtx}`
+  }, [user])
 
   return { history, loading, saveMessage, clearHistory, buildContext }
 }

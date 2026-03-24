@@ -4,7 +4,7 @@ import { FiSend, FiTrash2, FiUpload, FiZap, FiLoader } from 'react-icons/fi'
 import gsap from 'gsap'
 import TerminalLine, { TerminalCursor } from './TerminalLine'
 import { parseInput, buildHelpLines, COMMANDS } from './CommandParser'
-import { atheniaChat, analyzeChalkboard, connectTopics } from '../../lib/gemini'
+import { atheniaChat, analyzeChalkboard, connectTopics, generateMuralSuggestions } from '../../lib/gemini'
 import { useAthenia } from '../../hooks/useAthenia'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -491,6 +491,102 @@ export default function ATHENIA_Shell() {
         a.href = url; a.download = `athenia-log-${Date.now()}.txt`; a.click()
         URL.revokeObjectURL(url)
         addLine('success', 'Historial exportado como archivo de texto.')
+        break
+      }
+
+      case 'mural': {
+        const subCmd = args.split(/\s+/)[0]?.toLowerCase()
+        const muralArgs = args.split(/\s+/).slice(1).join(' ')
+
+        if (subCmd === 'sugerir') {
+          const tema = muralArgs.trim()
+          if (!tema) {
+            addLine('error', 'Uso: /mural sugerir <tema>. Ej: /mural sugerir arquitectura RAG')
+            break
+          }
+          addLine('system', `Generando layout de mural para: "${tema}"...`)
+          setIsThinking(true)
+          try {
+            const result = await generateMuralSuggestions(tema)
+            const elems = result.elementos || []
+            addLines([
+              { type: 'success', text: `🎨 Layout: "${result.titulo_layout}"` },
+              { type: 'info',    text: result.resumen || '' },
+              { type: 'info',    text: `──── ${elems.length} elementos generados ────` },
+            ])
+            elems.forEach((el, i) => {
+              const tag = el.tipo?.toUpperCase().padEnd(10)
+              const label = el.titulo || el.etiqueta || ''
+              const extra = el.texto || el.cuerpo || el.url || (el.items ? el.items.slice(0, 2).join(', ') : '')
+              addLine('info', `  ${i + 1}. [${tag}] ${label}${extra ? ' — ' + extra.slice(0, 60) : ''}`)
+            })
+            addLine('prompt', '💡 Ve al Mural y usa "Generar con IA" para insertar este layout automáticamente.')
+          } catch (e) {
+            addLine('error', `Error generando layout: ${e.message}`)
+          } finally {
+            setIsThinking(false)
+          }
+          break
+        }
+
+        if (subCmd === 'analizar') {
+          if (!user) { addLine('warning', 'Debes iniciar sesión para analizar tu mural.'); break }
+          addLine('system', 'Consultando tu mural activo...')
+          setIsThinking(true)
+          try {
+            const { data: murales } = await supabase
+              .from('murales')
+              .select('titulo, tipo, data, updated_at')
+              .eq('creador_id', user.id)
+              .order('updated_at', { ascending: false })
+              .limit(1)
+            const mural = murales?.[0]
+            if (!mural) { addLine('warning', 'No tienes murales creados aún. Crea uno en la sección Mural.'); setIsThinking(false); break }
+            const elementos = mural.data?.elements || []
+            const tipos = elementos.reduce((acc, el) => { const t = el.type || 'otro'; acc[t] = (acc[t] || 0) + 1; return acc }, {})
+            const tiposStr = Object.entries(tipos).map(([t, n]) => `${n} ${t}`).join(', ')
+            const ctx = await buildContext()
+            const prompt = `Analiza este mural de investigación llamado "${mural.titulo}":
+- Elementos: ${elementos.length} (${tiposStr})
+- Textos/ideas presentes: ${elementos.filter(e => e.text || e.body || e.title).slice(0, 8).map(e => e.text || e.body || e.title || '').filter(Boolean).join(' | ')}
+Identifica: (1) qué tema investiga, (2) qué tan estructurado está el pensamiento, (3) qué elementos faltan para completar el análisis. Responde en 3-5 oraciones.`
+            const reply = await atheniaChat([], prompt, ctx)
+            addLines([
+              { type: 'success', text: `🗺 Mural: "${mural.titulo}" — ${elementos.length} elementos` },
+              { type: 'info',    text: `   Tipos: ${tiposStr}` },
+              { type: 'ai',      text: reply },
+            ])
+          } catch (e) {
+            addLine('error', `Error analizando mural: ${e.message}`)
+          } finally {
+            setIsThinking(false)
+          }
+          break
+        }
+
+        // Default: /mural sin subcomando → resumen de murales del usuario
+        if (!user) { addLine('warning', 'Debes iniciar sesión para ver tus murales.'); break }
+        addLine('system', 'Consultando tus murales...')
+        const { data: muralesData } = await supabase
+          .from('murales')
+          .select('titulo, tipo, data, updated_at')
+          .eq('creador_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(5)
+        if (!muralesData?.length) {
+          addLine('info', 'No tienes murales creados. Ve a la sección Mural para crear uno.')
+          addLine('prompt', 'Tip: Usa /mural sugerir <tema> para generar un layout con IA.')
+          break
+        }
+        addLine('success', `──── ${muralesData.length} Mural(es) ────`)
+        muralesData.forEach(m => {
+          const elems = m.data?.elements || []
+          const tipos = elems.reduce((acc, el) => { const t = el.type || 'otro'; acc[t] = (acc[t] || 0) + 1; return acc }, {})
+          const resumen = Object.entries(tipos).map(([t, n]) => `${n} ${t}`).join(', ')
+          const fechaStr = m.updated_at ? new Date(m.updated_at).toLocaleDateString('es-CO') : '?'
+          addLine('info', `  › "${m.titulo}" [${m.tipo}] — ${elems.length} elem. (${resumen || 'vacío'}) — ${fechaStr}`)
+        })
+        addLine('prompt', 'Usa /mural sugerir <tema> para generar un layout, o /mural analizar para analizar tu último mural.')
         break
       }
 
