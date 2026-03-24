@@ -70,6 +70,7 @@ export default function TasksWidget() {
           {tasks.map((task, i) => {
             const cfg = STATE_CFG[task.estado] || STATE_CFG.pendiente
             const Icon = cfg.icon
+            const isOverdue = task.fecha_limite && new Date(task.fecha_limite) < new Date() && task.estado !== 'completada'
             return (
               <motion.div
                 key={task.id}
@@ -81,7 +82,7 @@ export default function TasksWidget() {
                   to={task.proyecto?.id ? `/projects/${task.proyecto.id}` : '#'}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] transition-all group"
                 >
-                  <Icon size={13} style={{ color: cfg.color }} className="shrink-0" />
+                  <Icon size={13} style={{ color: isOverdue ? '#ef4444' : cfg.color }} className="shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-white/70 truncate group-hover:text-white/90 transition-colors">
                       {task.titulo}
@@ -90,12 +91,19 @@ export default function TasksWidget() {
                       <p className="text-[10px] text-white/20 truncate">{task.proyecto.titulo}</p>
                     )}
                   </div>
-                  <span
-                    className="text-[9px] px-1.5 py-0.5 rounded font-medium shrink-0"
-                    style={{ background: `${cfg.color}15`, color: `${cfg.color}aa` }}
-                  >
-                    {cfg.label}
-                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {isOverdue && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-red-500/15 text-red-400">
+                        Vencida
+                      </span>
+                    )}
+                    <span
+                      className="text-[9px] px-1.5 py-0.5 rounded font-medium"
+                      style={{ background: `${cfg.color}15`, color: `${cfg.color}aa` }}
+                    >
+                      {cfg.label}
+                    </span>
+                  </div>
                 </Link>
               </motion.div>
             )
