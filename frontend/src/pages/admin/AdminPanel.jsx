@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { FiShield, FiUsers, FiInbox, FiBarChart2, FiSettings, FiCheck, FiX, FiTrash2, FiEdit2, FiCalendar, FiMail, FiPlus, FiClock, FiFlag, FiSliders, FiSearch, FiStar, FiTrendingUp, FiTrendingDown, FiMinus } from 'react-icons/fi'
+import { FiShield, FiUsers, FiInbox, FiBarChart2, FiSettings, FiCheck, FiX, FiTrash2, FiEdit2, FiCalendar, FiMail, FiPlus, FiClock, FiFlag, FiSliders, FiSearch, FiStar, FiTrendingUp, FiTrendingDown, FiMinus, FiSend } from 'react-icons/fi'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts'
 import { supabase } from '../../lib/supabase'
 import Card from '../../components/ui/Card'
@@ -14,6 +14,7 @@ import ContentModerator from '../../components/admin/ContentModerator'
 import PlatformConfig from '../../components/admin/PlatformConfig'
 import NodosManager from '../../components/admin/NodosManager'
 import NodeGroupManager from '../../components/admin/NodeGroupManager'
+import BroadcastPanel from '../../components/admin/BroadcastPanel'
 import { toast } from 'sonner'
 import { timeAgo } from '../../lib/utils'
 
@@ -152,6 +153,7 @@ const tabs = [
   { id: 'moderation', label: 'Moderación' },
   { id: 'reports', label: 'Reportes' },
   { id: 'nodes', label: 'Nodos' },
+  { id: 'broadcast', label: 'Broadcast' },
   { id: 'config', label: 'Configuración' },
 ]
 
@@ -1040,6 +1042,7 @@ export default function AdminPanel() {
       {tab === 'moderation' && <ContentModerator />}
       {tab === 'reports' && <ReportsPanel />}
       {tab === 'nodes' && <NodesTabContent />}
+      {tab === 'broadcast' && <BroadcastPanel />}
       {tab === 'config' && <PlatformConfig />}
     </div>
   )
