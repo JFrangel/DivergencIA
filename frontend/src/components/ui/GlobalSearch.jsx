@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiSearch, FiFolder, FiUsers, FiStar, FiBook, FiX } from 'react-icons/fi'
+import { FiSearch, FiFolder, FiUsers, FiStar, FiBook, FiX, FiCpu } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
 const CATEGORIES = {
   proyectos: { icon: FiFolder, color: '#FC651F', route: (id) => `/projects/${id}` },
   usuarios:  { icon: FiUsers, color: '#8B5CF6', route: (id) => `/members/${id}` },
-  ideas:     { icon: FiStar, color: '#00D1FF', route: () => '/ideas' },
-  archivos:  { icon: FiBook, color: '#22c55e', route: () => '/library' },
+  ideas:     { icon: FiStar,  color: '#00D1FF', route: (id) => `/ideas/${id}` },
+  archivos:  { icon: FiBook,  color: '#22c55e', route: () => '/library' },
+  temas:     { icon: FiCpu,   color: '#F59E0B', route: () => '/learning' },
 }
 
 export default function GlobalSearch() {
@@ -46,16 +47,20 @@ export default function GlobalSearch() {
     setLoading(true)
     const term = `%${q}%`
 
-    const [{ data: proyectos }, { data: usuarios }, { data: ideas }] = await Promise.all([
-      supabase.from('proyectos').select('id, titulo, estado').ilike('titulo', term).limit(5),
-      supabase.from('usuarios').select('id, nombre, area_investigacion').ilike('nombre', term).limit(5),
-      supabase.from('ideas').select('id, titulo').ilike('titulo', term).limit(5),
+    const [{ data: proyectos }, { data: usuarios }, { data: ideas }, { data: archivos }, { data: temas }] = await Promise.all([
+      supabase.from('proyectos').select('id, titulo, estado').ilike('titulo', term).limit(4),
+      supabase.from('usuarios').select('id, nombre, area_investigacion').ilike('nombre', term).eq('activo', true).limit(4),
+      supabase.from('ideas').select('id, titulo, estado').ilike('titulo', term).limit(4),
+      supabase.from('archivos').select('id, nombre, tipo').ilike('nombre', term).limit(3),
+      supabase.from('temas_aprendizaje').select('id, titulo, categoria').ilike('titulo', term).eq('activo', true).limit(3),
     ])
 
     const items = [
       ...(proyectos || []).map(p => ({ ...p, type: 'proyectos', label: p.titulo, sub: p.estado })),
-      ...(usuarios || []).map(u => ({ ...u, type: 'usuarios', label: u.nombre, sub: u.area_investigacion })),
-      ...(ideas || []).map(i => ({ ...i, type: 'ideas', label: i.titulo, sub: 'Idea' })),
+      ...(usuarios  || []).map(u => ({ ...u, type: 'usuarios',  label: u.nombre,  sub: u.area_investigacion })),
+      ...(ideas     || []).map(i => ({ ...i, type: 'ideas',     label: i.titulo,  sub: i.estado })),
+      ...(archivos  || []).map(a => ({ ...a, type: 'archivos',  label: a.nombre,  sub: a.tipo })),
+      ...(temas     || []).map(t => ({ ...t, type: 'temas',     label: t.titulo,  sub: t.categoria })),
     ]
     setResults(items)
     setLoading(false)
@@ -111,7 +116,7 @@ export default function GlobalSearch() {
                     type="text"
                     value={query}
                     onChange={e => setQuery(e.target.value)}
-                    placeholder="Buscar proyectos, personas, ideas..."
+                    placeholder="Buscar proyectos, ideas, miembros, temas, archivos..."
                     className="flex-1 bg-transparent text-sm text-white placeholder:text-white/20 outline-none"
                   />
                   {query && (
@@ -150,7 +155,7 @@ export default function GlobalSearch() {
                               <p className="text-sm text-white/70 truncate">{item.label}</p>
                               {item.sub && <p className="text-[10px] text-white/25 capitalize">{item.sub}</p>}
                             </div>
-                            <span className="text-[9px] text-white/15 capitalize shrink-0">{item.type}</span>
+                            <span className="text-[9px] text-white/15 capitalize shrink-0">{{ proyectos:"Proyecto", usuarios:"Miembro", ideas:"Idea", archivos:"Archivo", temas:"Tema" }[item.type]}</span>
                           </button>
                         )
                       })}

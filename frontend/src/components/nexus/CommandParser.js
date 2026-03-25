@@ -64,6 +64,18 @@ export const COMMANDS = {
     usage: '/mural [sugerir <tema> | analizar]',
     desc: 'Mural: resumen, sugerir layout con IA, o analizar elementos',
   },
+  proyecto: {
+    usage: '/proyecto <nombre>',
+    desc: 'Busca un proyecto en la BD. Ej: /proyecto NLP Sentiment',
+  },
+  idea: {
+    usage: '/idea <nombre>',
+    desc: 'Busca una idea en la BD. Ej: /idea detector de plagio',
+  },
+  miembro: {
+    usage: '/miembro <nombre>',
+    desc: 'Busca un miembro del semillero. Ej: /miembro Juan',
+  },
   clear: {
     usage: '/clear',
     desc: 'Limpia la terminal',

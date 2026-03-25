@@ -590,6 +590,74 @@ Identifica: (1) qué tema investiga, (2) qué tan estructurado está el pensamie
         break
       }
 
+      case 'proyecto': {
+        if (!args?.trim()) {
+          addLine('error', 'Uso: /proyecto <nombre>. Ej: /proyecto NLP Sentiment')
+          break
+        }
+        addLine('system', `Buscando proyecto: "${args}"...`)
+        const { data: prs } = await supabase
+          .from('proyectos')
+          .select('titulo, estado, descripcion, area, creador:usuarios!proyectos_creador_id_fkey(nombre)')
+          .ilike('titulo', `%${args}%`)
+          .limit(5)
+        if (!prs?.length) { addLine('warning', `No se encontraron proyectos con "${args}".`); break }
+        prs.forEach(p => {
+          addLines([
+            { type: 'success', text: `📁 ${p.titulo} [${p.estado}]` },
+            { type: 'info',    text: `   Área: ${p.area || '—'} | Líder: ${p.creador?.nombre || '?'}` },
+            { type: 'info',    text: `   ${p.descripcion?.slice(0, 120) || 'Sin descripción'}` },
+          ])
+        })
+        break
+      }
+
+      case 'idea': {
+        if (!args?.trim()) {
+          addLine('error', 'Uso: /idea <nombre>. Ej: /idea detector de plagio')
+          break
+        }
+        addLine('system', `Buscando idea: "${args}"...`)
+        const { data: ideasRes } = await supabase
+          .from('ideas')
+          .select('titulo, descripcion, estado, votos_favor, area_relacionada, autor:usuarios!ideas_autor_id_fkey(nombre)')
+          .ilike('titulo', `%${args}%`)
+          .limit(5)
+        if (!ideasRes?.length) { addLine('warning', `No se encontraron ideas con "${args}".`); break }
+        ideasRes.forEach(i => {
+          addLines([
+            { type: 'success', text: `💡 ${i.titulo} [${i.estado}] ↑${i.votos_favor}` },
+            { type: 'info',    text: `   Área: ${i.area_relacionada || '—'} | Autor: ${i.autor?.nombre || '?'}` },
+            { type: 'info',    text: `   ${i.descripcion?.slice(0, 120) || 'Sin descripción'}` },
+          ])
+        })
+        break
+      }
+
+      case 'miembro': {
+        if (!args?.trim()) {
+          addLine('error', 'Uso: /miembro <nombre>. Ej: /miembro Juan')
+          break
+        }
+        addLine('system', `Buscando miembro: "${args}"...`)
+        const { data: mbrs } = await supabase
+          .from('usuarios')
+          .select('nombre, titulo, area_investigacion, habilidades, grupo_nodo')
+          .ilike('nombre', `%${args}%`)
+          .eq('activo', true)
+          .limit(5)
+        if (!mbrs?.length) { addLine('warning', `No se encontraron miembros con "${args}".`); break }
+        mbrs.forEach(m => {
+          const skills = (m.habilidades || []).slice(0, 4).join(', ')
+          addLines([
+            { type: 'success', text: `👤 ${m.nombre} — ${m.titulo || 'Investigador'}` },
+            { type: 'info',    text: `   Área: ${m.area_investigacion || '—'} | Grupo: ${m.grupo_nodo || '—'}` },
+            { type: 'info',    text: `   Skills: ${skills || 'No especificadas'}` },
+          ])
+        })
+        break
+      }
+
       default:
         addLine('error', `Comando desconocido: /${command}. Escribe /help para ver los disponibles.`)
     }
