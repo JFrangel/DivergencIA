@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
 import { createNotification } from './useNotifications'
+import { trackProgress } from '../lib/trackProgress'
 
 export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}) {
   const { user } = useAuth()
@@ -88,6 +89,7 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
     if (error) { toast.error('Error al crear idea'); return { error } }
     setIdeas(i => [data, ...i])
     toast.success('Idea publicada')
+    trackProgress(user?.id, 'ideas_submitted', 1)
     return { data }
   }
 
@@ -121,6 +123,7 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
         .insert({ usuario_id: user.id, idea_id: ideaId, tipo })
       setMyVotes(v => ({ ...v, [ideaId]: tipo }))
       setVoteCounts(c => ({ ...c, [ideaId]: (c[ideaId] || 0) + 1 }))
+      trackProgress(user.id, 'votes_cast', 1)
     }
 
     // Notify the idea author about the new vote (only for new votes, not removals)
@@ -185,6 +188,11 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
     }
     setIdeas(i => i.map(x => x.id === id ? data : x))
     toast.success('Idea actualizada')
+    // Only track edits to own ideas
+    const editedIdea = ideas.find(i => i.id === id)
+    if (editedIdea?.autor_id === user?.id || editedIdea?.autor?.id === user?.id) {
+      trackProgress(user?.id, 'ideas_edited', 1)
+    }
     return { data }
   }
 
@@ -230,6 +238,7 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
     }
 
     await fetch()
+    trackProgress(user?.id, 'ideas_merged', 1)
     return { success: true }
   }
 

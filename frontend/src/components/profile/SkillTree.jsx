@@ -1,6 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiCpu, FiDatabase, FiEye, FiMessageSquare, FiCode, FiChevronDown } from 'react-icons/fi'
+import { FiCpu, FiDatabase, FiEye, FiMessageSquare, FiCode, FiChevronDown, FiRefreshCw } from 'react-icons/fi'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
 
 // Map learning topic categories to skill tree category ids
 const LEARNING_TO_SKILL_MAP = {
@@ -146,46 +148,74 @@ function SkillBranch({ category, userSkills, expanded, onToggle, level = 0 }) {
   )
 }
 
-export default function SkillTree({ habilidades = [], learningProgress, projects }) {
+export default function SkillTree({ habilidades = [], learningProgress: propProgress, projects, targetUserId }) {
+  const { user } = useAuth()
   const [expanded, setExpanded] = useState(null)
+  const [dbProgress, setDbProgress] = useState(null) // fetched from Supabase
+  const [dbProjects, setDbProjects] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const resolvedUserId = targetUserId || user?.id
+
+  // Fetch learning progress + project count from Supabase
+  useEffect(() => {
+    if (!resolvedUserId) return
+    setLoading(true)
+
+    Promise.all([
+      supabase
+        .from('progreso_aprendizaje')
+        .select('tema_id, completado, secciones_completadas, tema:temas(categoria)')
+        .eq('usuario_id', resolvedUserId),
+      supabase
+        .from('miembros_proyecto')
+        .select('proyecto_id', { count: 'exact', head: true })
+        .eq('usuario_id', resolvedUserId)
+        .eq('activo', true),
+    ]).then(([{ data: progressData }, { count: projectCount }]) => {
+      if (progressData) {
+        const map = {}
+        progressData.forEach(row => {
+          map[row.tema_id] = {
+            completed: row.completado || false,
+            completedSections: row.secciones_completadas || [],
+            categoria: row.tema?.categoria || null,
+          }
+        })
+        setDbProgress(map)
+      }
+      if (projectCount !== null) setDbProjects(projectCount)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [resolvedUserId])
+
   const userSkills = habilidades.map(h => h.trim())
 
-  // Calculate levels per category based on learning data and projects
+  // Use DB progress if available, fall back to prop, then empty
+  const learningProgress = dbProgress ?? propProgress ?? {}
+  const projectCount = dbProjects ?? (Array.isArray(projects) ? projects.length : 0)
+
   const categoryLevels = useMemo(() => {
     const levels = {}
     CATEGORIES.forEach(c => { levels[c.id] = 0 })
 
-    if (learningProgress && typeof learningProgress === 'object') {
-      Object.entries(learningProgress).forEach(([, entry]) => {
-        // Each completed topic in a category = +1 level
-        if (entry.completed) {
-          // Try to map by the category stored in the entry, or distribute generally
-          const catId = entry.categoria ? (LEARNING_TO_SKILL_MAP[entry.categoria] || null) : null
-          if (catId && levels[catId] !== undefined) {
-            levels[catId] += 1
-          }
-        }
-        // Each started topic gives a partial boost
-        if (entry.completedSections?.length > 0 && !entry.completed) {
-          const catId = entry.categoria ? (LEARNING_TO_SKILL_MAP[entry.categoria] || null) : null
-          if (catId && levels[catId] !== undefined) {
-            levels[catId] += 0.5
-          }
-        }
-      })
-    }
+    Object.entries(learningProgress).forEach(([, entry]) => {
+      const catId = entry.categoria ? (LEARNING_TO_SKILL_MAP[entry.categoria] || null) : null
+      if (entry.completed && catId && levels[catId] !== undefined) {
+        levels[catId] += 1
+      } else if ((entry.completedSections?.length > 0) && catId && levels[catId] !== undefined) {
+        levels[catId] += 0.5
+      }
+    })
 
-    // Projects contributed to = +2 levels to 'dev' category
-    if (Array.isArray(projects) && projects.length > 0) {
-      levels.dev = (levels.dev || 0) + projects.length * 2
-    }
+    // Projects = +2 to 'dev' per project
+    levels.dev = (levels.dev || 0) + projectCount * 2
 
-    // Round levels
     Object.keys(levels).forEach(k => { levels[k] = Math.round(levels[k]) })
-
     return levels
-  }, [learningProgress, projects])
+  }, [learningProgress, projectCount])
 
+  const completedTopics = Object.values(learningProgress).filter(e => e.completed).length
   const totalSkills = CATEGORIES.reduce((acc, c) => acc + c.skills.length, 0)
   const totalMatch = CATEGORIES.reduce((acc, c) => acc + c.skills.filter(s => userSkills.includes(s)).length, 0)
   const totalLevels = Object.values(categoryLevels).reduce((a, b) => a + b, 0)
@@ -196,8 +226,13 @@ export default function SkillTree({ habilidades = [], learningProgress, projects
       {/* Global progress */}
       <div className="flex items-center justify-between px-4 pb-3 mb-1 border-b border-white/[0.06]">
         <div>
-          <p className="text-sm font-semibold text-white/60 uppercase tracking-wider">Arbol de Habilidades</p>
-          <p className="text-[11px] text-white/25 mt-0.5">{totalMatch} de {totalSkills} habilidades desbloqueadas</p>
+          <p className="text-sm font-semibold text-white/60 uppercase tracking-wider flex items-center gap-2">
+            Árbol de Habilidades
+            {loading && <FiRefreshCw size={11} className="animate-spin text-white/20" />}
+          </p>
+          <p className="text-[11px] text-white/25 mt-0.5">
+            {totalMatch} habilidades · {completedTopics} temas completados · {projectCount} proyectos
+          </p>
         </div>
         <div className="text-right">
           <span className="text-lg font-bold font-title" style={{

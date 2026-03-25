@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
+import { trackProgress } from '../lib/trackProgress'
 
 export function useLibrary({ projectId, tag, tipo } = {}) {
   const { user } = useAuth()
@@ -89,6 +90,7 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
 
     setFiles(f => [data, ...f])
     toast.success('Archivo subido')
+    trackProgress(user.id, 'files_uploaded', 1)
     return { data }
   }
 

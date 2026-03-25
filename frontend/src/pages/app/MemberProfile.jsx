@@ -459,7 +459,7 @@ export default function MemberProfile() {
         {/* Skill Tree — always shown */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <Card>
-            <SkillTree habilidades={member.habilidades || []} learningProgress={{}} projects={proyectos} />
+            <SkillTree habilidades={member.habilidades || []} targetUserId={member.id} />
           </Card>
         </motion.div>
       </div>

@@ -36,10 +36,30 @@ export function AuthProvider({ children }) {
       .from('usuarios')
       .select('*')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
-    setProfile(data)
-    setRole(data?.rol ?? 'miembro')
+    if (!data) {
+      // Profile missing (OAuth user who bypassed /auth/callback) — auto-create
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (authUser) {
+        const meta = authUser.user_metadata || {}
+        const nombre = meta.full_name || meta.name || authUser.email?.split('@')[0] || 'Investigador'
+        const foto_url = meta.avatar_url || meta.picture || null
+        const { data: created } = await supabase
+          .from('usuarios')
+          .insert({ id: userId, nombre, correo: authUser.email, foto_url, rol: 'miembro', activo: true })
+          .select()
+          .single()
+        setProfile(created)
+        setRole('miembro')
+      } else {
+        setProfile(null)
+        setRole(null)
+      }
+    } else {
+      setProfile(data)
+      setRole(data?.rol ?? 'miembro')
+    }
     setLoading(false)
   }
 
@@ -72,10 +92,18 @@ export function AuthProvider({ children }) {
       await supabase.from('notificaciones').insert({
         usuario_id: data.user.id,
         tipo: 'bienvenida',
-        mensaje: 'Bienvenido/a a DivergencIA. Explora proyectos, comparte ideas y aprende con la comunidad.',
+        titulo: '¡Bienvenido/a a DivergencIA!',
+        mensaje: 'Explora proyectos, comparte ideas y aprende con la comunidad.',
         leida: false,
         fecha: new Date().toISOString(),
       })
+
+      // Send welcome email via Edge Function (best-effort)
+      try {
+        await supabase.functions.invoke('send-email', {
+          body: { to: data.user.email, tipo: 'bienvenida', nombre },
+        })
+      } catch { /* ignore email errors */ }
     }
 
     return { data, error }
@@ -97,7 +125,7 @@ export function AuthProvider({ children }) {
   async function signInWithGoogle() {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${siteUrl}/dashboard` },
+      options: { redirectTo: `${siteUrl}/auth/callback` },
     })
     return { data, error }
   }

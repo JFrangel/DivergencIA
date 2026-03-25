@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
+import { trackProgress } from '../lib/trackProgress'
 
 /** Insert a notification into the notificaciones table */
 async function createNotification(userId, tipo, mensaje, referenciaId) {
@@ -123,6 +124,8 @@ export function useProjects({ userId, all = false } = {}) {
 
     setProjects(p => [data, ...p])
     toast.success('Proyecto creado')
+    trackProgress(user?.id, 'projects_created', 1)
+    if (data?.visibilidad === 'publico') trackProgress(user?.id, 'public_projects', 1)
     return { data }
   }
 
@@ -309,6 +312,7 @@ export function useAdvances(projectId) {
     if (error) { toast.error('Error al crear avance'); return { error } }
     setAdvances(a => [data, ...a])
     toast.success('Avance registrado')
+    trackProgress(user?.id, 'advances_logged', 1)
 
     // Notify all project members about the new advance
     if (projectId) {
@@ -390,6 +394,7 @@ export function useTasks(projectId) {
   }
 
   const updateTask = async (id, payload) => {
+    const prevTask = tasks.find(t => t.id === id)
     const { data, error } = await supabase
       .from('tareas')
       .update(payload)
@@ -398,6 +403,11 @@ export function useTasks(projectId) {
       .single()
     if (error) return { error }
     setTasks(t => t.map(x => x.id === id ? data : x))
+    // Track task completion (only when transitioning to 'completada')
+    if (payload.estado === 'completada' && prevTask?.estado !== 'completada') {
+      trackProgress(user?.id, 'tasks_completed', 1)
+      if (prevTask?.prioridad === 'alta') trackProgress(user?.id, 'critical_tasks', 1)
+    }
     return { data }
   }
 

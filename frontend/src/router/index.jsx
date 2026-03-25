@@ -7,10 +7,11 @@ import AppLayout from '../components/layout/AppLayout'
 import Spinner from '../components/ui/Spinner'
 
 // Lazy imports — páginas públicas
-const Landing  = lazy(() => import('../pages/public/Landing'))
-const Login    = lazy(() => import('../pages/public/Login'))
-const Register    = lazy(() => import('../pages/public/Register'))
-const JoinRequest = lazy(() => import('../pages/public/JoinRequest'))
+const Landing      = lazy(() => import('../pages/public/Landing'))
+const Login        = lazy(() => import('../pages/public/Login'))
+const Register     = lazy(() => import('../pages/public/Register'))
+const JoinRequest  = lazy(() => import('../pages/public/JoinRequest'))
+const AuthCallback = lazy(() => import('../pages/public/AuthCallback'))
 
 // Lazy imports — app privada
 const Dashboard     = lazy(() => import('../pages/app/Dashboard'))
@@ -59,7 +60,8 @@ export const router = createBrowserRouter([
       { path: '/',         element: withSuspense(Landing) },
       { path: '/login',    element: withSuspense(Login) },
       { path: '/register', element: withSuspense(Register) },
-      { path: '/join',     element: withSuspense(JoinRequest) },
+      { path: '/join',          element: withSuspense(JoinRequest) },
+      { path: '/auth/callback', element: withSuspense(AuthCallback) },
     ],
   },
 

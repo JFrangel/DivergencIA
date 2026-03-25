@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { trackProgress } from '../lib/trackProgress'
 
 const STORAGE_KEY = 'divergencia_learning_progress'
 
@@ -92,9 +93,11 @@ export function useLearningProgress() {
     setProgress(prev => {
       const existing = prev[topicId] || { completedSections: [], quizScores: {}, completed: false }
       const sections = new Set(existing.completedSections)
+      const wasNewSection = !sections.has(sectionIndex)
       sections.add(sectionIndex)
       const completedArr = [...sections]
       const isComplete = completedArr.length >= totalSections
+      const justCompleted = isComplete && !existing.completed
 
       const entry = {
         ...existing,
@@ -107,12 +110,16 @@ export function useLearningProgress() {
       // persist outside setState
       setTimeout(() => persist(topicId, entry), 0)
 
+      // Track achievement progress
+      if (wasNewSection) setTimeout(() => trackProgress(user?.id, 'sections_completed', 1), 0)
+      if (justCompleted) setTimeout(() => trackProgress(user?.id, 'topics_completed', 1), 0)
+
       // Also save to localStorage as immediate backup
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}
 
       return next
     })
-  }, [persist])
+  }, [persist, user?.id])
 
   // ── Unmark section ─────────────────────────────────────────────────────
   const unmarkSection = useCallback((topicId, sectionIndex) => {
