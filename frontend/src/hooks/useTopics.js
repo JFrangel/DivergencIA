@@ -12,7 +12,7 @@ export function useTopics({ categoria, nivel } = {}) {
     setLoading(true)
     let query = supabase
       .from('temas_aprendizaje')
-      .select('*, autor:usuarios!temas_aprendizaje_autor_id_fkey(id, nombre, foto_url, area_investigacion)')
+      .select('*, skills_relacionadas, autor:usuarios!temas_aprendizaje_autor_id_fkey(id, nombre, foto_url, area_investigacion)')
       .eq('activo', true)
       .order('orden', { ascending: true })
 
@@ -40,7 +40,7 @@ export function useTopics({ categoria, nivel } = {}) {
         contenido: payload.contenido || [],
         recursos: payload.recursos || [],
       })
-      .select('*, autor:usuarios!temas_aprendizaje_autor_id_fkey(id, nombre, foto_url, area_investigacion)')
+      .select('*, skills_relacionadas, autor:usuarios!temas_aprendizaje_autor_id_fkey(id, nombre, foto_url, area_investigacion)')
       .single()
 
     if (error) {
@@ -57,7 +57,7 @@ export function useTopics({ categoria, nivel } = {}) {
       .from('temas_aprendizaje')
       .update(updates)
       .eq('id', id)
-      .select('*, autor:usuarios!temas_aprendizaje_autor_id_fkey(id, nombre, foto_url, area_investigacion)')
+      .select('*, skills_relacionadas, autor:usuarios!temas_aprendizaje_autor_id_fkey(id, nombre, foto_url, area_investigacion)')
       .single()
 
     if (error) {

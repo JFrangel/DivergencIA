@@ -1116,9 +1116,13 @@ export default function TopicDetail({
                 transition={{ duration: 0.3 }}
               />
             </div>
-            {isTopicComplete && (
+            {isTopicComplete ? (
               <p className="text-[10px] text-[#22c55e] font-medium mt-1.5 flex items-center gap-1">
                 <FiCheckCircle size={10} /> Tema completado
+              </p>
+            ) : topic.skills_relacionadas?.length > 0 && (
+              <p className="text-[10px] text-white/30 mt-1.5">
+                🏅 Desbloquea: {topic.skills_relacionadas.slice(0, 3).join(', ')}{topic.skills_relacionadas.length > 3 ? ` +${topic.skills_relacionadas.length - 3}` : ''}
               </p>
             )}
           </div>

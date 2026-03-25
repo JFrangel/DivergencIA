@@ -6,6 +6,44 @@ import { trackProgress } from '../lib/trackProgress'
 const STORAGE_KEY = 'divergencia_learning_progress'
 
 /**
+ * When a topic is completed, fetch its skills_relacionadas and merge
+ * them into the user's habilidades array in their profile.
+ */
+async function syncSkillsOnCompletion(topicId, userId) {
+  if (!userId || !topicId) return
+  try {
+    // Get the topic's associated skills
+    const { data: topic } = await supabase
+      .from('temas_aprendizaje')
+      .select('skills_relacionadas, titulo')
+      .eq('id', topicId)
+      .single()
+
+    const newSkills = topic?.skills_relacionadas
+    if (!newSkills?.length) return
+
+    // Get current user habilidades
+    const { data: perfil } = await supabase
+      .from('usuarios')
+      .select('habilidades')
+      .eq('id', userId)
+      .single()
+
+    const current = perfil?.habilidades || []
+    const merged = [...new Set([...current, ...newSkills])]
+
+    if (merged.length === current.length) return // nothing new
+
+    await supabase
+      .from('usuarios')
+      .update({ habilidades: merged })
+      .eq('id', userId)
+  } catch {
+    // Silently fail — non-critical path
+  }
+}
+
+/**
  * Manages learning progress: sections completed, quiz scores.
  * Tries Supabase table 'progreso_aprendizaje' first, falls back to localStorage.
  */
@@ -112,7 +150,11 @@ export function useLearningProgress() {
 
       // Track achievement progress
       if (wasNewSection) setTimeout(() => trackProgress(user?.id, 'sections_completed', 1), 0)
-      if (justCompleted) setTimeout(() => trackProgress(user?.id, 'topics_completed', 1), 0)
+      if (justCompleted) {
+        setTimeout(() => trackProgress(user?.id, 'topics_completed', 1), 0)
+        // Auto-sync skills: add topic's skills_relacionadas to user profile
+        setTimeout(() => syncSkillsOnCompletion(topicId, user?.id), 0)
+      }
 
       // Also save to localStorage as immediate backup
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}

@@ -391,6 +391,7 @@ export default function TopicForm({ open, onClose, onSave, initialData, loading,
     initialData?.recursos?.length ? initialData.recursos : []
   )
   const [showLibPicker, setShowLibPicker] = useState(false)
+  const [skillsRelacionadas, setSkillsRelacionadas] = useState(initialData?.skills_relacionadas || [])
 
   useEffect(() => {
     if (open) {
@@ -402,6 +403,7 @@ export default function TopicForm({ open, onClose, onSave, initialData, loading,
       setAiSections([])
       setSections(initialData?.contenido?.length ? initialData.contenido : [emptySection()])
       setRecursos(initialData?.recursos?.length ? initialData.recursos : [])
+      setSkillsRelacionadas(initialData?.skills_relacionadas || [])
     }
   }, [open, initialData])
 
@@ -471,6 +473,7 @@ export default function TopicForm({ open, onClose, onSave, initialData, loading,
       nivel,
       contenido: sections,
       recursos: recursos.filter(r => r.titulo && r.url),
+      skills_relacionadas: skillsRelacionadas,
     })
   }
 
@@ -519,6 +522,47 @@ export default function TopicForm({ open, onClose, onSave, initialData, loading,
             </datalist>
           </div>
           <Select label="Nivel" value={nivel} onChange={e => setNivel(e.target.value)} options={NIVEL_OPTIONS} />
+        </div>
+
+        {/* Skills que desbloquea este tema */}
+        <div>
+          <label className="block text-[11px] text-white/40 uppercase tracking-wider font-semibold mb-1.5">
+            🏅 Habilidades que desbloquea
+            <span className="ml-2 text-white/20 normal-case font-normal">Se añaden al perfil al completar el tema</span>
+          </label>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {skillsRelacionadas.map(s => (
+              <span key={s} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
+                style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.3)' }}>
+                {s}
+                <button type="button" onClick={() => setSkillsRelacionadas(p => p.filter(x => x !== s))}
+                  className="hover:text-red-400 transition-colors ml-0.5">×</button>
+              </span>
+            ))}
+          </div>
+          <input
+            list="skills-suggestions"
+            placeholder="Añadir habilidad y presiona Enter..."
+            className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none transition-all"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
+            onFocus={e => (e.target.style.borderColor = 'var(--c-secondary)')}
+            onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && e.target.value.trim()) {
+                e.preventDefault()
+                const val = e.target.value.trim()
+                if (!skillsRelacionadas.includes(val)) setSkillsRelacionadas(p => [...p, val])
+                e.target.value = ''
+              }
+            }}
+          />
+          <datalist id="skills-suggestions">
+            {['Regresión','Clasificación','Clustering','Redes Neuronales','Ensemble Methods','Feature Engineering',
+              'Tokenización','Embeddings','Transformers','Sentiment Analysis','NER','Text Generation','RAG',
+              'CNNs','Object Detection','Segmentación','GANs','Image Classification',
+              'SQL','ETL','Visualización','Estadística','A/B Testing','Data Pipelines',
+              'Python','JavaScript','React','APIs REST','Docker','Git','Cloud (AWS/GCP)'].map(s => <option key={s} value={s} />)}
+          </datalist>
         </div>
 
         {/* AI Auto-categorize */}

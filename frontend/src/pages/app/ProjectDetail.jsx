@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiArrowLeft, FiPlus, FiEdit2, FiActivity, FiClock, FiTrash2, FiAlertTriangle, FiCamera, FiPaperclip, FiSearch, FiX, FiFile, FiImage, FiFilm, FiCode, FiDatabase, FiFileText, FiLightbulb, FiLink } from 'react-icons/fi'
+import { FiArrowLeft, FiPlus, FiEdit2, FiActivity, FiClock, FiTrash2, FiAlertTriangle, FiCamera, FiPaperclip, FiSearch, FiX, FiFile, FiImage, FiFilm, FiCode, FiDatabase, FiFileText, FiLink } from "react-icons/fi"
+import { HiLightBulb as FiLightbulb } from "react-icons/hi"
 import { useProject, useAdvances, useTasks } from '../../hooks/useProjects'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
