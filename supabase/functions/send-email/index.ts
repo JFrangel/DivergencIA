@@ -12,9 +12,19 @@ const FROM_EMAIL = 'DivergencIA <noreply@divergencia.app>'
 
 interface EmailPayload {
   to: string
-  subject: string
-  html: string
-  tipo?: string // 'bienvenida' | 'solicitud' | 'tarea' | 'avance' | 'general'
+  // Raw mode
+  subject?: string
+  html?: string
+  // Template mode
+  tipo?: string       // 'bienvenida' | 'solicitud_nueva' | 'tarea_asignada' | 'avance_nuevo' | 'magic_link'
+  nombre?: string
+  correo?: string
+  motivacion?: string
+  tarea?: string
+  proyecto?: string
+  autorNombre?: string
+  avance?: string
+  magicLink?: string
 }
 
 // ── Shared layout (dark, branded) ────────────────────────────────────────────
@@ -211,6 +221,56 @@ const templates = {
     `, `Tienes una nueva tarea: "${tarea}" en ${proyecto}.`),
   }),
 
+  magic_link: (nombre: string, link: string) => ({
+    subject: `🔐 Tu enlace de acceso a DivergencIA`,
+    html: emailLayout(`
+      <div style="height:4px;background:linear-gradient(90deg,#FC651F,#8B5CF6,#00D1FF);"></div>
+      <div style="background:linear-gradient(135deg,rgba(252,101,31,0.08),rgba(139,92,246,0.08));
+                  padding:40px 32px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">
+        <div style="width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,rgba(252,101,31,0.15),rgba(139,92,246,0.2));
+                    border:1px solid rgba(139,92,246,0.3);margin:0 auto 20px;display:flex;align-items:center;justify-content:center;
+                    font-size:30px;line-height:64px;">🔑</div>
+        <h1 style="margin:0 0 8px;font-size:22px;font-weight:900;color:rgba(255,255,255,0.92);">
+          Hola${nombre ? ', ' + nombre : ''} — tu acceso está listo
+        </h1>
+        <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.35);">
+          Haz clic en el botón de abajo para entrar — válido por 60 minutos
+        </p>
+      </div>
+      <div style="padding:36px 32px;">
+        <p style="color:rgba(255,255,255,0.55);font-size:14px;line-height:1.8;margin:0 0 28px;text-align:center;">
+          No necesitas contraseña. Este enlace es tuyo y es de un solo uso.
+          Si no solicitaste acceso, ignora este correo.
+        </p>
+
+        <!-- CTA principal -->
+        <div style="text-align:center;margin-bottom:28px;">
+          <a href="${link}"
+             style="display:inline-block;background:linear-gradient(135deg,#FC651F,#8B5CF6);color:#fff;
+                    text-decoration:none;padding:16px 48px;border-radius:50px;font-size:15px;font-weight:900;
+                    letter-spacing:0.5px;box-shadow:0 8px 32px rgba(252,101,31,0.35);
+                    border:1px solid rgba(255,255,255,0.08);">
+            ⚡ Entrar a DivergencIA
+          </a>
+        </div>
+
+        <!-- Security note -->
+        <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);
+                    border-radius:12px;padding:14px 16px;margin-bottom:20px;">
+          <p style="color:rgba(255,255,255,0.25);font-size:11px;margin:0;line-height:1.7;text-align:center;">
+            🔒 Enlace de un solo uso · expira en 60 min · no lo compartas
+          </p>
+        </div>
+
+        <!-- Fallback link -->
+        <p style="color:rgba(255,255,255,0.2);font-size:11px;text-align:center;margin:0;line-height:1.7;">
+          Si el botón no funciona, copia este enlace en tu navegador:<br>
+          <span style="color:rgba(139,92,246,0.6);word-break:break-all;font-size:10px;">${link}</span>
+        </p>
+      </div>
+    `, nombre ? `Hola ${nombre}, tu enlace de acceso a DivergencIA está listo.` : 'Tu enlace de acceso a DivergencIA está listo.'),
+  }),
+
   avance_nuevo: (nombre: string, avance: string, proyecto: string) => ({
     subject: `🚀 Nuevo avance en ${proyecto}`,
     html: emailLayout(`
@@ -259,10 +319,31 @@ serve(async (req: Request) => {
 
   try {
     const payload: EmailPayload = await req.json()
-    const { to, subject, html } = payload
+    const { to, tipo, nombre, correo, motivacion, tarea, proyecto, autorNombre, avance, magicLink } = payload
+    let { subject, html } = payload
+
+    // Template mode: resolve subject+html from template
+    if (tipo && tipo !== 'general' && !html) {
+      if (tipo === 'bienvenida' && nombre) {
+        const tpl = templates.bienvenida(nombre)
+        subject = tpl.subject; html = tpl.html
+      } else if (tipo === 'solicitud_nueva' && nombre) {
+        const tpl = templates.solicitud_nueva(nombre, correo || '', motivacion || '')
+        subject = tpl.subject; html = tpl.html
+      } else if (tipo === 'tarea_asignada' && nombre && tarea && proyecto) {
+        const tpl = templates.tarea_asignada(nombre, tarea, proyecto)
+        subject = tpl.subject; html = tpl.html
+      } else if (tipo === 'avance_nuevo' && nombre && avance && proyecto) {
+        const tpl = templates.avance_nuevo(autorNombre || nombre, avance, proyecto)
+        subject = tpl.subject; html = tpl.html
+      } else if (tipo === 'magic_link' && nombre && magicLink) {
+        const tpl = templates.magic_link(nombre, magicLink)
+        subject = tpl.subject; html = tpl.html
+      }
+    }
 
     if (!to || !subject || !html) {
-      return new Response(JSON.stringify({ error: 'Missing required fields: to, subject, html' }), {
+      return new Response(JSON.stringify({ error: 'Missing required fields: to, subject, html (or valid template tipo)' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       })

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#060304;font-family:'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#060304;">
+    <tr><td align="center" style="padding:32px 16px 48px;">
+      <table width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;margin:0 auto;">
+        <!-- LOGO -->
+        <tr><td style="padding:0 0 20px;text-align:center;">
+          <table cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
+            <tr>
+              <td style="padding-right:10px;vertical-align:middle;">
+                <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#FC651F,#8B5CF6);text-align:center;line-height:42px;font-size:20px;font-weight:900;color:#fff;box-shadow:0 4px 16px rgba(252,101,31,0.35);">D</div>
+              </td>
+              <td style="vertical-align:middle;">
+                <div style="font-size:24px;font-weight:900;color:rgba(255,255,255,0.92);letter-spacing:1px;">Divergenc<span style="color:#FC651F;">IA</span></div>
+                <div style="font-size:9px;color:rgba(255,255,255,0.2);letter-spacing:3.5px;text-transform:uppercase;margin-top:3px;">Semillero de Investigaci&#243;n en IA</div>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+        <!-- CARD -->
+        <tr><td style="background:#0d0608;border:1px solid rgba(255,255,255,0.07);border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+          <div style="height:4px;background:linear-gradient(90deg,#FC651F,#8B5CF6,#00D1FF);"></div>
+          <div style="background:linear-gradient(135deg,rgba(252,101,31,0.08),rgba(139,92,246,0.08));padding:40px 32px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">
+            <div style="font-size:44px;margin-bottom:16px;">&#128273;</div>
+            <h1 style="margin:0 0 8px;font-size:22px;font-weight:900;color:rgba(255,255,255,0.92);">Tu enlace de acceso est&#225; listo</h1>
+            <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.35);">Un solo clic y est&#225;s dentro &mdash; v&#225;lido por 60 minutos</p>
+          </div>
+          <div style="padding:36px 32px;">
+            <p style="color:rgba(255,255,255,0.55);font-size:14px;line-height:1.8;margin:0 0 28px;text-align:center;">No necesitas contrase&#241;a. Este enlace es personal y de un solo uso.</p>
+            <div style="text-align:center;margin-bottom:28px;">
+              <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:linear-gradient(135deg,#FC651F,#8B5CF6);color:#fff;text-decoration:none;padding:16px 48px;border-radius:50px;font-size:15px;font-weight:900;letter-spacing:0.5px;box-shadow:0 8px 32px rgba(252,101,31,0.35);">&#9889; Entrar a DivergencIA</a>
+            </div>
+            <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:14px 16px;margin-bottom:20px;">
+              <p style="color:rgba(255,255,255,0.25);font-size:11px;margin:0;line-height:1.7;text-align:center;">&#128274; Enlace de un solo uso &middot; expira en 60 min &middot; no lo compartas</p>
+            </div>
+            <p style="color:rgba(255,255,255,0.18);font-size:11px;text-align:center;margin:0;line-height:1.8;">Si el bot&#243;n no funciona, copia este enlace:<br><span style="color:rgba(139,92,246,0.55);word-break:break-all;font-size:10px;">{{ .ConfirmationURL }}</span></p>
+          </div>
+        </td></tr>
+        <!-- FOOTER -->
+        <tr><td style="padding:24px 0 0;text-align:center;">
+          <p style="color:rgba(255,255,255,0.18);font-size:11px;margin:0 0 6px;"><strong style="color:rgba(255,255,255,0.3);">DivergencIA</strong> &mdash; Donde la inteligencia artificial converge con la investigaci&#243;n</p>
+          <p style="color:rgba(255,255,255,0.1);font-size:10px;margin:0;">No respondas a este correo &middot; fue generado autom&#225;ticamente</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

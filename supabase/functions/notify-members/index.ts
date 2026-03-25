@@ -59,27 +59,29 @@ serve(async (req: Request) => {
           }))
           await supabase.from('notificaciones').insert(notifications)
 
-          // Send email to admins
+          // Email admins using branded template
           for (const admin of admins) {
             await sendEmailViaFunction({
               to: admin.correo,
-              subject: `Nueva solicitud: ${record.nombre}`,
-              html: `<p>${record.nombre} (${record.correo}) quiere unirse al semillero.</p>
-                     <p>Motivación: ${record.motivacion || 'No especificada'}</p>`,
+              tipo: 'solicitud_nueva',
+              nombre: record.nombre as string,
+              correo: record.correo as string,
+              motivacion: record.motivacion as string || '',
             })
           }
         }
         break
       }
 
-      // ── Join request approved → notify the applicant ────────────────────
-      case 'solicitudes_ingreso_update': {
-        if (record.estado === 'aprobada') {
+      // ── Join request approved (UPDATE) → notify the applicant ──────────
+      case 'solicitudes_ingreso': {
+        // Handled above for INSERT; skip UPDATEs here
+        // (Supabase webhook fires separate events per type)
+        if (type === 'UPDATE' && record.estado === 'aprobada') {
           await sendEmailViaFunction({
             to: record.correo as string,
-            subject: '¡Bienvenido a DivergencIA! 🚀',
-            html: `<p>Hola ${record.nombre}, tu solicitud ha sido aprobada.</p>
-                   <p>Ya puedes iniciar sesión en la plataforma.</p>`,
+            tipo: 'bienvenida',
+            nombre: record.nombre as string,
           })
         }
         break
@@ -90,17 +92,21 @@ serve(async (req: Request) => {
         const autorId = record.autor_id as string
         const proyectoId = record.proyecto_id as string
 
-        // Get project info
         const { data: proyecto } = await supabase
           .from('proyectos')
           .select('titulo')
           .eq('id', proyectoId)
           .single()
 
-        // Get project members (excluding the author)
+        const { data: autor } = await supabase
+          .from('usuarios')
+          .select('nombre')
+          .eq('id', autorId)
+          .single()
+
         const { data: members } = await supabase
           .from('miembros_proyecto')
-          .select('usuario_id, usuario:usuarios(correo, nombre)')
+          .select('usuario_id, usuario:usuarios(id, correo, nombre)')
           .eq('proyecto_id', proyectoId)
           .eq('activo', true)
           .neq('usuario_id', autorId)
@@ -114,6 +120,21 @@ serve(async (req: Request) => {
             leida: false,
           }))
           await supabase.from('notificaciones').insert(notifications)
+
+          // Email each member using branded template
+          for (const m of members) {
+            const member = m.usuario as { correo?: string; nombre?: string }
+            if (member?.correo) {
+              await sendEmailViaFunction({
+                to: member.correo,
+                tipo: 'avance_nuevo',
+                nombre: member.nombre || 'Investigador',
+                avance: (record.descripcion as string) || 'Ver detalles en la plataforma',
+                proyecto: proyecto?.titulo || 'proyecto',
+                autorNombre: autor?.nombre || 'Un compañero',
+              })
+            }
+          }
         }
         break
       }
@@ -143,14 +164,14 @@ serve(async (req: Request) => {
             leida: false,
           })
 
-          // Email
+          // Email using branded template
           if (assignee?.correo) {
             await sendEmailViaFunction({
               to: assignee.correo,
-              subject: `Nueva tarea: ${record.titulo}`,
-              html: `<p>Hola ${assignee.nombre}, tienes una nueva tarea:</p>
-                     <p><strong>${record.titulo}</strong></p>
-                     <p>Proyecto: ${proyecto?.titulo || 'N/A'}</p>`,
+              tipo: 'tarea_asignada',
+              nombre: assignee.nombre || 'Investigador',
+              tarea: record.titulo as string,
+              proyecto: proyecto?.titulo || 'N/A',
             })
           }
         }
@@ -200,7 +221,8 @@ serve(async (req: Request) => {
 })
 
 // Helper to call the send-email function
-async function sendEmailViaFunction(payload: { to: string; subject: string; html: string }) {
+// Accepts either raw {to, subject, html} or a typed template payload
+async function sendEmailViaFunction(payload: Record<string, string>) {
   try {
     await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
       method: 'POST',
