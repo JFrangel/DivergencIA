@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiDownload, FiFile, FiImage, FiCode, FiExternalLink, FiMaximize2, FiX, FiUser, FiCalendar, FiHardDrive, FiTag, FiDatabase, FiPlay, FiMusic, FiAlertCircle, FiTable, FiStar, FiLink, FiGlobe, FiLock, FiUsers, FiShield, FiPackage, FiCheckSquare, FiSquare } from 'react-icons/fi'
+import { FiDownload, FiFile, FiImage, FiCode, FiExternalLink, FiMaximize2, FiX, FiUser, FiCalendar, FiHardDrive, FiTag, FiDatabase, FiPlay, FiMusic, FiAlertCircle, FiTable, FiStar, FiLink, FiGlobe, FiLock, FiUsers, FiShield, FiPackage, FiCheckSquare, FiSquare, FiUploadCloud } from 'react-icons/fi'
 import { TbFileWord, TbPresentation, TbFileZip } from 'react-icons/tb'
 import Modal from '../ui/Modal'
 import VersionHistory from './VersionHistory'
@@ -1102,7 +1102,7 @@ function VisibilidadPanel({ file, onUpdate }) {
   )
 }
 
-export default function FilePreview({ file, open, onClose, isFavorite, onToggleFavorite, canManage, onUpdateVisibilidad, onUpdateContent }) {
+export default function FilePreview({ file, open, onClose, isFavorite, onToggleFavorite, canManage, onUpdateVisibilidad, onUpdateContent, onUploadVersion }) {
   const [lightbox, setLightbox] = useState(false)
 
   if (!file) return null
@@ -1237,7 +1237,22 @@ export default function FilePreview({ file, open, onClose, isFavorite, onToggleF
           </div>
 
           {/* Version History */}
-          <VersionHistory fileId={file.id} fileName={file.nombre} />
+          <div className="border-t border-white/[0.06] pt-4">
+            {canManage && onUploadVersion && (
+              <div className="mb-3">
+                <label className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-xs text-white/40 hover:text-white/70 hover:bg-white/[0.04] transition-all border border-dashed border-white/[0.08] hover:border-white/20">
+                  <FiUploadCloud size={13} />
+                  <span>Subir nueva versión</span>
+                  <input type="file" className="hidden" onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) onUploadVersion(file.id, f)
+                    e.target.value = ''
+                  }} />
+                </label>
+              </div>
+            )}
+            <VersionHistory fileId={file.id} fileName={file.nombre} />
+          </div>
         </div>
       </Modal>
 

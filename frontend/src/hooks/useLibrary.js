@@ -153,5 +153,69 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
     return {}
   }
 
-  return { files, loading, uploading, refetch: fetch, upload, remove, incrementDescargas, updateVisibilidad, updateFile, updateContent }
+  // Upload a new version of an existing file
+  const uploadVersion = async (archivoId, file, nota = '') => {
+    if (!user) return { error: 'No autenticado' }
+    setUploading(true)
+
+    // Get current file to snapshot its url as previous version
+    const currentFile = files.find(f => f.id === archivoId)
+    if (!currentFile) { setUploading(false); return { error: 'Archivo no encontrado' } }
+
+    // Get current max version number
+    const { data: lastVer } = await supabase
+      .from('versiones_archivo')
+      .select('version')
+      .eq('archivo_id', archivoId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .single()
+
+    const nextVersion = (lastVer?.version || 0) + 1
+
+    // Save current file as a version entry (snapshot before overwriting)
+    if (currentFile.url && nextVersion === 1) {
+      await supabase.from('versiones_archivo').insert({
+        archivo_id: archivoId,
+        version: 0,
+        url: currentFile.url,
+        tamanio_bytes: currentFile.tamanio_bytes,
+        nota: 'Versión original',
+        autor_id: currentFile.subido_por || user.id,
+      })
+    }
+
+    // Upload new file to storage
+    const ext = file.name.split('.').pop()
+    const path = `${user.id}/${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage.from('archivos').upload(path, file)
+    if (uploadError) { toast.error('Error al subir nueva versión'); setUploading(false); return { error: uploadError } }
+
+    const { data: { publicUrl } } = supabase.storage.from('archivos').getPublicUrl(path)
+
+    // Register new version
+    await supabase.from('versiones_archivo').insert({
+      archivo_id: archivoId,
+      version: nextVersion,
+      url: publicUrl,
+      tamanio_bytes: file.size,
+      nota: nota || `Versión ${nextVersion}`,
+      autor_id: user.id,
+    })
+
+    // Update the main file record with the new url
+    const { error: updateError } = await supabase
+      .from('archivos')
+      .update({ url: publicUrl, tamanio_bytes: file.size })
+      .eq('id', archivoId)
+
+    setUploading(false)
+    if (updateError) { toast.error('Error actualizando archivo'); return { error: updateError } }
+
+    setFiles(f => f.map(x => x.id === archivoId ? { ...x, url: publicUrl, tamanio_bytes: file.size } : x))
+    toast.success(`✓ Versión ${nextVersion} subida correctamente`)
+    return { data: { version: nextVersion, url: publicUrl } }
+  }
+
+  return { files, loading, uploading, refetch: fetch, upload, remove, incrementDescargas, updateVisibilidad, updateFile, updateContent, uploadVersion }
 }

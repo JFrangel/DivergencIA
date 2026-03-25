@@ -153,7 +153,7 @@ export default function Library() {
   const [showOnlyFavs, setShowOnlyFavs] = useState(false)
   const [editFile, setEditFile] = useState(null)
 
-  const { files, loading, uploading, upload, remove, updateVisibilidad, updateFile, updateContent } = useLibrary({ tipo: tipoFilter || undefined })
+  const { files, loading, uploading, upload, remove, updateVisibilidad, updateFile, updateContent, uploadVersion } = useLibrary({ tipo: tipoFilter || undefined })
 
   const allTags = useMemo(() => [...new Set(files.flatMap(f => f.tags || []))], [files])
 
@@ -358,6 +358,7 @@ export default function Library() {
         canManage={previewFile ? (previewFile.subido_por === user?.id || isAdmin) : false}
         onUpdateVisibilidad={updateVisibilidad}
         onUpdateContent={previewFile?.subido_por === user?.id ? updateContent : undefined}
+        onUploadVersion={(archivoId, file) => uploadVersion(archivoId, file)}
       />
 
       <FileEditModal
