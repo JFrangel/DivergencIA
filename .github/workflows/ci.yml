@@ -1,0 +1,62 @@
+name: CI — Build & Lint
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Lint (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: true
+      matrix:
+        node: [20]
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      # Inject dummy env vars so Vite doesn't fail on missing vars at build time
+      - name: Create .env for CI
+        run: |
+          echo "VITE_SUPABASE_URL=https://placeholder.supabase.co"    >> .env
+          echo "VITE_SUPABASE_ANON_KEY=placeholder_anon_key"          >> .env
+          echo "VITE_GEMINI_API_KEY=placeholder_gemini_key"           >> .env
+          echo "VITE_SITE_URL=https://placeholder.vercel.app"         >> .env
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (Vite)
+        run: npm run build
+
+      - name: Upload build artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: frontend/dist
+          retention-days: 7
