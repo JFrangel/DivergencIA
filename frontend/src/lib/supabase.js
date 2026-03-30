@@ -10,15 +10,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 })
 
-// ─── Color por área de investigación ───────────────────────────────────────
-export const AREA_COLORS = {
-  ML: '#FC651F',
-  NLP: '#8B5CF6',
-  Vision: '#00D1FF',
-  Datos: '#22c55e',
-  General: '#F59E0B',
-}
-
 // ─── Estados de proyecto ────────────────────────────────────────────────────
 export const ESTADO_PROYECTO = {
   idea: { label: 'Idea', color: '#F59E0B' },

@@ -30,13 +30,3 @@ export function useRealtime(table, { onInsert, onUpdate, onDelete, filter } = {}
 
   return channelRef
 }
-
-/**
- * Hook para notificaciones del usuario actual en tiempo real.
- */
-export function useNotifRealtime(userId, onNew) {
-  useRealtime('notificaciones', {
-    filter: `usuario_id=eq.${userId}`,
-    onInsert: onNew,
-  })
-}

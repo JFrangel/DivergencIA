@@ -148,10 +148,3 @@ export default function useSounds() {
     toggleEnabled,
   }
 }
-
-/* ─── Standalone helper (for use outside React) ──────────────────────── */
-export function playSound(name) {
-  if (!_enabled) return
-  const fn = SOUNDS[name]
-  if (fn) { try { fn() } catch {} }
-}

@@ -33,10 +33,6 @@ export function truncate(str, max = 80) {
   return str.length > max ? str.slice(0, max) + '…' : str
 }
 
-export function slugify(str) {
-  return str.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')
-}
-
 export function initials(name = '') {
   return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 }
