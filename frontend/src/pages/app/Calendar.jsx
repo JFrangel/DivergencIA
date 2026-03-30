@@ -1,14 +1,17 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 import {
   FiCalendar, FiChevronLeft, FiChevronRight, FiClock,
   FiMapPin, FiVideo, FiUsers, FiPlus, FiX, FiList, FiGrid,
-  FiEdit2, FiTrash2, FiUser, FiAlertTriangle,
+  FiEdit2, FiTrash2, FiUser, FiAlertTriangle, FiPhone, FiMail,
+  FiBell,
 } from 'react-icons/fi'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { toast } from 'sonner'
 import { createNotification } from '../../hooks/useNotifications'
+import { sendEmailBatch, emailMeetingInvite, emailCallStarting } from '../../lib/emailService'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
@@ -28,7 +31,7 @@ const MONTHS_ES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
 
-const EMPTY_FORM = { titulo: '', tipo: 'reunion', fecha: '', lugar: '', descripcion: '', proyecto_id: null }
+const EMPTY_FORM = { titulo: '', tipo: 'reunion', fecha: '', lugar: '', descripcion: '', proyecto_id: null, con_llamada: false, notificar_email: false }
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 function startOfMonth(date) {
@@ -157,6 +160,67 @@ function EventForm({ formData, setFormData, proyectos = [] }) {
           </select>
         </div>
       )}
+
+      {/* Meeting options */}
+      <div className="pt-1 space-y-2 border-t border-white/[0.06]">
+        <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Opciones de reunión</p>
+
+        <label className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06] cursor-pointer hover:bg-white/[0.05] transition-colors group">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: formData.con_llamada ? 'rgba(252,101,31,0.15)' : 'rgba(255,255,255,0.04)' }}
+          >
+            <FiPhone size={14} style={{ color: formData.con_llamada ? '#FC651F' : 'rgba(255,255,255,0.3)' }} />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-white/70 group-hover:text-white/90 transition-colors">Canal de reunión</p>
+            <p className="text-[10px] text-white/30 mt-0.5">Crea un canal de chat + llamada para este evento</p>
+          </div>
+          <div
+            className="w-9 h-5 rounded-full relative shrink-0 transition-colors"
+            style={{ background: formData.con_llamada ? '#FC651F' : 'rgba(255,255,255,0.1)' }}
+          >
+            <div
+              className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all"
+              style={{ left: formData.con_llamada ? '18px' : '2px' }}
+            />
+          </div>
+          <input
+            type="checkbox"
+            className="sr-only"
+            checked={!!formData.con_llamada}
+            onChange={e => setFormData(p => ({ ...p, con_llamada: e.target.checked }))}
+          />
+        </label>
+
+        <label className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06] cursor-pointer hover:bg-white/[0.05] transition-colors group">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: formData.notificar_email ? 'rgba(0,209,255,0.12)' : 'rgba(255,255,255,0.04)' }}
+          >
+            <FiMail size={14} style={{ color: formData.notificar_email ? '#00D1FF' : 'rgba(255,255,255,0.3)' }} />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-white/70 group-hover:text-white/90 transition-colors">Notificar por email</p>
+            <p className="text-[10px] text-white/30 mt-0.5">Envía invitación por correo a todos los miembros activos</p>
+          </div>
+          <div
+            className="w-9 h-5 rounded-full relative shrink-0 transition-colors"
+            style={{ background: formData.notificar_email ? '#00D1FF' : 'rgba(255,255,255,0.1)' }}
+          >
+            <div
+              className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all"
+              style={{ left: formData.notificar_email ? '18px' : '2px' }}
+            />
+          </div>
+          <input
+            type="checkbox"
+            className="sr-only"
+            checked={!!formData.notificar_email}
+            onChange={e => setFormData(p => ({ ...p, notificar_email: e.target.checked }))}
+          />
+        </label>
+      </div>
     </div>
   )
 }
@@ -203,6 +267,7 @@ function DeleteConfirmModal({ open, onClose, onConfirm, loading, eventTitle }) {
 /* ── Calendar Page ──────────────────────────────────────────────── */
 export default function Calendar() {
   const { user, isAdmin } = useAuth()
+  const navigate = useNavigate()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -219,7 +284,8 @@ export default function Calendar() {
 
   /* Fetch active projects once */
   useEffect(() => {
-    supabase.from('proyectos').select('id, titulo').in('estado', ['activo', 'desarrollo', 'investigacion'])
+    supabase.from('proyectos').select('id, titulo')
+      .not('estado', 'in', '(cancelado,finalizado)')
       .order('titulo', { ascending: true }).limit(50)
       .then(({ data }) => setProyectos(data || []))
   }, [])
@@ -307,23 +373,102 @@ export default function Calendar() {
     return false
   }
 
-  /* Create event */
+  /* Create event — with optional meeting channel + email invites */
   const handleCreate = async (e) => {
     e?.preventDefault?.()
     if (!formData.titulo || !formData.fecha) return
     setSaving(true)
-    const { error } = await supabase.from('eventos').insert([{
-      ...formData,
-      creado_por: user?.id,
-    }])
-    setSaving(false)
-    if (!error) {
-      toast.success('Evento creado')
+
+    try {
+      let canal_id = null
+
+      // 1. Create a meeting canal if requested
+      if (formData.con_llamada) {
+        const { data: canal } = await supabase.from('canales').insert({
+          nombre: `📅 ${formData.titulo}`,
+          tipo: 'grupo',
+          descripcion: `Canal para la reunión: ${formData.titulo}`,
+          creado_por: user?.id,
+          privado: false,
+          welcome_msg: `Bienvenido/a a la reunión "${formData.titulo}". ¡La llamada estará disponible aquí!`,
+        }).select('id').single()
+        canal_id = canal?.id || null
+
+        // Add creator as admin member
+        if (canal_id) {
+          await supabase.from('canal_miembros').insert({ canal_id, usuario_id: user.id, rol_canal: 'admin', puede_escribir: true }).catch(() => {})
+        }
+      }
+
+      // 2. Insert the event
+      const { data: evento, error } = await supabase.from('eventos').insert([{
+        titulo: formData.titulo,
+        tipo: formData.tipo,
+        fecha: formData.fecha,
+        lugar: formData.lugar || null,
+        descripcion: formData.descripcion || null,
+        proyecto_id: formData.proyecto_id || null,
+        con_llamada: !!formData.con_llamada,
+        canal_id,
+        creado_por: user?.id,
+      }]).select('id').single()
+
+      if (error) throw error
+
+      // 3. Send email invites if requested
+      if (formData.notificar_email) {
+        const { data: miembros } = await supabase
+          .from('usuarios')
+          .select('correo, nombre')
+          .eq('activo', true)
+          .not('correo', 'is', null)
+          .neq('id', user.id)
+
+        if (miembros?.length) {
+          const appUrl = window.location.origin
+          const canalUrl = canal_id ? `${appUrl}/chat?canal=${canal_id}` : appUrl
+          const batch = miembros.map(m => {
+            const tpl = emailMeetingInvite({
+              nombre: m.nombre,
+              eventoTitulo: formData.titulo,
+              fecha: formData.fecha,
+              lugar: formData.lugar,
+              descripcion: formData.descripcion,
+              canalUrl: formData.con_llamada ? canalUrl : null,
+            })
+            return { to: m.correo, ...tpl }
+          })
+          sendEmailBatch(batch).catch(() => {}) // fire and forget
+          toast.info(`Invitaciones enviadas a ${batch.length} miembros`)
+        }
+      }
+
+      // 4. In-app notifications for all members
+      const { data: todos } = await supabase
+        .from('usuarios')
+        .select('id')
+        .eq('activo', true)
+        .neq('id', user.id)
+
+      if (todos?.length) {
+        const notifs = todos.map(u => ({
+          usuario_id: u.id,
+          tipo: 'info',
+          titulo: `Nuevo evento: ${formData.titulo}`,
+          mensaje: `${new Date(formData.fecha).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}${formData.lugar ? ` · ${formData.lugar}` : ''}`,
+          leida: false,
+        }))
+        supabase.from('notificaciones').insert(notifs).catch(() => {})
+      }
+
+      toast.success('Evento creado' + (canal_id ? ' · Canal de reunión creado' : ''))
       setShowCreateModal(false)
       setFormData(EMPTY_FORM)
       fetchEvents()
-    } else {
+    } catch {
       toast.error('Error al crear evento')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -400,6 +545,39 @@ export default function Calendar() {
   }
 
   const todayDate = new Date()
+
+  // ── Meeting countdown alert (checks every minute) ──────────────────────────
+  useEffect(() => {
+    const check = () => {
+      const now = Date.now()
+      events.forEach(ev => {
+        if (!ev.canal_id) return
+        const diff = new Date(ev.fecha).getTime() - now
+        if (diff > 0 && diff <= 5 * 60 * 1000) {
+          toast(
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(34,197,94,0.15)' }}>
+                <FiBell size={14} style={{ color: '#22c55e' }} />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">La reunión "{ev.titulo}" empieza en {Math.ceil(diff / 60000)} min</p>
+                <button
+                  onClick={() => navigate(`/chat?canal=${ev.canal_id}`)}
+                  className="text-xs text-[#22c55e] mt-0.5 hover:underline"
+                >
+                  Unirse ahora →
+                </button>
+              </div>
+            </div>,
+            { id: `meeting-${ev.id}`, duration: 20000 },
+          )
+        }
+      })
+    }
+    check()
+    const t = setInterval(check, 60000)
+    return () => clearInterval(t)
+  }, [events, navigate])
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -632,6 +810,18 @@ export default function Calendar() {
                       </div>
                     </div>
 
+                    {/* Join meeting button */}
+                    {ev.canal_id && (
+                      <button
+                        onClick={() => navigate(`/chat?canal=${ev.canal_id}`)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold shrink-0 transition-all hover:scale-105"
+                        style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}
+                        title="Unirse al canal de reunión"
+                      >
+                        <FiPhone size={11} /> Unirse
+                      </button>
+                    )}
+
                     {/* Edit/Delete buttons (visible on hover for admins/creators) */}
                     {canEditEvent(ev) && (
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -727,6 +917,18 @@ export default function Calendar() {
                       </div>
                       {ev.descripcion && (
                         <p className="text-xs text-white/30 mt-2 leading-relaxed">{ev.descripcion}</p>
+                      )}
+                      {/* Join meeting button */}
+                      {ev.canal_id && (
+                        <div className="mt-3">
+                          <button
+                            onClick={() => { setSelectedDay(null); navigate(`/chat?canal=${ev.canal_id}`) }}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-105"
+                            style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)' }}
+                          >
+                            <FiPhone size={13} /> Unirse a la reunión
+                          </button>
+                        </div>
                       )}
                       {/* Show creator */}
                       {ev.creador && (

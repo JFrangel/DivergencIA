@@ -6,6 +6,7 @@ import {
   FiTrash2, FiCornerUpLeft, FiDownload, FiPlay, FiPause, FiMoreHorizontal,
   FiFile, FiFileText, FiCode, FiArchive, FiFilm, FiMusic,
   FiX, FiZoomIn, FiZoomOut, FiExternalLink, FiMaximize2,
+  FiCopy, FiEdit2, FiCheck,
 } from 'react-icons/fi'
 import Avatar from '../ui/Avatar'
 import { timeAgo } from '../../lib/utils'
@@ -288,23 +289,38 @@ function parseContent(text, navigate, setCtxMenu) {
 function AudioPlayer({ src }) {
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
   const audioRef = useRef(null)
 
-  if (!audioRef.current) audioRef.current = new Audio(src)
+  useEffect(() => {
+    const a = new Audio()
+    a.preload = 'metadata'
+    a.src = src
+    a.onloadedmetadata = () => setDuration(a.duration)
+    a.ontimeupdate = () => {
+      setCurrentTime(a.currentTime)
+      setProgress(a.duration ? (a.currentTime / a.duration) * 100 : 0)
+    }
+    a.onended = () => { setPlaying(false); setProgress(0); setCurrentTime(0) }
+    audioRef.current = a
+    return () => { a.pause(); a.src = '' }
+  }, [src])
 
   const toggle = () => {
     const a = audioRef.current
+    if (!a) return
     if (playing) { a.pause(); setPlaying(false) }
-    else {
-      a.play()
-      setPlaying(true)
-      a.ontimeupdate = () => setProgress(a.duration ? (a.currentTime / a.duration) * 100 : 0)
-      a.onended = () => { setPlaying(false); setProgress(0) }
-    }
+    else { a.play(); setPlaying(true) }
+  }
+
+  const fmtTime = (s) => {
+    if (!s || !isFinite(s) || isNaN(s)) return '0:00'
+    return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
   }
 
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl min-w-[180px] max-w-[260px]"
+    <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl min-w-[200px] max-w-[260px]"
       style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)' }}>
       <button
         onClick={toggle}
@@ -313,10 +329,17 @@ function AudioPlayer({ src }) {
       >
         {playing ? <FiPause size={11} className="text-white" /> : <FiPlay size={11} className="text-white ml-0.5" />}
       </button>
-      <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
+      <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden cursor-pointer" onClick={(e) => {
+        const a = audioRef.current
+        if (!a || !a.duration) return
+        const rect = e.currentTarget.getBoundingClientRect()
+        a.currentTime = ((e.clientX - rect.left) / rect.width) * a.duration
+      }}>
         <div className="h-full rounded-full transition-all duration-100" style={{ width: `${progress}%`, background: 'var(--c-primary)' }} />
       </div>
-      <span className="text-[10px] text-white/30 shrink-0">🎤</span>
+      <span className="text-[10px] text-white/30 shrink-0 tabular-nums">
+        {playing ? fmtTime(currentTime) : fmtTime(duration)}
+      </span>
     </div>
   )
 }
@@ -526,7 +549,6 @@ function MessageContent({ message, navigate }) {
     <>
       <div className="text-sm text-white/80 leading-relaxed break-words whitespace-pre-wrap">
         {parseContent(contenido, navigate, setCtxMenu)}
-        {message.editado && <span className="text-[10px] text-white/20 ml-1.5">(editado)</span>}
       </div>
       <AnimatePresence>
         {ctxMenu && (
@@ -589,14 +611,42 @@ function DeleteConfirmModal({ onConfirm, onCancel }) {
 
 // ─── MessageBubble — own messages right, others left ─────────────────────────
 const MessageBubble = forwardRef(function MessageBubble({
-  message, isOwn, canDelete, onDelete, onReply, onScrollToReply,
+  message, isOwn, canDelete, onDelete, onReply, onEdit, onScrollToReply,
   prevSame, memberRolCanal, replyMessage,
 }, ref) {
   const [hover, setHover] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editText, setEditText] = useState('')
+  const [copied, setCopied] = useState(false)
+  const editRef = useRef(null)
   const navigate = useNavigate()
   const { autor, created_at } = message
   const areaColor = AREA_COLOR[autor?.area_investigacion] || '#6b7280'
+
+  const handleCopy = () => {
+    if (!message.contenido) return
+    navigator.clipboard.writeText(message.contenido).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
+  const startEdit = () => {
+    setEditText(message.contenido || '')
+    setEditing(true)
+    setTimeout(() => {
+      editRef.current?.focus()
+      const len = editRef.current?.value?.length || 0
+      editRef.current?.setSelectionRange(len, len)
+    }, 50)
+  }
+
+  const submitEdit = async () => {
+    if (!editText.trim() || editText.trim() === message.contenido) { setEditing(false); return }
+    await onEdit?.(message.id, editText)
+    setEditing(false)
+  }
 
   return (
     <motion.div
@@ -650,13 +700,45 @@ const MessageBubble = forwardRef(function MessageBubble({
         {/* Reply preview */}
         <ReplyPreview replyMessage={replyMessage} onScrollTo={onScrollToReply} />
 
-        {/* Content — no bubble, Discord style */}
-        <MessageContent message={message} navigate={navigate} />
+        {/* Content — no bubble, Discord style — or inline editor */}
+        {editing ? (
+          <div className="flex flex-col gap-1.5 mt-0.5">
+            <textarea
+              ref={editRef}
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit() }
+                if (e.key === 'Escape') setEditing(false)
+              }}
+              rows={Math.min(8, editText.split('\n').length + 1)}
+              className="w-full resize-none rounded-lg px-3 py-2 text-sm text-white/90 outline-none"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(252,101,31,0.35)' }}
+            />
+            <div className="flex items-center gap-2 text-[11px]">
+              <button onClick={submitEdit} className="flex items-center gap-1 px-2.5 py-1 rounded-md font-medium transition-all"
+                style={{ background: 'rgba(252,101,31,0.15)', color: '#FC651F' }}>
+                <FiCheck size={11} /> Guardar
+              </button>
+              <button onClick={() => setEditing(false)} className="px-2.5 py-1 rounded-md text-white/35 hover:text-white/60 transition-colors">
+                Cancelar
+              </button>
+              <span className="text-white/20 ml-auto">Esc para cancelar · Enter para guardar</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            <MessageContent message={message} navigate={navigate} />
+            {message.editado && (
+              <span className="text-[10px] text-white/20 ml-1">(editado)</span>
+            )}
+          </>
+        )}
       </div>
 
       {/* Action bar on hover */}
       <AnimatePresence>
-        {hover && (
+        {hover && !editing && (
           <motion.div
             className={`absolute -top-3 flex items-center gap-0.5 rounded-lg overflow-hidden z-10 ${isOwn ? 'left-4' : 'right-4'}`}
             style={{ background: '#180d12', border: '1px solid rgba(255,255,255,0.09)' }}
@@ -665,6 +747,17 @@ const MessageBubble = forwardRef(function MessageBubble({
             exit={{ opacity: 0, scale: 0.9, y: 2 }}
             transition={{ duration: 0.1 }}
           >
+            {/* Copy */}
+            {message.tipo === 'texto' && (
+              <button
+                onClick={handleCopy}
+                className="p-1.5 text-white/30 hover:text-[#00D1FF] hover:bg-white/[0.05] transition-colors"
+                title="Copiar mensaje"
+              >
+                {copied ? <FiCheck size={13} style={{ color: '#22c55e' }} /> : <FiCopy size={13} />}
+              </button>
+            )}
+            {/* Reply */}
             {onReply && (
               <button
                 onClick={() => onReply(message)}
@@ -674,6 +767,17 @@ const MessageBubble = forwardRef(function MessageBubble({
                 <FiCornerUpLeft size={13} />
               </button>
             )}
+            {/* Edit (only own text messages) */}
+            {isOwn && message.tipo === 'texto' && onEdit && (
+              <button
+                onClick={startEdit}
+                className="p-1.5 text-white/30 hover:text-[#F59E0B] hover:bg-white/[0.05] transition-colors"
+                title="Editar mensaje"
+              >
+                <FiEdit2 size={13} />
+              </button>
+            )}
+            {/* Delete */}
             {canDelete && (
               <button
                 onClick={() => setConfirmDelete(true)}

@@ -35,7 +35,7 @@ export default function Modal({ open, onClose, title, children, size = 'md', foo
 
           {/* Panel */}
           <motion.div
-            className={`relative w-full ${widths[size] || widths.md} glass-frosted rounded-2xl shadow-2xl z-10 flex flex-col max-h-[90vh]`}
+            className={`relative w-full ${widths[size] || widths.md} glass-panel rounded-2xl z-10 flex flex-col max-h-[90vh]`}
             style={{ border: '1px solid rgba(252,101,31,0.2)' }}
             initial={{ opacity: 0, scale: 0.96, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}

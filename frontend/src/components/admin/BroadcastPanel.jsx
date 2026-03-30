@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FiSend, FiUsers, FiZap, FiLoader, FiMail, FiBell, FiAlertTriangle, FiStar, FiClock } from 'react-icons/fi'
 import { supabase } from '../../lib/supabase'
 import { generateBroadcastMessages } from '../../lib/gemini'
+import { sendEmailBatch } from '../../lib/emailService'
 import { toast } from 'sonner'
 import Card from '../ui/Card'
 
@@ -28,6 +29,7 @@ export default function BroadcastPanel() {
   const [aiLoading, setAiLoading] = useState(false)
   const [targetCount, setTargetCount] = useState(0)
   const [grupos, setGrupos] = useState([])
+  const [enviarEmail, setEnviarEmail] = useState(false)
 
   /* Fetch distinct nodo groups */
   useEffect(() => {
@@ -82,6 +84,45 @@ export default function BroadcastPanel() {
       }))
       const { error } = await supabase.from('notificaciones').insert(rows)
       if (error) throw error
+
+      // Also send emails if requested
+      if (enviarEmail) {
+        let emailQ = supabase.from('usuarios').select('correo, nombre').eq('activo', true).not('correo', 'is', null)
+        if (destino === 'rol') emailQ = emailQ.eq('rol', rolFilter)
+        if (destino === 'grupo') emailQ = emailQ.eq('grupo_nodo', grupoFilter)
+        const { data: emailTargets } = await emailQ
+
+        if (emailTargets?.length) {
+          const tipoColor = TIPO_META[tipo]?.color || '#00D1FF'
+          const batch = emailTargets.map(u => ({
+            to: u.correo,
+            subject: `${titulo} — DivergencIA`,
+            html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#060304;font-family:'Segoe UI',Roboto,Arial,sans-serif;">
+<table width="100%" cellspacing="0" cellpadding="0" style="background:#060304;">
+<tr><td align="center" style="padding:32px 16px;">
+<table width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;">
+<tr><td style="background:#0d0608;border:1px solid rgba(255,255,255,0.07);border-radius:18px;overflow:hidden;">
+<div style="height:4px;background:${tipoColor};"></div>
+<div style="padding:28px 28px 32px;">
+<p style="margin:0 0 4px;font-size:11px;color:rgba(255,255,255,0.25);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;">
+DivergencIA · ${TIPO_META[tipo]?.label || 'Notificación'}
+</p>
+<h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:rgba(255,255,255,0.92);">${titulo}</h1>
+<p style="margin:0;font-size:14px;color:rgba(255,255,255,0.55);line-height:1.8;">${mensaje}</p>
+</div>
+</td></tr>
+<tr><td style="padding-top:16px;text-align:center;">
+<p style="color:rgba(255,255,255,0.12);font-size:10px;margin:0;">Email automático de DivergencIA · No respondas</p>
+</td></tr>
+</table></td></tr></table></body></html>`,
+          }))
+          sendEmailBatch(batch)
+            .then(() => toast.success(`Emails enviados a ${batch.length} destinatarios`))
+            .catch(() => toast.warning('Notificaciones enviadas pero hubo un error con los emails'))
+        }
+      }
+
       toast.success(`Broadcast enviado a ${targets.length} miembros`)
       setTitulo('')
       setMensaje('')
@@ -262,6 +303,25 @@ export default function BroadcastPanel() {
             </div>
           </div>
         )}
+
+        {/* Email toggle */}
+        <label className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] cursor-pointer hover:bg-white/[0.05] transition-colors">
+          <FiMail size={14} style={{ color: enviarEmail ? '#00D1FF' : 'rgba(255,255,255,0.3)' }} className="shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-white/70">También enviar por email</p>
+            <p className="text-[10px] text-white/30 mt-0.5">Envía el broadcast al correo de los destinatarios</p>
+          </div>
+          <div
+            className="w-9 h-5 rounded-full relative shrink-0 transition-colors"
+            style={{ background: enviarEmail ? '#00D1FF' : 'rgba(255,255,255,0.1)' }}
+          >
+            <div
+              className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all"
+              style={{ left: enviarEmail ? '18px' : '2px' }}
+            />
+          </div>
+          <input type="checkbox" className="sr-only" checked={enviarEmail} onChange={e => setEnviarEmail(e.target.checked)} />
+        </label>
 
         {/* Send button */}
         <button

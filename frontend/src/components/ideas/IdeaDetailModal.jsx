@@ -48,7 +48,7 @@ export default function IdeaDetailModal({ idea, open, onClose, myVote, onVote, c
 
           {/* Panel */}
           <motion.div
-            className="relative w-full max-w-2xl glass-frosted rounded-2xl shadow-2xl z-10 flex flex-col max-h-[90vh]"
+            className="relative w-full max-w-2xl glass-panel rounded-2xl z-10 flex flex-col max-h-[90vh]"
             style={{ border: '1px solid rgba(139,92,246,0.2)' }}
             initial={{ opacity: 0, scale: 0.96, y: 24 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}

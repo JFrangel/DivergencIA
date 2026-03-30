@@ -165,7 +165,7 @@ export default function SkillTree({ habilidades = [], learningProgress: propProg
     Promise.all([
       supabase
         .from('progreso_aprendizaje')
-        .select('tema_id, completado, secciones_completadas, tema:temas(categoria)')
+        .select('tema_id, completado, secciones_completadas, tema:temas_aprendizaje(categoria)')
         .eq('usuario_id', resolvedUserId),
       supabase
         .from('miembros_proyecto')

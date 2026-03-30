@@ -74,6 +74,15 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: var(--shadow-card);
 }
 
+/* Opaque panel for modals/drawers — avoids see-through on dark backgrounds */
+.glass-panel {
+  background: rgba(12, 5, 9, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+}
+
 .glass-clear {
   background: var(--c-surface-3);
   backdrop-filter: var(--blur-sm);

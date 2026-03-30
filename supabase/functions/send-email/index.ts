@@ -1,396 +1,95 @@
-// Edge Function: send-email
-// Sends transactional emails via Resend API
-// Triggered by database webhooks or direct invocation
-
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
-const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-const FROM_EMAIL = 'DivergencIA <noreply@divergencia.app>'
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || 're_PesrK9Kb_6tZww8sZwtZs9BgQm7CFLFKW'
+// NOTE: onboarding@resend.dev only delivers to your Resend-registered email (sandbox restriction).
+// To send to any address, verify a domain at resend.com/domains and change FROM_EMAIL below.
+const FROM_EMAIL = Deno.env.get('FROM_EMAIL') || 'DivergencIA <onboarding@resend.dev>'
 
-interface EmailPayload {
-  to: string
-  // Raw mode
-  subject?: string
-  html?: string
-  // Template mode
-  tipo?: string       // 'bienvenida' | 'solicitud_nueva' | 'tarea_asignada' | 'avance_nuevo' | 'magic_link'
-  nombre?: string
-  correo?: string
-  motivacion?: string
-  tarea?: string
-  proyecto?: string
-  autorNombre?: string
-  avance?: string
-  magicLink?: string
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// ── Shared layout (dark, branded) ────────────────────────────────────────────
-const emailLayout = (bodyHtml: string, preheader = '') => `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <meta name="color-scheme" content="dark">
-</head>
-<body style="margin:0;padding:0;background:#060304;font-family:'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-  ${preheader ? `<span style="display:none;font-size:1px;max-height:0;overflow:hidden;">${preheader}</span>` : ''}
-  <table width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#060304;">
-    <tr><td align="center" style="padding:32px 16px 48px;">
-      <table width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:580px;margin:0 auto;">
-
-        <!-- LOGO -->
-        <tr><td style="padding:0 0 20px;text-align:center;">
-          <table cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
-            <tr>
-              <td style="padding-right:10px;vertical-align:middle;">
-                <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#FC651F,#8B5CF6);
-                            text-align:center;line-height:42px;font-size:20px;font-weight:900;color:#fff;
-                            box-shadow:0 4px 16px rgba(252,101,31,0.35);">D</div>
-              </td>
-              <td style="vertical-align:middle;">
-                <div style="font-size:24px;font-weight:900;color:rgba(255,255,255,0.92);letter-spacing:1px;">
-                  Divergenc<span style="color:#FC651F;">IA</span>
-                </div>
-                <div style="font-size:9px;color:rgba(255,255,255,0.2);letter-spacing:3.5px;text-transform:uppercase;margin-top:3px;">
-                  Semillero de Investigaci&#243;n en IA
-                </div>
-              </td>
-            </tr>
-          </table>
-        </td></tr>
-
-        <!-- CARD -->
-        <tr><td style="background:#0d0608;border:1px solid rgba(255,255,255,0.07);border-radius:20px;
-                       overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-          ${bodyHtml}
-        </td></tr>
-
-        <!-- FOOTER -->
-        <tr><td style="padding:24px 0 0;text-align:center;">
-          <p style="color:rgba(255,255,255,0.18);font-size:11px;margin:0 0 6px;">
-            <strong style="color:rgba(255,255,255,0.3);">DivergencIA</strong> &mdash; Donde la inteligencia artificial converge con la investigaci&#243;n
-          </p>
-          <p style="color:rgba(255,255,255,0.1);font-size:10px;margin:0;">
-            Email autom&#225;tico &middot; No respondas a esta direcci&#243;n
-          </p>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`
-
-// ── Email templates ─────────────────────────────────────────────────────────
-const templates = {
-  bienvenida: (nombre: string) => ({
-    subject: `¡Bienvenido/a a DivergencIA, ${nombre}! 🎉`,
-    html: emailLayout(`
-      <div style="height:4px;background:linear-gradient(90deg,#FC651F,#8B5CF6);"></div>
-      <div style="background:linear-gradient(135deg,rgba(252,101,31,0.1),rgba(139,92,246,0.1));
-                  padding:40px 32px 36px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">
-        <div style="font-size:48px;margin-bottom:12px;">🎉</div>
-        <h1 style="margin:0 0 8px;font-size:24px;font-weight:900;color:rgba(255,255,255,0.92);">
-          ¡Hola, ${nombre}! Ya eres parte del semillero.
-        </h1>
-        <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.4);">Tu solicitud fue aprobada — bienvenido/a a la familia DivergencIA</p>
-      </div>
-      <div style="padding:32px;">
-        <p style="color:rgba(255,255,255,0.6);font-size:14px;line-height:1.8;margin:0 0 20px;">
-          Estamos <strong style="color:rgba(255,255,255,0.9);">súper contentos</strong> de tenerte acá.
-          DivergencIA es donde investigadores curiosos se reúnen a explorar la IA, colaborar y construir
-          cosas que importan. ✨
-        </p>
-        <div style="background:rgba(252,101,31,0.06);border:1px solid rgba(252,101,31,0.15);border-radius:12px;padding:16px 20px;margin:0 0 10px;">
-          <div style="font-size:18px;margin-bottom:6px;">👤</div>
-          <div style="color:#FC651F;font-size:13px;font-weight:700;margin-bottom:3px;">Arma tu perfil</div>
-          <div style="color:rgba(255,255,255,0.5);font-size:12px;">Ponle tu foto, intereses y habilidades</div>
-        </div>
-        <div style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.15);border-radius:12px;padding:16px 20px;margin:0 0 10px;">
-          <div style="font-size:18px;margin-bottom:6px;">🔬</div>
-          <div style="color:#8B5CF6;font-size:13px;font-weight:700;margin-bottom:3px;">Explora los proyectos</div>
-          <div style="color:rgba(255,255,255,0.5);font-size:12px;">Hay investigación en marcha que espera colaboradores</div>
-        </div>
-        <div style="background:rgba(0,209,255,0.06);border:1px solid rgba(0,209,255,0.15);border-radius:12px;padding:16px 20px;margin:0 0 24px;">
-          <div style="font-size:18px;margin-bottom:6px;">🤖</div>
-          <div style="color:#00D1FF;font-size:13px;font-weight:700;margin-bottom:3px;">Habla con ATHENIA</div>
-          <div style="color:rgba(255,255,255,0.5);font-size:12px;">Nuestra IA interna puede orientarte — pruébala</div>
-        </div>
-        <div style="text-align:center;">
-          <a href="https://divergencia.app/dashboard"
-             style="display:inline-block;background:linear-gradient(135deg,#FC651F,#8B5CF6);color:#fff;
-                    text-decoration:none;padding:14px 40px;border-radius:50px;font-size:14px;font-weight:800;
-                    letter-spacing:0.5px;box-shadow:0 8px 24px rgba(252,101,31,0.3);">
-            Entrar a DivergencIA →
-          </a>
-        </div>
-      </div>
-    `, `Hey ${nombre}, tu cuenta está activa — el semillero te espera.`),
-  }),
-
-  solicitud_nueva: (nombre: string, correo: string, motivacion: string) => ({
-    subject: `🙋 Nueva solicitud: ${nombre} quiere unirse`,
-    html: emailLayout(`
-      <div style="height:4px;background:linear-gradient(90deg,#8B5CF6,#FC651F);"></div>
-      <div style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(252,101,31,0.08));
-                  padding:36px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">
-        <div style="font-size:44px;margin-bottom:12px;">🙋</div>
-        <h1 style="margin:0 0 8px;font-size:22px;font-weight:900;color:rgba(255,255,255,0.92);">
-          Nueva solicitud de ingreso
-        </h1>
-        <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.4);">${nombre} quiere unirse al semillero</p>
-      </div>
-      <div style="padding:32px;">
-        <p style="color:rgba(255,255,255,0.6);font-size:14px;line-height:1.8;margin:0 0 20px;">
-          Hay alguien que quiere ser parte de DivergencIA. Revisa sus datos y decide si es el momento
-          de darle la bienvenida. 🎯
-        </p>
-        <div style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.18);border-radius:14px;overflow:hidden;margin:0 0 20px;">
-          <div style="background:rgba(139,92,246,0.12);padding:10px 18px;border-bottom:1px solid rgba(139,92,246,0.15);">
-            <span style="color:#8B5CF6;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">
-              👤 Datos del solicitante
-            </span>
-          </div>
-          <div style="padding:16px 18px;">
-            <div style="margin-bottom:10px;">
-              <div style="color:rgba(255,255,255,0.25);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">Nombre</div>
-              <div style="color:rgba(255,255,255,0.85);font-size:14px;font-weight:600;">${nombre}</div>
-            </div>
-            <div>
-              <div style="color:rgba(255,255,255,0.25);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">Correo</div>
-              <div style="color:#00D1FF;font-size:13px;">${correo}</div>
-            </div>
-          </div>
-        </div>
-        ${motivacion ? `
-        <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-left:3px solid #8B5CF6;
-                    border-radius:0 12px 12px 0;padding:16px 18px;margin:0 0 24px;">
-          <div style="color:#8B5CF6;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">
-            Motivación
-          </div>
-          <p style="color:rgba(255,255,255,0.6);font-size:13px;line-height:1.8;margin:0;font-style:italic;">
-            "${motivacion || 'No especificada'}"
-          </p>
-        </div>` : ''}
-        <div style="text-align:center;">
-          <a href="https://divergencia.app/admin"
-             style="display:inline-block;background:#8B5CF6;color:#fff;text-decoration:none;
-                    padding:14px 40px;border-radius:50px;font-size:14px;font-weight:800;
-                    box-shadow:0 8px 24px rgba(139,92,246,0.3);">
-            Revisar solicitud →
-          </a>
-        </div>
-      </div>
-    `, `${nombre} envió una solicitud de ingreso al semillero.`),
-  }),
-
-  tarea_asignada: (nombre: string, tarea: string, proyecto: string) => ({
-    subject: `📌 Tienes una nueva tarea: ${tarea}`,
-    html: emailLayout(`
-      <div style="height:4px;background:linear-gradient(90deg,#00D1FF,#8B5CF6);"></div>
-      <div style="background:linear-gradient(135deg,rgba(0,209,255,0.08),rgba(139,92,246,0.08));
-                  padding:36px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">
-        <div style="font-size:44px;margin-bottom:12px;">✅</div>
-        <h1 style="margin:0 0 8px;font-size:22px;font-weight:900;color:rgba(255,255,255,0.92);">
-          Nueva tarea para ti, ${nombre}
-        </h1>
-        <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.4);">Alguien en el equipo confía en ti para esto</p>
-      </div>
-      <div style="padding:32px;">
-        <div style="background:rgba(0,209,255,0.06);border:1px solid rgba(0,209,255,0.18);border-radius:14px;padding:20px;margin:0 0 24px;">
-          <h2 style="color:rgba(255,255,255,0.92);margin:0 0 8px;font-size:18px;font-weight:800;">${tarea}</h2>
-          <div style="color:rgba(255,255,255,0.3);font-size:12px;margin-top:8px;">
-            📁 Proyecto: <span style="color:#00D1FF;font-weight:600;">${proyecto}</span>
-          </div>
-        </div>
-        <p style="color:rgba(255,255,255,0.5);font-size:13px;line-height:1.7;margin:0 0 24px;text-align:center;">
-          💡 Si tienes dudas, pregunta en el chat del proyecto — el equipo está ahí para apoyarte.
-        </p>
-        <div style="text-align:center;">
-          <a href="https://divergencia.app/dashboard"
-             style="display:inline-block;background:#00D1FF;color:#060304;text-decoration:none;
-                    padding:14px 40px;border-radius:50px;font-size:14px;font-weight:800;
-                    box-shadow:0 8px 24px rgba(0,209,255,0.25);">
-            Ver el proyecto →
-          </a>
-        </div>
-      </div>
-    `, `Tienes una nueva tarea: "${tarea}" en ${proyecto}.`),
-  }),
-
-  magic_link: (nombre: string, link: string) => ({
-    subject: `🔐 Tu enlace de acceso a DivergencIA`,
-    html: emailLayout(`
-      <div style="height:4px;background:linear-gradient(90deg,#FC651F,#8B5CF6,#00D1FF);"></div>
-      <div style="background:linear-gradient(135deg,rgba(252,101,31,0.08),rgba(139,92,246,0.08));
-                  padding:40px 32px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">
-        <div style="width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,rgba(252,101,31,0.15),rgba(139,92,246,0.2));
-                    border:1px solid rgba(139,92,246,0.3);margin:0 auto 20px;display:flex;align-items:center;justify-content:center;
-                    font-size:30px;line-height:64px;">🔑</div>
-        <h1 style="margin:0 0 8px;font-size:22px;font-weight:900;color:rgba(255,255,255,0.92);">
-          Hola${nombre ? ', ' + nombre : ''} — tu acceso está listo
-        </h1>
-        <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.35);">
-          Haz clic en el botón de abajo para entrar — válido por 60 minutos
-        </p>
-      </div>
-      <div style="padding:36px 32px;">
-        <p style="color:rgba(255,255,255,0.55);font-size:14px;line-height:1.8;margin:0 0 28px;text-align:center;">
-          No necesitas contraseña. Este enlace es tuyo y es de un solo uso.
-          Si no solicitaste acceso, ignora este correo.
-        </p>
-
-        <!-- CTA principal -->
-        <div style="text-align:center;margin-bottom:28px;">
-          <a href="${link}"
-             style="display:inline-block;background:linear-gradient(135deg,#FC651F,#8B5CF6);color:#fff;
-                    text-decoration:none;padding:16px 48px;border-radius:50px;font-size:15px;font-weight:900;
-                    letter-spacing:0.5px;box-shadow:0 8px 32px rgba(252,101,31,0.35);
-                    border:1px solid rgba(255,255,255,0.08);">
-            ⚡ Entrar a DivergencIA
-          </a>
-        </div>
-
-        <!-- Security note -->
-        <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);
-                    border-radius:12px;padding:14px 16px;margin-bottom:20px;">
-          <p style="color:rgba(255,255,255,0.25);font-size:11px;margin:0;line-height:1.7;text-align:center;">
-            🔒 Enlace de un solo uso · expira en 60 min · no lo compartas
-          </p>
-        </div>
-
-        <!-- Fallback link -->
-        <p style="color:rgba(255,255,255,0.2);font-size:11px;text-align:center;margin:0;line-height:1.7;">
-          Si el botón no funciona, copia este enlace en tu navegador:<br>
-          <span style="color:rgba(139,92,246,0.6);word-break:break-all;font-size:10px;">${link}</span>
-        </p>
-      </div>
-    `, nombre ? `Hola ${nombre}, tu enlace de acceso a DivergencIA está listo.` : 'Tu enlace de acceso a DivergencIA está listo.'),
-  }),
-
-  avance_nuevo: (nombre: string, avance: string, proyecto: string) => ({
-    subject: `🚀 Nuevo avance en ${proyecto}`,
-    html: emailLayout(`
-      <div style="height:4px;background:linear-gradient(90deg,#22C55E,#00D1FF);"></div>
-      <div style="background:linear-gradient(135deg,rgba(34,197,94,0.08),rgba(0,209,255,0.06));
-                  padding:36px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">
-        <div style="font-size:44px;margin-bottom:12px;">🚀</div>
-        <h1 style="margin:0 0 8px;font-size:22px;font-weight:900;color:rgba(255,255,255,0.92);">
-          ¡Hay avances en ${proyecto}!
-        </h1>
-        <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.4);">${nombre} acaba de registrar un progreso</p>
-      </div>
-      <div style="padding:32px;">
-        <div style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.2);
-                    border-left:4px solid #22C55E;border-radius:0 12px 12px 0;padding:18px 20px;margin:0 0 24px;">
-          <div style="color:#22C55E;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">
-            📈 Avance registrado
-          </div>
-          <p style="color:rgba(255,255,255,0.7);font-size:14px;line-height:1.8;margin:0;">${avance}</p>
-        </div>
-        <div style="text-align:center;">
-          <a href="https://divergencia.app/projects"
-             style="display:inline-block;background:#22C55E;color:#060304;text-decoration:none;
-                    padding:14px 40px;border-radius:50px;font-size:14px;font-weight:800;
-                    box-shadow:0 8px 24px rgba(34,197,94,0.25);">
-            Ver el proyecto →
-          </a>
-        </div>
-      </div>
-    `, `${nombre} registró un avance en ${proyecto}.`),
-  }),
-}
-
-// ── Main handler ────────────────────────────────────────────────────────────
 serve(async (req: Request) => {
-  // CORS
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
-    })
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   try {
-    const payload: EmailPayload = await req.json()
-    const { to, tipo, nombre, correo, motivacion, tarea, proyecto, autorNombre, avance, magicLink } = payload
-    let { subject, html } = payload
+    const body = await req.json()
 
-    // Template mode: resolve subject+html from template
-    if (tipo && tipo !== 'general' && !html) {
-      if (tipo === 'bienvenida' && nombre) {
-        const tpl = templates.bienvenida(nombre)
-        subject = tpl.subject; html = tpl.html
-      } else if (tipo === 'solicitud_nueva' && nombre) {
-        const tpl = templates.solicitud_nueva(nombre, correo || '', motivacion || '')
-        subject = tpl.subject; html = tpl.html
-      } else if (tipo === 'tarea_asignada' && nombre && tarea && proyecto) {
-        const tpl = templates.tarea_asignada(nombre, tarea, proyecto)
-        subject = tpl.subject; html = tpl.html
-      } else if (tipo === 'avance_nuevo' && nombre && avance && proyecto) {
-        const tpl = templates.avance_nuevo(autorNombre || nombre, avance, proyecto)
-        subject = tpl.subject; html = tpl.html
-      } else if (tipo === 'magic_link' && nombre && magicLink) {
-        const tpl = templates.magic_link(nombre, magicLink)
-        subject = tpl.subject; html = tpl.html
+    // ── Batch mode ───────────────────────────────────────────────────────────
+    if (body.batch) {
+      const batch = body.batch as Array<{ to: string; subject: string; html: string }>
+      if (!Array.isArray(batch) || batch.length === 0) {
+        return new Response(JSON.stringify({ error: 'batch must be a non-empty array' }), {
+          status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
       }
+
+      const emails = batch
+        .filter(item => item.to && item.subject && item.html)
+        .map(item => ({ from: FROM_EMAIL, to: [item.to], subject: item.subject, html: item.html }))
+
+      if (emails.length === 0) {
+        return new Response(JSON.stringify({ error: 'No valid items in batch' }), {
+          status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const res = await fetch('https://api.resend.com/emails/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
+        body: JSON.stringify(emails),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        const errMsg = data?.message || data?.error || JSON.stringify(data)
+        console.error(`Resend batch error [${res.status}]: ${errMsg}`)
+        // Surface the actual Resend error so it's visible in edge function logs
+        return new Response(JSON.stringify({ error: errMsg, statusCode: res.status, hint: 'If using onboarding@resend.dev, you can only send to your Resend-registered email. Verify a domain at resend.com/domains to send to any address.' }), {
+          status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      }
+
+      console.log(`Batch sent: ${emails.length} emails`)
+      return new Response(JSON.stringify({ success: true, count: emails.length, data }), {
+        status: 200, headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
     }
 
+    // ── Single mode ──────────────────────────────────────────────────────────
+    const { to, subject, html } = body as { to: string; subject: string; html: string }
     if (!to || !subject || !html) {
-      return new Response(JSON.stringify({ error: 'Missing required fields: to, subject, html (or valid template tipo)' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
+      return new Response(JSON.stringify({ error: 'Missing: to, subject, html' }), {
+        status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
 
-    if (!RESEND_API_KEY) {
-      console.warn('RESEND_API_KEY not configured — email not sent')
-      return new Response(JSON.stringify({ warning: 'Email service not configured', skipped: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
-
-    // Send via Resend
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-      },
-      body: JSON.stringify({
-        from: FROM_EMAIL,
-        to: [to],
-        subject,
-        html,
-      }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
+      body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject, html }),
     })
 
     const data = await res.json()
-
     if (!res.ok) {
-      console.error('Resend API error:', data)
-      return new Response(JSON.stringify({ error: 'Failed to send email', details: data }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
+      const errMsg = data?.message || data?.error || JSON.stringify(data)
+      console.error(`Resend error [${res.status}] to ${to}: ${errMsg}`)
+      return new Response(JSON.stringify({ error: errMsg, statusCode: res.status, hint: 'If using onboarding@resend.dev, you can only send to your Resend-registered email. Verify a domain at resend.com/domains to send to any address.' }), {
+        status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
 
+    console.log(`Email sent: ${data.id} → ${to}`)
     return new Response(JSON.stringify({ success: true, id: data.id }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      status: 200, headers: { ...CORS, 'Content-Type': 'application/json' },
     })
+
   } catch (err) {
-    console.error('Edge function error:', err)
+    console.error('Unexpected error:', err.message)
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
     })
   }
 })

@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext'
 import { ZenProvider } from './context/ZenContext'
 import { NotifProvider } from './context/NotifContext'
 import { ThemeProvider } from './context/ThemeContext'
+import { CallProvider } from './context/CallContext'
 import { router } from './router'
 
 export default function App() {
@@ -12,6 +13,7 @@ export default function App() {
       <ThemeProvider>
       <NotifProvider>
       <ZenProvider>
+      <CallProvider>
         <RouterProvider router={router} />
         <Toaster
           position="bottom-right"
@@ -26,6 +28,7 @@ export default function App() {
             },
           }}
         />
+      </CallProvider>
       </ZenProvider>
       </NotifProvider>
       </ThemeProvider>

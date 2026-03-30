@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useForm } from 'react-hook-form'
@@ -26,6 +26,7 @@ export default function Login() {
   const [authError, setAuthError] = useState('')
   const [loginMode, setLoginMode] = useState('password') // 'password' | 'magic'
   const [magicSent, setMagicSent] = useState(false)
+  const [magicCooldown, setMagicCooldown] = useState(0)
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(schema),
@@ -49,11 +50,23 @@ export default function Login() {
     setAuthError('')
     const { error } = await signInWithMagicLink(email)
     if (error) {
-      setAuthError('Error al enviar el enlace. Intenta de nuevo.')
+      if (error.message?.includes('rate limit') || error.status === 429) {
+        setAuthError('Demasiados intentos. Espera unos minutos antes de volver a intentarlo.')
+      } else {
+        setAuthError('Error al enviar el enlace. Intenta de nuevo.')
+      }
     } else {
       setMagicSent(true)
+      setMagicCooldown(60)
     }
   }
+
+  // Countdown timer for magic link cooldown
+  useEffect(() => {
+    if (magicCooldown <= 0) return
+    const t = setTimeout(() => setMagicCooldown(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [magicCooldown])
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden" style={{ background: 'var(--c-bg)' }}>
@@ -167,10 +180,23 @@ export default function Login() {
                 </div>
                 <h3 className="text-white font-semibold">¡Enlace enviado!</h3>
                 <p className="text-white/40 text-sm">Revisa tu bandeja de entrada y haz clic en el enlace para iniciar sesión.</p>
+                {magicCooldown > 0 ? (
+                  <p className="text-xs text-white/20 mt-2">
+                    Puedes reenviar en {magicCooldown}s
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setMagicSent(false); setAuthError('') }}
+                    className="text-xs text-white/30 hover:text-white/50 transition-colors mt-2"
+                  >
+                    Reenviar enlace
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => { setMagicSent(false); setLoginMode('password') }}
-                  className="text-xs text-white/30 hover:text-white/50 transition-colors flex items-center gap-1 mx-auto mt-3"
+                  className="text-xs text-white/30 hover:text-white/50 transition-colors flex items-center gap-1 mx-auto mt-1"
                 >
                   <FiArrowLeft size={11} /> Volver al login
                 </button>

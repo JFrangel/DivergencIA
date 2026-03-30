@@ -4,9 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiHash, FiMessageSquare, FiUsers, FiZap, FiLock, FiUnlock,
   FiX, FiExternalLink, FiSettings, FiShield, FiChevronDown, FiTrash2, FiAlertTriangle,
+  FiPhone, FiVideo, FiPhoneOff, FiClock,
 } from 'react-icons/fi'
 import { useChat } from '../../hooks/useChat'
+import { useCallContext } from '../../context/CallContext'
 import { useAuth } from '../../context/AuthContext'
+import { useCallHistory } from '../../hooks/useCallHistory'
 import MessageBubble from './MessageBubble'
 import ChatInput from './ChatInput'
 import Spinner from '../ui/Spinner'
@@ -312,11 +315,119 @@ function SettingsPanel({ channel, members, currentUserId, onClose, onUpdateRol, 
   )
 }
 
+/* ── Call History Panel ────────────────────────────────────────────────────── */
+function CallHistoryPanel({ canalId, onClose }) {
+  const { history, loading } = useCallHistory(canalId)
+
+  const fmtDuration = (s) => {
+    if (!s) return '< 1 min'
+    const m = Math.floor(s / 60)
+    const sec = s % 60
+    if (m === 0) return `${sec}s`
+    return sec > 0 ? `${m}m ${sec}s` : `${m}m`
+  }
+
+  const fmtDate = (iso) => {
+    const d = new Date(iso)
+    const today = new Date()
+    const yesterday = new Date(Date.now() - 86400000)
+    if (d.toDateString() === today.toDateString())
+      return `Hoy ${d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}`
+    if (d.toDateString() === yesterday.toDateString())
+      return `Ayer ${d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}`
+    return d.toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  }
+
+  return (
+    <motion.div
+      className="w-60 shrink-0 flex flex-col border-l border-white/[0.06] overflow-hidden"
+      style={{ background: 'rgba(10,5,8,0.98)' }}
+      initial={{ width: 0, opacity: 0 }}
+      animate={{ width: 240, opacity: 1 }}
+      exit={{ width: 0, opacity: 0 }}
+      transition={{ type: 'spring', bounce: 0, duration: 0.25 }}
+    >
+      <div className="flex items-center justify-between px-3 py-3 border-b border-white/[0.06]">
+        <div className="flex items-center gap-2">
+          <FiClock size={12} className="text-white/40" />
+          <span className="text-[11px] font-semibold text-white/50 uppercase tracking-wider">
+            Historial de llamadas
+          </span>
+        </div>
+        <button onClick={onClose} className="text-white/25 hover:text-white/60 p-0.5 transition-colors">
+          <FiX size={13} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto py-2">
+        {loading ? (
+          <div className="flex justify-center py-8"><Spinner size="sm" /></div>
+        ) : history.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 gap-2 px-4 text-center">
+            <FiPhone size={24} className="text-white/10" />
+            <p className="text-xs text-white/20">Sin llamadas registradas</p>
+          </div>
+        ) : (
+          <div className="space-y-px px-2">
+            {history.map(call => {
+              const parts = Array.isArray(call.participantes) ? call.participantes : []
+              const isVideo = call.tipo === 'video'
+              return (
+                <div
+                  key={call.id}
+                  className="px-2.5 py-2.5 rounded-xl hover:bg-white/[0.04] transition-colors"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div
+                      className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                      style={{ background: isVideo ? 'rgba(139,92,246,0.15)' : 'rgba(34,197,94,0.12)' }}
+                    >
+                      {isVideo
+                        ? <FiVideo size={12} style={{ color: '#8B5CF6' }} />
+                        : <FiPhone size={12} style={{ color: '#22c55e' }} />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-white/75">
+                        {isVideo ? 'Videollamada' : 'Llamada de voz'}
+                      </p>
+                      <p className="text-[10px] text-white/35 mt-0.5">{fmtDate(call.iniciada_en)}</p>
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        <span
+                          className="text-[9px] px-1.5 py-0.5 rounded-md font-semibold"
+                          style={{ background: 'rgba(0,209,255,0.1)', color: '#00D1FF' }}
+                        >
+                          {fmtDuration(call.duracion_s)}
+                        </span>
+                        <span className="text-[9px] text-white/25">
+                          {parts.length + 1} participante{parts.length !== 0 ? 's' : ''}
+                        </span>
+                      </div>
+                      {call.iniciador && (
+                        <p className="text-[9px] text-white/25 mt-1 truncate">
+                          Iniciado por {call.iniciador.nombre}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
 /* ── Main ChatArea ─────────────────────────────────────────────────────────── */
 export default function ChatArea({ channel, puedeEscribir }) {
   const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
-  const { messages, loading, sending, members, sendMessage, deleteMessage, updateMemberRolCanal, updateChannelPrivacy, deleteChannel, updateChannel } = useChat(channel?.id)
+  const { messages, loading, sending, members, sendMessage, deleteMessage, updateMessage, updateMemberRolCanal, updateChannelPrivacy, deleteChannel, updateChannel } = useChat(channel?.id)
+  const { callHook, setCallChannel, startCallInChannel } = useCallContext()
+
+  // Register current channel with the global call context
+  useEffect(() => { setCallChannel(channel?.id ?? null) }, [channel?.id, setCallChannel])
   const bottomRef = useRef(null)
   const prevMsgCount = useRef(0)
   const messageRefs = useRef({})
@@ -330,6 +441,7 @@ export default function ChatArea({ channel, puedeEscribir }) {
   }
   const [showMembers, setShowMembers] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const [isPrivado, setIsPrivado] = useState(false)
   const [replyingTo, setReplyingTo] = useState(null)
 
@@ -366,7 +478,7 @@ export default function ChatArea({ channel, puedeEscribir }) {
   }, [messages])
 
   // Close settings when channel changes, clear reply
-  useEffect(() => { setShowSettings(false); setShowMembers(false); setReplyingTo(null) }, [channel?.id])
+  useEffect(() => { setShowSettings(false); setShowMembers(false); setShowHistory(false); setReplyingTo(null) }, [channel?.id])
 
   // Sync isPrivado from channel data — always called (hooks must be unconditional)
   useEffect(() => {
@@ -463,9 +575,64 @@ export default function ChatArea({ channel, puedeEscribir }) {
               </div>
             )}
 
+            {/* Call buttons + presence */}
+            {callHook.callState === 'in-call' ? (
+              <button
+                onClick={callHook.endCall}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all"
+                style={{ background: 'rgba(239,68,68,0.15)', color: '#EF4444' }}
+                title="Finalizar llamada"
+              >
+                <FiPhoneOff size={13} />
+                <span className="hidden sm:inline">En llamada · {callHook.participants.length + 1}</span>
+              </button>
+            ) : (
+              <>
+                {/* Presence pill: others are in a call */}
+                {callHook.callPresence.length > 0 && (
+                  <button
+                    onClick={() => startCallInChannel(channel.id, 'audio')}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium transition-all hover:bg-green-500/10"
+                    style={{ background: 'rgba(34,197,94,0.08)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}
+                    title={`Unirse a la llamada (${callHook.callPresence.map(p => p.name).join(', ')})`}
+                  >
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                    <span>{callHook.callPresence.length} en llamada</span>
+                    <FiPhone size={10} />
+                  </button>
+                )}
+                <button
+                  onClick={() => startCallInChannel(channel.id, 'audio')}
+                  className="p-1.5 rounded-lg transition-all hover:bg-white/[0.06]"
+                  style={{ color: 'rgba(255,255,255,0.25)' }}
+                  title="Llamada de voz"
+                >
+                  <FiPhone size={15} />
+                </button>
+                <button
+                  onClick={() => startCallInChannel(channel.id, 'video')}
+                  className="p-1.5 rounded-lg transition-all hover:bg-white/[0.06]"
+                  style={{ color: 'rgba(255,255,255,0.25)' }}
+                  title="Videollamada"
+                >
+                  <FiVideo size={15} />
+                </button>
+                <button
+                  onClick={() => { setShowHistory(p => !p); setShowMembers(false); setShowSettings(false) }}
+                  className="p-1.5 rounded-lg transition-all"
+                  style={showHistory
+                    ? { background: 'rgba(0,209,255,0.12)', color: '#00D1FF' }
+                    : { color: 'rgba(255,255,255,0.25)' }}
+                  title="Historial de llamadas"
+                >
+                  <FiClock size={15} />
+                </button>
+              </>
+            )}
+
             {canManage && !isDM && channel.tipo !== 'global' && (
               <button
-                onClick={() => { setShowSettings(p => !p); setShowMembers(false) }}
+                onClick={() => { setShowSettings(p => !p); setShowMembers(false); setShowHistory(false) }}
                 className="p-1.5 rounded-lg transition-all"
                 style={showSettings
                   ? { background: 'rgba(252,101,31,0.15)', color: '#FC651F' }
@@ -477,7 +644,7 @@ export default function ChatArea({ channel, puedeEscribir }) {
             )}
 
             <button
-              onClick={() => { setShowMembers(p => !p); setShowSettings(false) }}
+              onClick={() => { setShowMembers(p => !p); setShowSettings(false); setShowHistory(false) }}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all"
               style={showMembers
                 ? { background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.75)' }
@@ -548,6 +715,7 @@ export default function ChatArea({ channel, puedeEscribir }) {
                     isOwn={msg.autor_id === user?.id}
                     canDelete={msg.autor_id === user?.id || isAdmin || myMembership?.rol_canal === 'admin' || myMembership?.rol_canal === 'moderador'}
                     onDelete={deleteMessage}
+                    onEdit={msg.autor_id === user?.id ? updateMessage : null}
                     onReply={canWrite ? (m) => setReplyingTo(m) : null}
                     onScrollToReply={scrollToMessage}
                     prevSame={prevSame && !showDateSep}
@@ -602,6 +770,9 @@ export default function ChatArea({ channel, puedeEscribir }) {
             }}
             onUpdateChannel={updateChannel}
           />
+        )}
+        {showHistory && (
+          <CallHistoryPanel canalId={channel.id} onClose={() => setShowHistory(false)} />
         )}
       </AnimatePresence>
     </div>

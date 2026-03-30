@@ -297,7 +297,9 @@ export default function Nodos() {
         }
       })
       setGroupChannels(enriched)
-      setMyGroupChannelIds(new Set((miMembresías || []).map(m => m.canal_id)))
+      // Only count memberships in actual group channels (not chats/DMs)
+      const groupIds = new Set((canales || []).map(c => c.id))
+      setMyGroupChannelIds(new Set((miMembresías || []).map(m => m.canal_id).filter(id => groupIds.has(id))))
       setLoadingGroups(false)
     }
     load()
