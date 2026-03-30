@@ -14,7 +14,7 @@ import ContentModerator from '../../components/admin/ContentModerator'
 import PlatformConfig from '../../components/admin/PlatformConfig'
 import NodosManager from '../../components/admin/NodosManager'
 import NodeGroupManager from '../../components/admin/NodeGroupManager'
-import BroadcastPanel from '../../components/admin/BroadcastPanel'
+import BroadcastPanel from '../../components/notifications/BroadcastPanel'
 import { toast } from 'sonner'
 import { timeAgo } from '../../lib/utils'
 

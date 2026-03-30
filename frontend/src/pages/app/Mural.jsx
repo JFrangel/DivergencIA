@@ -1519,8 +1519,8 @@ export default function Mural() {
                 <CanvasElement key={el.id} el={el}
                   isSelected={selectedId === el.id}
                   onSelect={() => { if (!drawMode) setSelectedId(el.id) }}
-                  onUpdate={canEditMural ? updateElement : () => {}}
-                  onDelete={canEditMural ? deleteElement : () => {}}
+                  onUpdate={canEditMural ? updateElement : null}
+                  onDelete={canEditMural ? deleteElement : null}
                   zoom={zoom} readOnly={!canEditMural} drawMode={drawMode} />
               ))}
             </AnimatePresence>

@@ -52,7 +52,6 @@ export default function Settings() {
   const [saving, setSaving] = useState(false)
 
   // Security
-  const [oldPass, setOldPass] = useState('')
   const [newPass, setNewPass] = useState('')
   const [confirmPass, setConfirmPass] = useState('')
   const [showPass, setShowPass] = useState(false)
@@ -174,7 +173,7 @@ export default function Settings() {
     if (error) toast.error('Error al cambiar contraseña')
     else {
       toast.success('Contraseña actualizada')
-      setOldPass(''); setNewPass(''); setConfirmPass('')
+      setNewPass(''); setConfirmPass('')
     }
   }
 
