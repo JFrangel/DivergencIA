@@ -458,14 +458,14 @@ export default function Mural() {
     const { data, error } = await supabase.from('murales').select('*').eq('id', muralId).single()
     if (data) {
       setActiveMural(data)
-      const raw = data.data   // DB column is named 'data'
+      const raw = data.elements
       const elems = (typeof raw === 'string' ? JSON.parse(raw) : raw) || []
       setElements(elems)
     } else if (error && muralId === GENERAL_MURAL_ID) {
       // Auto-create general mural if missing
       const { data: created } = await supabase.from('murales').insert({
         id: GENERAL_MURAL_ID, titulo: 'Mural General', tipo: 'general',
-        creador_id: null, shared_with: [], data: [],
+        creador_id: null, shared_with: [], elements: [],
       }).select().single()
       setActiveMural(created || { id: GENERAL_MURAL_ID, titulo: 'Mural General', tipo: 'general', shared_with: [] })
       setElements([])
@@ -640,7 +640,7 @@ export default function Mural() {
     setSaveStatus('saving')
     const { error } = await supabase
       .from('murales')
-      .update({ data: elems, updated_at: new Date().toISOString() })
+      .update({ elements: elems, updated_at: new Date().toISOString() })
       .eq('id', muralId)
 
     if (error) {
