@@ -13,8 +13,8 @@ import Spinner from '../../components/ui/Spinner'
 export default function Chat() {
   const { user, isAdmin } = useAuth()
   const { channels, loading, openDM, createGroup, createNodeChannel, refetch } = useChannels()
-  const { counts, markRead } = useUnreadCounts(channels)
   const [activeChannel, setActiveChannel] = useState(null)
+  const { counts, markRead } = useUnreadCounts(channels, activeChannel?.id ?? null)
   const [showNewDM, setShowNewDM] = useState(false)
   const [showNewGroup, setShowNewGroup] = useState(false)
   const [showNewNode, setShowNewNode] = useState(false)

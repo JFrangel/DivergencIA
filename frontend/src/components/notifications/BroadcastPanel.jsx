@@ -177,7 +177,7 @@ export default function BroadcastPanel({ onClose }) {
   const [targetType, setTargetType] = useState('todos') // 'todos' | 'nodo' | 'members'
   const [selectedNodo, setSelectedNodo] = useState(null)
   const [selectedMembers, setSelectedMembers] = useState(new Set())
-  const [sendEmail, setSendEmail] = useState(false)
+  const [sendEmail, setSendEmail] = useState(true)
 
   // Data for selectors
   const [nodos, setNodos] = useState([])

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
+import { getEmailTemplate } from '../lib/emailTemplates'
 
 // ─── Notification type metadata ──────────────────────────────────────────────
 export const NOTIFICATION_TYPES = {
@@ -234,7 +235,7 @@ export async function createNotification(userId, tipo, mensaje, referenciaId = n
   if (error) console.error('Error creating notification:', error)
 }
 
-// ─── Send email via edge function (fire-and-forget) ─────────────────────────
+// ─── Send single email via edge function (fire-and-forget) ──────────────────
 async function sendEmailEdge({ to, correo, subject, html }) {
   const target = to || correo
   if (!target) return
@@ -244,6 +245,18 @@ async function sendEmailEdge({ to, correo, subject, html }) {
     })
   } catch (e) {
     console.warn('Email send failed (non-critical):', e)
+  }
+}
+
+// ─── Send multiple emails in one batch call ──────────────────────────────────
+async function sendEmailBatch(items) {
+  if (!items?.length) return
+  try {
+    await supabase.functions.invoke('send-email', {
+      body: { batch: items },
+    })
+  } catch (e) {
+    console.warn('Batch email send failed (non-critical):', e)
   }
 }
 
@@ -300,55 +313,24 @@ export async function broadcastNotification(tipo, mensaje, target = { type: 'tod
     return { error: insertError }
   }
 
-  // Send emails (fire-and-forget, batched with small delay to avoid rate limits)
+  // Send emails via premium templates — single batch call to avoid rate limits
   if (sendEmail) {
-    const subject = `${TIPO_LABELS[tipo] || 'Comunicado'} — DivergencIA`
-    for (const u of userIds) {
-      if (!u.correo) continue
-      sendEmailEdge({
-        to: u.correo,
-        subject,
-        html: `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="color-scheme" content="dark"></head>
-<body style="margin:0;padding:0;background:#060304;font-family:'Segoe UI',Roboto,Arial,sans-serif;">
-<table width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#060304;">
-<tr><td align="center" style="padding:32px 16px 48px;">
-<table width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;margin:0 auto;">
-  <tr><td style="padding:0 0 20px;text-align:center;">
-    <table cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;"><tr>
-      <td style="padding-right:10px;vertical-align:middle;">
-        <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#FC651F,#8B5CF6);text-align:center;line-height:40px;font-size:18px;font-weight:900;color:#fff;">D</div>
-      </td>
-      <td style="vertical-align:middle;">
-        <div style="font-size:22px;font-weight:900;color:rgba(255,255,255,0.92);letter-spacing:1px;">Divergenc<span style="color:#FC651F;">IA</span></div>
-        <div style="font-size:9px;color:rgba(255,255,255,0.2);letter-spacing:3px;text-transform:uppercase;margin-top:2px;">Semillero de IA</div>
-      </td>
-    </tr></table>
-  </td></tr>
-  <tr><td style="background:#0d0608;border:1px solid rgba(255,255,255,0.07);border-radius:20px;overflow:hidden;">
-    <div style="height:4px;background:linear-gradient(90deg,#8B5CF6,#FC651F);"></div>
-    <div style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(252,101,31,0.08));padding:36px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">
-      <div style="font-size:40px;margin-bottom:10px;">📢</div>
-      <h1 style="margin:0 0 6px;font-size:22px;font-weight:900;color:rgba(255,255,255,0.92);">${TIPO_LABELS[tipo] || 'Comunicado'}</h1>
-      <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.35);">Un mensaje del equipo de DivergencIA</p>
-    </div>
-    <div style="padding:32px;">
-      <div style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.18);border-left:4px solid #8B5CF6;border-radius:0 12px 12px 0;padding:18px 20px;margin:0 0 24px;">
-        <p style="color:rgba(255,255,255,0.75);font-size:14px;line-height:1.9;margin:0;">${mensaje}</p>
-      </div>
-      <div style="text-align:center;">
-        <a href="${window.location.origin}/notificaciones"
-           style="display:inline-block;background:linear-gradient(135deg,#8B5CF6,#FC651F);color:#fff;text-decoration:none;padding:14px 40px;border-radius:50px;font-size:14px;font-weight:800;box-shadow:0 8px 24px rgba(139,92,246,0.3);">
-          Ver en DivergencIA →
-        </a>
-      </div>
-    </div>
-  </td></tr>
-  <tr><td style="padding:20px 0 0;text-align:center;">
-    <p style="color:rgba(255,255,255,0.15);font-size:10px;margin:0;">Email autom&#225;tico &middot; DivergencIA</p>
-  </td></tr>
-</table></td></tr></table></body></html>`,
+    const asunto = TIPO_LABELS[tipo] || 'Comunicado'
+    const urgente = tipo === 'alerta'
+    const batchItems = userIds
+      .filter(u => u.correo)
+      .map(u => {
+        const { subject, html } = getEmailTemplate('broadcast', {
+          nombre: u.nombre || 'investigador/a',
+          mensaje,
+          asunto,
+          remitente: 'DivergencIA',
+          rolRemitente: 'Administración',
+          urgente,
+        })
+        return { to: u.correo, subject, html }
       })
-    }
+    sendEmailBatch(batchItems)
   }
 
   toast.success(`✅ Notificación enviada a ${userIds.length} ${userIds.length === 1 ? 'miembro' : 'miembros'}${sendEmail ? ' + emails' : ''}`)

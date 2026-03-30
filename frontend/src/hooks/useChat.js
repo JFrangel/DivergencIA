@@ -279,6 +279,18 @@ export function useChat(canalId) {
         })
       })
       .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'mensajes',
+        filter: `canal_id=eq.${canalId}`,
+      }, (payload) => {
+        setMessages(prev => prev.map(m =>
+          m.id === payload.new.id
+            ? { ...m, contenido: payload.new.contenido, editado: payload.new.editado }
+            : m
+        ))
+      })
+      .on('postgres_changes', {
         event: 'DELETE',
         schema: 'public',
         table: 'mensajes',
@@ -329,6 +341,19 @@ export function useChat(canalId) {
     await supabase.from('mensajes').delete().eq('id', id)
   }, [])
 
+  const updateMessage = useCallback(async (id, contenido) => {
+    if (!contenido?.trim()) return false
+    const { error } = await supabase
+      .from('mensajes')
+      .update({ contenido: contenido.trim(), editado: true })
+      .eq('id', id)
+      .eq('autor_id', user?.id)
+    if (!error) {
+      setMessages(prev => prev.map(m => m.id === id ? { ...m, contenido: contenido.trim(), editado: true } : m))
+    }
+    return !error
+  }, [user])
+
   const updateMemberRolCanal = useCallback(async (userId, rolCanal) => {
     await supabase.from('canal_miembros')
       .update({ rol_canal: rolCanal })
@@ -351,13 +376,26 @@ export function useChat(canalId) {
     await supabase.from('canales').update(updates).eq('id', canalId)
   }, [canalId])
 
-  return { messages, loading, sending, members, sendMessage, deleteMessage, updateMemberRolCanal, updateChannelPrivacy, deleteChannel, updateChannel, refetch: fetchMessages }
+  return { messages, loading, sending, members, sendMessage, deleteMessage, updateMessage, updateMemberRolCanal, updateChannelPrivacy, deleteChannel, updateChannel, refetch: fetchMessages }
 }
 
 // ─── useUnreadCounts — mensajes no leídos por canal ──────────────────────────
-export function useUnreadCounts(channels) {
+export function useUnreadCounts(channels, activeChannelId = null) {
   const { user } = useAuth()
   const [counts, setCounts] = useState({})
+  const activeChannelIdRef = useRef(activeChannelId)
+
+  // Keep ref in sync so realtime handler always sees latest value without re-subscribing
+  useEffect(() => {
+    activeChannelIdRef.current = activeChannelId
+  }, [activeChannelId])
+
+  // Auto-mark active channel as read when it changes
+  useEffect(() => {
+    if (!activeChannelId || !user) return
+    setCounts(prev => ({ ...prev, [activeChannelId]: 0 }))
+    supabase.rpc('mark_channel_read', { p_canal_id: activeChannelId, p_user_id: user.id }).then(null, () => {})
+  }, [activeChannelId, user])
 
   useEffect(() => {
     if (!user || !channels.length) return
@@ -388,9 +426,13 @@ export function useUnreadCounts(channels) {
           table: 'mensajes',
           filter: `canal_id=eq.${c.id}`,
         }, (payload) => {
-          if (payload.new.autor_id !== user.id) {
-            setCounts(prev => ({ ...prev, [c.id]: (prev[c.id] || 0) + 1 }))
+          if (payload.new.autor_id === user.id) return
+          // If user is currently in this channel, mark read immediately instead of incrementing
+          if (activeChannelIdRef.current === c.id) {
+            supabase.rpc('mark_channel_read', { p_canal_id: c.id, p_user_id: user.id }).then(null, () => {})
+            return
           }
+          setCounts(prev => ({ ...prev, [c.id]: (prev[c.id] || 0) + 1 }))
         })
         .subscribe()
     )
@@ -400,7 +442,7 @@ export function useUnreadCounts(channels) {
 
   const markRead = useCallback(async (canalId) => {
     if (!user) return
-    await supabase.rpc('mark_channel_read', { p_canal_id: canalId, p_user_id: user.id }).catch(() => {})
+    await supabase.rpc('mark_channel_read', { p_canal_id: canalId, p_user_id: user.id }).then(null, () => {})
     setCounts(prev => ({ ...prev, [canalId]: 0 }))
   }, [user])
 

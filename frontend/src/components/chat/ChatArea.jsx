@@ -4,11 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiHash, FiMessageSquare, FiUsers, FiZap, FiLock, FiUnlock,
   FiX, FiExternalLink, FiSettings, FiShield, FiChevronDown, FiTrash2, FiAlertTriangle,
+  FiPhone, FiVideo, FiPhoneOff,
 } from 'react-icons/fi'
 import { useChat } from '../../hooks/useChat'
+import { useCall } from '../../hooks/useCall'
 import { useAuth } from '../../context/AuthContext'
 import MessageBubble from './MessageBubble'
 import ChatInput from './ChatInput'
+import CallModal from './CallModal'
 import Spinner from '../ui/Spinner'
 import Avatar from '../ui/Avatar'
 import { supabase } from '../../lib/supabase'
@@ -316,7 +319,8 @@ function SettingsPanel({ channel, members, currentUserId, onClose, onUpdateRol, 
 export default function ChatArea({ channel, puedeEscribir }) {
   const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
-  const { messages, loading, sending, members, sendMessage, deleteMessage, updateMemberRolCanal, updateChannelPrivacy, deleteChannel, updateChannel } = useChat(channel?.id)
+  const { messages, loading, sending, members, sendMessage, deleteMessage, updateMessage, updateMemberRolCanal, updateChannelPrivacy, deleteChannel, updateChannel } = useChat(channel?.id)
+  const callHook = useCall(channel?.id)
   const bottomRef = useRef(null)
   const prevMsgCount = useRef(0)
   const messageRefs = useRef({})
@@ -401,6 +405,7 @@ export default function ChatArea({ channel, puedeEscribir }) {
   }
 
   return (
+    <>
     <div className="flex flex-1 min-w-0 overflow-hidden">
       {/* Chat column */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -461,6 +466,38 @@ export default function ChatArea({ channel, puedeEscribir }) {
                 style={{ background: 'rgba(139,92,246,0.12)', color: '#8B5CF6' }}>
                 <FiLock size={9} /> Solo lectura
               </div>
+            )}
+
+            {/* Call buttons */}
+            {callHook.callState === 'in-call' ? (
+              <button
+                onClick={callHook.endCall}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all"
+                style={{ background: 'rgba(239,68,68,0.15)', color: '#EF4444' }}
+                title="Finalizar llamada"
+              >
+                <FiPhoneOff size={13} />
+                <span>En llamada</span>
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => callHook.startCall('audio')}
+                  className="p-1.5 rounded-lg transition-all hover:bg-white/[0.06]"
+                  style={{ color: 'rgba(255,255,255,0.25)' }}
+                  title="Llamada de voz"
+                >
+                  <FiPhone size={15} />
+                </button>
+                <button
+                  onClick={() => callHook.startCall('video')}
+                  className="p-1.5 rounded-lg transition-all hover:bg-white/[0.06]"
+                  style={{ color: 'rgba(255,255,255,0.25)' }}
+                  title="Videollamada"
+                >
+                  <FiVideo size={15} />
+                </button>
+              </>
             )}
 
             {canManage && !isDM && channel.tipo !== 'global' && (
@@ -548,6 +585,7 @@ export default function ChatArea({ channel, puedeEscribir }) {
                     isOwn={msg.autor_id === user?.id}
                     canDelete={msg.autor_id === user?.id || isAdmin || myMembership?.rol_canal === 'admin' || myMembership?.rol_canal === 'moderador'}
                     onDelete={deleteMessage}
+                    onEdit={msg.autor_id === user?.id ? updateMessage : null}
                     onReply={canWrite ? (m) => setReplyingTo(m) : null}
                     onScrollToReply={scrollToMessage}
                     prevSame={prevSame && !showDateSep}
@@ -605,5 +643,9 @@ export default function ChatArea({ channel, puedeEscribir }) {
         )}
       </AnimatePresence>
     </div>
+
+    {/* Call overlay — always mounted so we receive incoming calls */}
+    <CallModal callHook={callHook} />
+    </>
   )
 }
