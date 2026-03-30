@@ -63,6 +63,10 @@ export default function Settings() {
     try { return JSON.parse(localStorage.getItem('divergencia_notif_prefs') || '{}') } catch { return {} }
   })
 
+  // Appearance prefs — reactive state backed by localStorage
+  const [reduceMotion, setReduceMotion] = useState(() => localStorage.getItem('reduce_motion') === 'true')
+  const [soundsEnabled, setSoundsEnabled] = useState(() => localStorage.getItem('sounds_enabled') !== 'false')
+
   // Privacy prefs — synced to Supabase usuarios table
   const [privacyPrefs, setPrivacyPrefs] = useState({
     publicProfile: true,
@@ -84,7 +88,7 @@ export default function Settings() {
         showEmail: profile.mostrar_correo === true,
         showActivity: profile.mostrar_actividad !== false,
         showInGraph: profile.mostrar_en_grafo !== false,
-        atheniaMemory: true,
+        atheniaMemory: profile.athenia_memory !== false,
       })
     }
   }, [profile])
@@ -125,6 +129,7 @@ export default function Settings() {
       showEmail:     { mostrar_correo: val },
       showActivity:  { mostrar_actividad: val },
       showInGraph:   { mostrar_en_grafo: val },
+      atheniaMemory: { athenia_memory: val },
     }
     if (dbMap[key] && user) {
       await supabase.from('usuarios').update(dbMap[key]).eq('id', user.id)
@@ -387,18 +392,20 @@ export default function Settings() {
               <Card>
                 <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3">Interfaz</h2>
                 <Toggle label="Animaciones reducidas" desc="Reduce las animaciones para mejor rendimiento"
-                  enabled={localStorage.getItem('reduce_motion') === 'true'}
+                  enabled={reduceMotion}
                   onToggle={() => {
-                    const val = localStorage.getItem('reduce_motion') !== 'true'
-                    localStorage.setItem('reduce_motion', val.toString())
-                    toast.success(val ? 'Animaciones reducidas' : 'Animaciones activadas')
+                    const next = !reduceMotion
+                    setReduceMotion(next)
+                    localStorage.setItem('reduce_motion', next.toString())
+                    toast.success(next ? 'Animaciones reducidas' : 'Animaciones activadas')
                   }} />
                 <Toggle label="Sonidos del sistema" desc="Efectos de sonido en interacciones"
-                  enabled={localStorage.getItem('sounds_enabled') !== 'false'}
+                  enabled={soundsEnabled}
                   onToggle={() => {
-                    const val = localStorage.getItem('sounds_enabled') === 'false'
-                    localStorage.setItem('sounds_enabled', val.toString())
-                    toast.success(val ? 'Sonidos activados' : 'Sonidos desactivados')
+                    const next = !soundsEnabled
+                    setSoundsEnabled(next)
+                    localStorage.setItem('sounds_enabled', next.toString())
+                    toast.success(next ? 'Sonidos activados' : 'Sonidos desactivados')
                   }} />
               </Card>
             </div>
