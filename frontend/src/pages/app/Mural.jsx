@@ -458,14 +458,14 @@ export default function Mural() {
     const { data, error } = await supabase.from('murales').select('*').eq('id', muralId).single()
     if (data) {
       setActiveMural(data)
-      const raw = data.elements
+      const raw = data.data   // DB column is named 'data'
       const elems = (typeof raw === 'string' ? JSON.parse(raw) : raw) || []
       setElements(elems)
     } else if (error && muralId === GENERAL_MURAL_ID) {
       // Auto-create general mural if missing
       const { data: created } = await supabase.from('murales').insert({
         id: GENERAL_MURAL_ID, titulo: 'Mural General', tipo: 'general',
-        creador_id: null, shared_with: [], elements: [],
+        creador_id: null, shared_with: [], data: [],
       }).select().single()
       setActiveMural(created || { id: GENERAL_MURAL_ID, titulo: 'Mural General', tipo: 'general', shared_with: [] })
       setElements([])
@@ -640,7 +640,7 @@ export default function Mural() {
     setSaveStatus('saving')
     const { error } = await supabase
       .from('murales')
-      .update({ elements: elems, updated_at: new Date().toISOString() })
+      .update({ data: elems, updated_at: new Date().toISOString() })
       .eq('id', muralId)
 
     if (error) {
@@ -662,7 +662,7 @@ export default function Mural() {
   const createMural = async ({ titulo, tipo }) => {
     if (!user) return
     const { data, error } = await supabase
-      .from('murales').insert({ titulo, tipo, creador_id: user.id, shared_with: [], elements: [] })
+      .from('murales').insert({ titulo, tipo, creador_id: user.id, shared_with: [], data: [] })
       .select().single()
     if (data && !error) { await fetchMurales(); loadMural(data.id) }
   }
@@ -2157,11 +2157,12 @@ function CanvasElement({ el, isSelected, onSelect, onUpdate, onDelete, zoom, rea
         </div>
       )}
 
-      {/* Delete button on hover */}
-      {!readOnly && (
+      {/* Delete button — only shows when element is SELECTED, never on plain hover */}
+      {!readOnly && isSelected && (
         <button onClick={(e) => { e.stopPropagation(); onDelete(el.id) }}
-          className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-[var(--c-error)] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20"
-          data-no-drag="true">
+          className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-[var(--c-error)] text-white flex items-center justify-center z-20 shadow-md hover:scale-110 transition-transform"
+          data-no-drag="true"
+          title="Eliminar">
           <FiTrash2 size={9} />
         </button>
       )}

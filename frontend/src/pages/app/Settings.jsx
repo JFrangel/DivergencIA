@@ -89,16 +89,37 @@ export default function Settings() {
     }
   }, [profile])
 
+  const NOTIF_LABELS = {
+    comments: 'Nuevos comentarios',
+    votes: 'Votos en ideas',
+    advances: 'Nuevos avances',
+    tasks: 'Asignación de tareas',
+    achievements: 'Logros desbloqueados',
+    joinRequests: 'Solicitudes de ingreso',
+    weeklyDigest: 'Resumen semanal',
+  }
+
+  const PRIVACY_LABELS = {
+    publicProfile: 'Perfil público',
+    showEmail: 'Mostrar correo',
+    showActivity: 'Mostrar actividad',
+    showInGraph: 'Aparecer en el Universo',
+    atheniaMemory: 'Memoria ATHENIA',
+  }
+
   const saveNotifPrefs = (key, val) => {
     const next = { ...notifPrefs, [key]: val }
     setNotifPrefs(next)
     localStorage.setItem('divergencia_notif_prefs', JSON.stringify(next))
+    const label = NOTIF_LABELS[key] || key
+    toast(val ? `${label} activado` : `${label} desactivado`, {
+      icon: val ? '🔔' : '🔕',
+    })
   }
 
   const savePrivacyPrefs = async (key, val) => {
     const next = { ...privacyPrefs, [key]: val }
     setPrivacyPrefs(next)
-    // Persist to DB
     const dbMap = {
       publicProfile: { perfil_privado: !val },
       showEmail:     { mostrar_correo: val },
@@ -108,6 +129,10 @@ export default function Settings() {
     if (dbMap[key] && user) {
       await supabase.from('usuarios').update(dbMap[key]).eq('id', user.id)
     }
+    const label = PRIVACY_LABELS[key] || key
+    toast(val ? `${label} activado` : `${label} desactivado`, {
+      icon: val ? '✅' : '🚫',
+    })
   }
 
   const handleSaveAccount = async () => {

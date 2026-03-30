@@ -315,7 +315,7 @@ function AudioPlayer({ src }) {
   }
 
   const fmtTime = (s) => {
-    if (!s || isNaN(s)) return '0:00'
+    if (!s || !isFinite(s) || isNaN(s)) return '0:00'
     return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
   }
 
@@ -549,7 +549,6 @@ function MessageContent({ message, navigate }) {
     <>
       <div className="text-sm text-white/80 leading-relaxed break-words whitespace-pre-wrap">
         {parseContent(contenido, navigate, setCtxMenu)}
-        {message.editado && <span className="text-[10px] text-white/20 ml-1.5">(editado)</span>}
       </div>
       <AnimatePresence>
         {ctxMenu && (
