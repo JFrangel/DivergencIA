@@ -255,7 +255,7 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle, c
           to="/profile"
           className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/[0.05] transition-all duration-150"
         >
-          <Avatar name={profile?.nombre || ''} area={profile?.area_investigacion} size="xs" />
+          <Avatar name={profile?.nombre || ''} src={profile?.foto_url} area={profile?.area_investigacion} size="xs" />
           {!isCollapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">{profile?.nombre || 'Mi perfil'}</p>

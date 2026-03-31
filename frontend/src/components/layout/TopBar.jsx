@@ -205,7 +205,7 @@ export default function TopBar() {
 
         {/* Avatar */}
         <Link to="/profile" className="hover:opacity-80 transition-opacity">
-          <Avatar name={profile?.nombre || ''} area={profile?.area_investigacion} size="xs" />
+          <Avatar name={profile?.nombre || ''} src={profile?.foto_url} area={profile?.area_investigacion} size="xs" />
         </Link>
       </div>
     </motion.header>

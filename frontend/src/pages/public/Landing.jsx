@@ -119,13 +119,14 @@ function Counter({ to, duration = 1.8, suffix = '' }) {
 }
 
 /* ──────── Floating badge ──────── */
-function FloatingBadge({ text, color, icon: Icon, className = '' }) {
+function FloatingBadge({ text, color, icon: Icon, className = '', delay = 0 }) {
   return (
     <motion.div
       className={`absolute hidden lg:flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold backdrop-blur-md ${className}`}
       style={{ background: `${color}12`, border: `1px solid ${color}25`, color }}
-      animate={{ y: [0, -10, 0] }}
-      transition={{ repeat: Infinity, duration: 3.5 + Math.random() * 2, ease: 'easeInOut' }}
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1, y: [0, -10, 0] }}
+      transition={{ opacity: { delay, duration: 0.5 }, scale: { delay, duration: 0.5 }, y: { repeat: Infinity, duration: 3.5, ease: 'easeInOut', delay } }}
     >
       {Icon && <Icon size={12} />}
       {text}
@@ -133,23 +134,131 @@ function FloatingBadge({ text, color, icon: Icon, className = '' }) {
   )
 }
 
-/* ──────── Marquee Strip ──────── */
-function MarqueeStrip() {
-  const items = [...MARQUEE, ...MARQUEE]
+/* ──────── Floating stat card ──────── */
+function FloatingStatCard({ label, value, icon: Icon, color, className = '', delay = 0 }) {
   return (
-    <div className="overflow-hidden py-6 border-y border-white/[0.05]" aria-hidden>
-      <motion.div
-        className="flex gap-12 whitespace-nowrap"
-        animate={{ x: ['0%', '-50%'] }}
-        transition={{ repeat: Infinity, duration: 28, ease: 'linear' }}
-      >
-        {items.map((item, i) => (
-          <span key={i} className="flex items-center gap-3 text-sm text-white/25 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#FC651F]/60 shrink-0" />
-            {item}
-          </span>
-        ))}
+    <motion.div
+      className={`absolute hidden xl:flex flex-col gap-1 px-4 py-3 rounded-2xl backdrop-blur-md ${className}`}
+      style={{ background: `rgba(12,5,8,0.85)`, border: `1px solid ${color}30`, boxShadow: `0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px ${color}10` }}
+      initial={{ opacity: 0, y: 20, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: delay + 1.2, duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
+      whileHover={{ y: -4, boxShadow: `0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px ${color}25` }}
+    >
+      <div className="flex items-center gap-2">
+        <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${color}18` }}>
+          <Icon size={11} style={{ color }} />
+        </div>
+        <span className="text-[10px] text-white/30 font-medium">{label}</span>
+      </div>
+      <p className="text-xl font-bold font-title" style={{ color }}>{value}<span className="text-sm text-white/30 font-normal ml-0.5">+</span></p>
+      <motion.div className="w-full h-0.5 rounded-full" style={{ background: `${color}20` }}>
+        <motion.div
+          className="h-full rounded-full"
+          style={{ background: `linear-gradient(90deg, ${color}, ${color}80)` }}
+          animate={{ width: ['0%', '100%', '65%'] }}
+          transition={{ duration: 2, delay: delay + 1.8, ease: 'easeOut' }}
+        />
       </motion.div>
+    </motion.div>
+  )
+}
+
+/* ──────── Achievement toast ──────── */
+function AchievementToast({ text, icon, color, delay = 2.5 }) {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), delay * 1000)
+    return () => clearTimeout(t)
+  }, [delay])
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          className="absolute top-[18%] right-[3%] hidden lg:flex items-center gap-3 px-4 py-3 rounded-2xl z-20 backdrop-blur-md"
+          style={{ background: 'rgba(12,5,8,0.92)', border: `1px solid ${color}30`, maxWidth: 220 }}
+          initial={{ opacity: 0, x: 40, scale: 0.9 }}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          exit={{ opacity: 0, x: 20 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 250 }}
+        >
+          <motion.div
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0"
+            style={{ background: `${color}15`, border: `1px solid ${color}25` }}
+            animate={{ rotate: [0, -8, 8, 0] }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            {icon}
+          </motion.div>
+          <div>
+            <p className="text-[9px] text-white/30 uppercase tracking-widest font-semibold">Logro desbloqueado</p>
+            <p className="text-xs font-semibold text-white/80 mt-0.5">{text}</p>
+          </div>
+          <motion.div
+            className="absolute bottom-0 left-0 h-0.5 rounded-full"
+            style={{ background: `linear-gradient(90deg, ${color}, transparent)` }}
+            initial={{ width: '100%' }}
+            animate={{ width: '0%' }}
+            transition={{ duration: 5, delay: 0.5, ease: 'linear' }}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+/* ──────── Marquee Strip ──────── */
+const MARQUEE_ICONS = [
+  { text: 'Machine Learning', icon: '🧠', color: '#FC651F' },
+  { text: 'Deep Learning', icon: '⚡', color: '#8B5CF6' },
+  { text: 'NLP', icon: '💬', color: '#00D1FF' },
+  { text: 'Computer Vision', icon: '👁️', color: '#22c55e' },
+  { text: 'Reinforcement Learning', icon: '🎮', color: '#F59E0B' },
+  { text: 'Generative AI', icon: '✨', color: '#EC4899' },
+  { text: 'Data Science', icon: '📊', color: '#FC651F' },
+  { text: 'Neural Networks', icon: '🔗', color: '#8B5CF6' },
+  { text: 'LLMs', icon: '🤖', color: '#00D1FF' },
+  { text: 'Transfer Learning', icon: '🔄', color: '#22c55e' },
+  { text: 'Embeddings', icon: '🧮', color: '#F59E0B' },
+  { text: 'RAG Systems', icon: '🔍', color: '#EC4899' },
+]
+
+function MarqueeStrip() {
+  const items = [...MARQUEE_ICONS, ...MARQUEE_ICONS]
+  const reverse = [...MARQUEE_ICONS].reverse().concat([...MARQUEE_ICONS].reverse())
+  return (
+    <div className="overflow-hidden border-y border-white/[0.05]" aria-hidden>
+      {/* Forward strip */}
+      <div className="py-4 border-b border-white/[0.03]">
+        <motion.div
+          className="flex gap-10 whitespace-nowrap"
+          animate={{ x: ['0%', '-50%'] }}
+          transition={{ repeat: Infinity, duration: 30, ease: 'linear' }}
+        >
+          {items.map((item, i) => (
+            <span key={i} className="flex items-center gap-2.5 text-sm text-white/25 font-medium">
+              <span className="text-base opacity-60">{item.icon}</span>
+              <span>{item.text}</span>
+              <span className="w-1 h-1 rounded-full shrink-0" style={{ background: item.color + '60' }} />
+            </span>
+          ))}
+        </motion.div>
+      </div>
+      {/* Reverse strip — more opaque, different speed */}
+      <div className="py-3">
+        <motion.div
+          className="flex gap-10 whitespace-nowrap"
+          animate={{ x: ['-50%', '0%'] }}
+          transition={{ repeat: Infinity, duration: 22, ease: 'linear' }}
+        >
+          {reverse.map((item, i) => (
+            <span key={i} className="flex items-center gap-2 text-[11px] font-mono font-medium" style={{ color: item.color + '35' }}>
+              <span className="text-xs opacity-50">{item.icon}</span>
+              {item.text.toUpperCase()}
+            </span>
+          ))}
+        </motion.div>
+      </div>
     </div>
   )
 }
@@ -505,10 +614,18 @@ export default function Landing() {
         />
 
         {/* Floating research area pills */}
-        <FloatingBadge text="Machine Learning" color="#FC651F" icon={FiCpu} className="top-[28%] left-[7%]" />
-        <FloatingBadge text="Computer Vision" color="#00D1FF" icon={FiLayers} className="top-[38%] right-[6%]" />
-        <FloatingBadge text="NLP Research" color="#8B5CF6" icon={FiMessageSquare} className="bottom-[32%] left-[5%]" />
-        <FloatingBadge text="Data Science" color="#22c55e" icon={FiDatabase} className="bottom-[24%] right-[8%]" />
+        <FloatingBadge text="Machine Learning" color="#FC651F" icon={FiCpu}          className="top-[28%] left-[7%]"   delay={1.0} />
+        <FloatingBadge text="Computer Vision"  color="#00D1FF" icon={FiLayers}       className="top-[22%] right-[7%]"  delay={1.3} />
+        <FloatingBadge text="NLP Research"     color="#8B5CF6" icon={FiMessageSquare} className="bottom-[35%] left-[4%]" delay={1.6} />
+        <FloatingBadge text="Data Science"     color="#22c55e" icon={FiDatabase}     className="bottom-[28%] right-[5%]" delay={1.9} />
+
+        {/* Floating live stat cards */}
+        <FloatingStatCard label="Investigadores" value={stats.miembros || 12}  icon={FiUsers}    color="#FC651F" className="top-[42%] left-[3%]"   delay={0.2} />
+        <FloatingStatCard label="Proyectos activos" value={stats.proyectos || 8} icon={FiFolder}  color="#8B5CF6" className="bottom-[18%] left-[3%]"  delay={0.5} />
+        <FloatingStatCard label="Ideas en votación" value={stats.ideas || 24}   icon={FiStar}    color="#00D1FF" className="bottom-[14%] right-[3%]" delay={0.8} />
+
+        {/* Achievement toast */}
+        <AchievementToast text="Primer proyecto publicado" icon="🏆" color="#F59E0B" delay={3.0} />
 
         <motion.div
           className="relative z-10 text-center px-4 max-w-5xl mx-auto"
@@ -602,24 +719,31 @@ export default function Landing() {
 
           {/* Tech badges */}
           <motion.div
-            className="flex flex-wrap items-center justify-center gap-3"
+            className="flex flex-wrap items-center justify-center gap-2.5"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.1 }}
           >
             {[
-              { label: 'Gemini 1.5 Pro', color: '#22c55e' },
-              { label: 'React Flow', color: '#00D1FF' },
-              { label: 'Supabase Realtime', color: '#8B5CF6' },
-              { label: 'Three.js', color: '#FC651F' },
-            ].map(({ label, color }) => (
-              <span
+              { label: 'Gemini 1.5 Pro', color: '#22c55e',  icon: '🤖' },
+              { label: 'React Flow',      color: '#00D1FF',  icon: '🔗' },
+              { label: 'Supabase RT',     color: '#8B5CF6',  icon: '⚡' },
+              { label: 'Three.js',        color: '#FC651F',  icon: '🎲' },
+              { label: 'WebRTC Calls',    color: '#F59E0B',  icon: '📹' },
+              { label: 'Framer Motion',   color: '#EC4899',  icon: '✨' },
+            ].map(({ label, color, icon }, i) => (
+              <motion.span
                 key={label}
-                className="text-[11px] px-3 py-1 rounded-full font-medium"
-                style={{ background: `${color}12`, border: `1px solid ${color}20`, color: `${color}99` }}
+                className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-full font-medium cursor-default"
+                style={{ background: `${color}10`, border: `1px solid ${color}20`, color: `${color}90` }}
+                whileHover={{ scale: 1.08, background: `${color}18`, color }}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.1 + i * 0.07 }}
               >
+                <span className="text-xs">{icon}</span>
                 {label}
-              </span>
+              </motion.span>
             ))}
           </motion.div>
         </motion.div>
