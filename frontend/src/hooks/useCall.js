@@ -27,6 +27,7 @@ export function useCall(canalId) {
 
   const peersRef = useRef({})
   const signalingRef = useRef(null)
+  const globalCallsRef = useRef(null)
   const localStreamRef = useRef(null)
   const screenStreamRef = useRef(null)
   const callStateRef = useRef('idle')
@@ -49,6 +50,47 @@ export function useCall(canalId) {
   }, [])
 
   useEffect(() => { refreshDevices() }, [refreshDevices])
+
+  // ── Global call notifications — always active regardless of which page/channel is open ──
+  useEffect(() => {
+    if (!user) return
+    const globalCh = supabase.channel('divergencia_all_calls', { config: { broadcast: { self: false } } })
+    globalCallsRef.current = globalCh
+
+    globalCh.on('broadcast', { event: 'global-call-start' }, ({ payload }) => {
+      if (callStateRef.current !== 'idle') return
+      if (payload.from === user.id) return
+      if (!payload.recipients?.includes(user.id)) return
+      setIncoming({ from: payload.from, name: payload.name, type: payload.type, canalId: payload.canalId })
+      setCallState('ringing')
+      _playRingtone()
+    })
+
+    globalCh.on('broadcast', { event: 'global-call-end' }, ({ payload }) => {
+      if (!payload.recipients?.includes(user.id)) return
+      if (callStateRef.current === 'ringing' && payload.canalId === channelIdRef.current) {
+        setIncoming(null)
+        setCallState('idle')
+        _stopRingtone()
+        toast('Llamada perdida')
+      }
+    })
+
+    globalCh.on('broadcast', { event: 'call-invite' }, ({ payload }) => {
+      if (payload.to !== user.id) return
+      const joinUrl = `${window.location.origin}/chat?canal=${payload.canalId}`
+      toast(`📞 ${payload.fromName} te invita a la llamada`, {
+        action: { label: 'Unirse', onClick: () => { window.location.href = joinUrl } },
+        duration: 20000,
+      })
+    })
+
+    globalCh.subscribe()
+    return () => {
+      supabase.removeChannel(globalCh)
+      globalCallsRef.current = null
+    }
+  }, [user])
 
   useEffect(() => {
     if (!user || !canalId) return
@@ -257,6 +299,19 @@ export function useCall(canalId) {
     } catch (e) { console.error('offer error', e) }
   }
 
+  async function _renegotiate(remoteUserId) {
+    const peer = peersRef.current[remoteUserId]
+    if (!peer?.pc) return
+    try {
+      const offer = await peer.pc.createOffer()
+      await peer.pc.setLocalDescription(offer)
+      signalingRef.current?.send({
+        type: 'broadcast', event: 'offer',
+        payload: { to: remoteUserId, from: user.id, name: profile?.nombre || user?.email, offer },
+      })
+    } catch (e) { console.error('renegotiate error', e) }
+  }
+
   async function _handleOffer(remoteUserId, remoteName, offer) {
     const pc = _createPeer(remoteUserId, remoteName)
     try {
@@ -369,10 +424,20 @@ export function useCall(canalId) {
     setIsMuted(false)
     setIsCameraOff(!hasVideo)
 
-    signalingRef.current?.send({
-      type: 'broadcast', event: 'call-start',
-      payload: { from: user.id, name: profile?.nombre || user?.email, type: hasVideo ? 'video' : 'audio', canalId },
-    })
+    const callPayload = { from: user.id, name: profile?.nombre || user?.email, type: hasVideo ? 'video' : 'audio', canalId }
+    signalingRef.current?.send({ type: 'broadcast', event: 'call-start', payload: callPayload })
+
+    // Notify canal members globally so they hear the call on any page
+    const { data: memberData } = await supabase
+      .from('canal_miembros').select('usuario_id').eq('canal_id', canalId).neq('usuario_id', user.id)
+    const recipients = memberData?.map(m => m.usuario_id) || []
+    if (recipients.length > 0) {
+      globalCallsRef.current?.send({
+        type: 'broadcast', event: 'global-call-start',
+        payload: { ...callPayload, recipients },
+      })
+    }
+
     _createCallHistory(hasVideo ? 'video' : 'audio', canalId)
     setTimeout(() => {
       signalingRef.current?.send({
@@ -428,6 +493,11 @@ export function useCall(canalId) {
       type: 'broadcast', event: 'call-end',
       payload: { from: user.id, canalId },
     })
+    // Also notify globally so ringing users on other pages stop
+    globalCallsRef.current?.send({
+      type: 'broadcast', event: 'global-call-end',
+      payload: { from: user.id, canalId, recipients: participants.map(p => p.userId) },
+    })
     localStreamRef.current?.getTracks().forEach(t => t.stop())
     screenStreamRef.current?.getTracks().forEach(t => t.stop())
     localStreamRef.current = null
@@ -454,13 +524,46 @@ export function useCall(canalId) {
     _broadcastMediaState(newMuted, isCameraOff)
   }, [isMuted, isCameraOff])
 
-  const toggleCamera = useCallback(() => {
+  const toggleCamera = useCallback(async () => {
     if (!localStreamRef.current) return
-    const newOff = !isCameraOff
-    localStreamRef.current.getVideoTracks().forEach(t => { t.enabled = !newOff })
-    setIsCameraOff(newOff)
-    _broadcastMediaState(isMuted, newOff)
-  }, [isCameraOff, isMuted])
+    const videoTracks = localStreamRef.current.getVideoTracks()
+
+    if (!isCameraOff && videoTracks.length > 0) {
+      // Turn off: disable existing video tracks
+      videoTracks.forEach(t => { t.enabled = false })
+      setIsCameraOff(true)
+      _broadcastMediaState(isMuted, true)
+      return
+    }
+
+    if (!isCameraOff && videoTracks.length === 0) return // nothing to turn off
+
+    // Turn on: re-enable if tracks exist, otherwise request new camera
+    if (videoTracks.length > 0) {
+      videoTracks.forEach(t => { t.enabled = true })
+      setIsCameraOff(false)
+      _broadcastMediaState(isMuted, false)
+    } else {
+      // Audio call enabling camera for the first time
+      try {
+        const constraint = selectedCamera ? { deviceId: { exact: selectedCamera }, width: 1280, height: 720 } : { width: 1280, height: 720, facingMode: 'user' }
+        const camStream = await navigator.mediaDevices.getUserMedia({ video: constraint })
+        const videoTrack = camStream.getVideoTracks()[0]
+        if (!videoTrack) return
+        localStreamRef.current.addTrack(videoTrack)
+        setLocalStream(new MediaStream([...localStreamRef.current.getTracks()]))
+        // Add the new track to all existing peer connections and renegotiate
+        Object.values(peersRef.current).forEach(({ pc }) => {
+          pc.addTrack(videoTrack, localStreamRef.current)
+        })
+        await Promise.all(Object.keys(peersRef.current).map(uid => _renegotiate(uid)))
+        setIsCameraOff(false)
+        _broadcastMediaState(isMuted, false)
+      } catch {
+        toast.error('No se pudo acceder a la cámara')
+      }
+    }
+  }, [isCameraOff, isMuted, selectedCamera])
 
   const toggleScreenShare = useCallback(async () => {
     if (isScreenSharing) {
@@ -478,16 +581,20 @@ export function useCall(canalId) {
       try {
         const displayStream = await navigator.mediaDevices.getDisplayMedia({
           video: { width: 1920, height: 1080, frameRate: 30, cursor: 'always' },
-          audio: false,
+          audio: { echoCancellation: false, noiseSuppression: false, sampleRate: 44100 },
         })
         screenStreamRef.current = displayStream
         setScreenStream(displayStream)
         setIsScreenSharing(true)
 
         const screenTrack = displayStream.getVideoTracks()[0]
+        const screenAudioTracks = displayStream.getAudioTracks()
         Object.values(peersRef.current).forEach(({ pc }) => {
           pc.addTrack(screenTrack, displayStream)
+          screenAudioTracks.forEach(t => pc.addTrack(t, displayStream))
         })
+        // Renegotiate with all peers so they receive the new tracks
+        await Promise.all(Object.keys(peersRef.current).map(uid => _renegotiate(uid)))
 
         screenTrack.onended = () => toggleScreenShare()
       } catch (e) {
@@ -557,8 +664,23 @@ export function useCall(canalId) {
     }
   }, [])
 
+  const sendCallInvite = useCallback((targetUserId) => {
+    if (!user) return
+    ;(globalCallsRef.current || signalingRef.current)?.send({
+      type: 'broadcast',
+      event: 'call-invite',
+      payload: {
+        to: targetUserId,
+        from: user.id,
+        fromName: profile?.nombre || user?.email,
+        canalId,
+        type: callType,
+      },
+    })
+  }, [user, profile, canalId, callType])
+
   return {
-    callState, callType, incoming,
+    callState, callType, incoming, canalId,
     localStream, screenStream, participants,
     isMuted, isCameraOff, isScreenSharing,
     cameras, mics, selectedCamera, selectedMic,
@@ -567,6 +689,6 @@ export function useCall(canalId) {
     reactions, raisedHands, isHandRaised,
     startCall, acceptCall, declineCall, endCall,
     toggleMute, toggleCamera, toggleScreenShare, switchCamera,
-    sendReaction, toggleRaiseHand,
+    sendReaction, toggleRaiseHand, sendCallInvite,
   }
 }

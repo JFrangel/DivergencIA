@@ -1,4 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { FiX, FiCheck, FiSlash } from 'react-icons/fi'
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Banner animation renderers — each gets (ctx, canvas, time, mouse, colors)
@@ -519,12 +521,12 @@ function createCitySkyline() {
 
 /* ═══════════ BANNER REGISTRY ════════════════════════════════════════ */
 export const BANNER_TYPES = [
-  { id: 'dino',      label: 'Dino Run',       factory: createDinoRun },
-  { id: 'space',     label: 'Space Flight',   factory: createSpaceFlight },
-  { id: 'ocean',     label: 'Ocean Waves',    factory: createOceanWaves },
-  { id: 'matrix',    label: 'Matrix Rain',    factory: createMatrixRain },
-  { id: 'particles', label: 'Particle Swarm', factory: createParticleSwarm },
-  { id: 'city',      label: 'City Skyline',   factory: createCitySkyline },
+  { id: 'dino',      label: 'Dino Run',       tag: 'Retro',    emoji: '🦕', factory: createDinoRun },
+  { id: 'space',     label: 'Space Flight',   tag: 'Cósmico',  emoji: '🚀', factory: createSpaceFlight },
+  { id: 'ocean',     label: 'Ocean Waves',    tag: 'Ambiente', emoji: '🌊', factory: createOceanWaves },
+  { id: 'matrix',    label: 'Matrix Rain',    tag: 'Tech',     emoji: '💻', factory: createMatrixRain },
+  { id: 'particles', label: 'Particle Swarm', tag: 'Ciencia',  emoji: '✨', factory: createParticleSwarm },
+  { id: 'city',      label: 'City Skyline',   tag: 'Urbano',   emoji: '🌆', factory: createCitySkyline },
 ]
 
 /* ═══════════ DYNAMIC BANNER COMPONENT ═══════════════════════════════ */
@@ -617,52 +619,144 @@ export default function DynamicBanner({ type = 'particles', height = 200, classN
 /* ═══════════ BANNER SELECTOR (modal-style picker) ═══════════════════ */
 export function BannerSelector({ currentType, onSelect, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-      <div
-        className="relative glass rounded-2xl p-5 max-w-2xl w-full max-h-[85vh] overflow-y-auto"
-        onClick={e => e.stopPropagation()}
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
       >
-        <h3 className="text-lg font-bold text-white/90 font-title mb-1">
-          Elegir banner animado
-        </h3>
-        <p className="text-sm text-white/40 mb-4">
-          Selecciona una animacion para tu perfil
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {BANNER_TYPES.map(b => (
-            <button
-              key={b.id}
-              onClick={() => { onSelect(b.id); onClose() }}
-              className={`relative rounded-xl overflow-hidden border transition-all hover:scale-[1.02] ${
-                currentType === b.id
-                  ? 'border-[var(--c-primary)] ring-1 ring-[var(--c-primary)]/30'
-                  : 'border-white/[0.08] hover:border-white/[0.16]'
-              }`}
-            >
-              <DynamicBanner type={b.id} height={100} interactive={false} />
-              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                <span className="text-xs font-medium text-white/80">{b.label}</span>
-              </div>
-              {currentType === b.id && (
-                <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                  style={{ background: 'var(--c-primary)' }}
-                >
-                  ✓
-                </div>
-              )}
-            </button>
-          ))}
+        {/* Backdrop */}
+        <div className="absolute inset-0 bg-black/75 backdrop-blur-md" />
 
-          {/* Option to remove dynamic banner */}
-          <button
-            onClick={() => { onSelect(null); onClose() }}
-            className="rounded-xl border border-white/[0.08] hover:border-white/[0.16] transition-all hover:scale-[1.02] flex items-center justify-center h-[100px] bg-white/[0.02]"
-          >
-            <span className="text-sm text-white/40">Sin banner animado</span>
-          </button>
-        </div>
-      </div>
-    </div>
+        {/* Panel */}
+        <motion.div
+          className="relative w-full max-w-2xl max-h-[88vh] overflow-hidden rounded-2xl flex flex-col"
+          style={{
+            background: 'rgba(10,5,7,0.97)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04)',
+          }}
+          initial={{ opacity: 0, y: 24, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 16, scale: 0.97 }}
+          transition={{ type: 'spring', damping: 24, stiffness: 300 }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] shrink-0">
+            <div>
+              <h3 className="text-sm font-semibold text-white/90">Banner animado</h3>
+              <p className="text-xs text-white/30 mt-0.5">Elige la animación de tu perfil</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/[0.06] transition-all"
+            >
+              <FiX size={14} />
+            </button>
+          </div>
+
+          {/* Grid */}
+          <div className="overflow-y-auto p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {BANNER_TYPES.map((b, i) => {
+                const isSelected = currentType === b.id
+                return (
+                  <motion.button
+                    key={b.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.04, duration: 0.2 }}
+                    onClick={() => { onSelect(b.id); onClose() }}
+                    className={`relative rounded-xl overflow-hidden border transition-all group ${
+                      isSelected
+                        ? 'border-[var(--c-primary)] ring-1 ring-[var(--c-primary)]/25'
+                        : 'border-white/[0.07] hover:border-white/[0.18]'
+                    }`}
+                    style={isSelected ? { boxShadow: '0 0 16px color-mix(in srgb, var(--c-primary) 20%, transparent)' } : {}}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {/* Canvas preview */}
+                    <DynamicBanner type={b.id} height={90} interactive={false} />
+
+                    {/* Bottom label */}
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-2.5 pt-4 pb-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-white/90">{b.label}</span>
+                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-white/[0.08] text-white/40">
+                          {b.tag}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Emoji badge */}
+                    <div className="absolute top-2 left-2 text-base leading-none select-none">{b.emoji}</div>
+
+                    {/* Selected checkmark */}
+                    {isSelected && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
+                        style={{ background: 'var(--c-primary)' }}
+                      >
+                        <FiCheck size={10} strokeWidth={3} className="text-white" />
+                      </motion.div>
+                    )}
+
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/[0.03] transition-colors pointer-events-none" />
+                  </motion.button>
+                )
+              })}
+
+              {/* Sin banner */}
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: BANNER_TYPES.length * 0.04, duration: 0.2 }}
+                onClick={() => { onSelect(null); onClose() }}
+                className={`relative rounded-xl border transition-all flex flex-col items-center justify-center gap-2 group ${
+                  !currentType
+                    ? 'border-white/20 bg-white/[0.04]'
+                    : 'border-white/[0.07] hover:border-white/[0.16] bg-white/[0.02]'
+                }`}
+                style={{ height: 90 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                  !currentType ? 'bg-white/10' : 'bg-white/[0.05] group-hover:bg-white/[0.08]'
+                }`}>
+                  <FiSlash size={14} className="text-white/40" />
+                </div>
+                <span className="text-xs font-medium text-white/40 group-hover:text-white/60 transition-colors">
+                  Sin banner
+                </span>
+                {!currentType && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center bg-white/20"
+                  >
+                    <FiCheck size={10} strokeWidth={3} className="text-white/60" />
+                  </motion.div>
+                )}
+              </motion.button>
+            </div>
+          </div>
+
+          {/* Footer hint */}
+          <div className="px-5 py-3 border-t border-white/[0.05] shrink-0">
+            <p className="text-[10px] text-white/20 text-center">
+              Haz clic en cualquier banner para activarlo · El banner se guarda en tu perfil
+            </p>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   )
 }
