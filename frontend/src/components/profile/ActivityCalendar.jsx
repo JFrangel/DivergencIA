@@ -83,6 +83,29 @@ export default function ActivityCalendar({ userId }) {
   const totalActivity = Object.values(activityMap).reduce((a, b) => a + b, 0)
   const activeDays = Object.keys(activityMap).length
 
+  if (loading) return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="h-3 w-20 rounded bg-white/[0.06] animate-pulse mb-1" />
+          <div className="h-2 w-36 rounded bg-white/[0.04] animate-pulse" />
+        </div>
+        <div className="flex gap-1">
+          {[0,1,2,3,4].map(i => <div key={i} className="w-2.5 h-2.5 rounded-sm bg-white/[0.06] animate-pulse" />)}
+        </div>
+      </div>
+      <div className="flex gap-[3px] mt-4 ml-7">
+        {Array.from({ length: 20 }).map((_, wi) => (
+          <div key={wi} className="flex flex-col gap-[3px]">
+            {Array.from({ length: 7 }).map((_, di) => (
+              <div key={di} className="w-[11px] h-[11px] rounded-sm bg-white/[0.04] animate-pulse" />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
   return (
     <div>
       {/* Header */}

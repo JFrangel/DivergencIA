@@ -372,21 +372,77 @@ function PomodoroTimer() {
 
   return (
     <div className="flex flex-col items-center gap-6">
-      {/* Preset selector */}
-      <div className="flex items-center gap-2">
-        {PRESETS.map((p, i) => (
+      {/* Preset selector + config toggle */}
+      <div className="flex flex-col items-center gap-2">
+        <div className="flex items-center gap-2">
+          {PRESETS.map((p, i) => (
+            <button
+              key={p.label}
+              onClick={(e) => { e.stopPropagation(); setPreset(i); setShowConfig(false) }}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium tracking-wide transition-all duration-300 border cursor-pointer ${
+                preset === i && !showConfig
+                  ? 'bg-white/10 border-[var(--c-primary)]/40 text-white/80'
+                  : 'bg-white/[0.03] border-white/[0.06] text-white/30 hover:text-white/50 hover:border-white/10'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
           <button
-            key={p.label}
-            onClick={(e) => { e.stopPropagation(); setPreset(i) }}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium tracking-wide transition-all duration-300 border cursor-pointer ${
-              preset === i
-                ? 'bg-white/10 border-[var(--c-primary)]/40 text-white/80'
-                : 'bg-white/[0.03] border-white/[0.06] text-white/30 hover:text-white/50 hover:border-white/10'
+            onClick={(e) => { e.stopPropagation(); setShowConfig(s => !s) }}
+            className={`p-1.5 rounded-full border transition-all cursor-pointer ${
+              showConfig
+                ? 'bg-white/10 border-[var(--c-primary)]/40 text-[var(--c-primary)]/80'
+                : 'bg-white/[0.03] border-white/[0.06] text-white/20 hover:text-white/50'
             }`}
+            title="Configurar intervalos"
           >
-            {p.label}
+            <FiSettings size={12} />
           </button>
-        ))}
+        </div>
+
+        {/* Custom interval config */}
+        <AnimatePresence>
+          {showConfig && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08]"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-white/30 uppercase tracking-wider">Trabajo</span>
+                <input
+                  type="number" min={1} max={120}
+                  defaultValue={PRESETS[preset].work}
+                  onChange={e => {
+                    const val = Math.max(1, Math.min(120, parseInt(e.target.value) || 25))
+                    PRESETS[preset] = { ...PRESETS[preset], work: val, label: `${val}/${PRESETS[preset].break}` }
+                    setRunning(false)
+                    setSeconds(val * 60)
+                  }}
+                  className="w-12 text-center text-xs text-white bg-white/[0.06] border border-white/[0.1] rounded-lg py-1 outline-none focus:border-[var(--c-primary)]/40"
+                />
+                <span className="text-white/20 text-xs">min</span>
+              </div>
+              <span className="text-white/10">/</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-white/30 uppercase tracking-wider">Descanso</span>
+                <input
+                  type="number" min={1} max={60}
+                  defaultValue={PRESETS[preset].break}
+                  onChange={e => {
+                    const val = Math.max(1, Math.min(60, parseInt(e.target.value) || 5))
+                    PRESETS[preset] = { ...PRESETS[preset], break: val, label: `${PRESETS[preset].work}/${val}` }
+                  }}
+                  className="w-12 text-center text-xs text-white bg-white/[0.06] border border-white/[0.1] rounded-lg py-1 outline-none focus:border-[var(--c-primary)]/40"
+                />
+                <span className="text-white/20 text-xs">min</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className="relative w-[230px] h-[230px] flex items-center justify-center">

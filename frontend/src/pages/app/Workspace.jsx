@@ -115,7 +115,7 @@ function RichEditor({ content, onChange, placeholder }) {
 
 // ─── Notes Tab ──────────────────────────────────────────────────────────────
 
-function NotesTab({ userId }) {
+function NotesTab({ userId, filterQuery = '' }) {
   const [notes, setNotes] = useState([])
   const [activeNote, setActiveNote] = useState(null)
   const [search, setSearch] = useState('')
@@ -221,9 +221,10 @@ function NotesTab({ userId }) {
     if (activeNote?.id === note.id) setActiveNote(updated)
   }
 
+  const effectiveSearch = filterQuery || search
   const filtered = notes.filter(n =>
-    n.title?.toLowerCase().includes(search.toLowerCase()) ||
-    n.content?.toLowerCase().includes(search.toLowerCase())
+    n.title?.toLowerCase().includes(effectiveSearch.toLowerCase()) ||
+    n.content?.toLowerCase().includes(effectiveSearch.toLowerCase())
   )
 
   const pinned = filtered.filter(n => n.pinned)
@@ -349,7 +350,7 @@ function NoteListItem({ note, active, onClick, onDelete, onPin }) {
 
 // ─── Snippets Tab ───────────────────────────────────────────────────────────
 
-function SnippetsTab({ userId }) {
+function SnippetsTab({ userId, filterQuery = '' }) {
   const [snippets, setSnippets] = useState([])
   const [editing, setEditing] = useState(null)
   const [search, setSearch] = useState('')
@@ -434,9 +435,10 @@ function SnippetsTab({ userId }) {
 
   const allTags = [...new Set(snippets.flatMap(s => s.tags || []))]
 
+  const effectiveSearch = filterQuery || search
   const filtered = snippets.filter(s => {
-    const matchSearch = s.title?.toLowerCase().includes(search.toLowerCase()) ||
-      s.content?.toLowerCase().includes(search.toLowerCase())
+    const matchSearch = s.title?.toLowerCase().includes(effectiveSearch.toLowerCase()) ||
+      s.content?.toLowerCase().includes(effectiveSearch.toLowerCase())
     const matchTag = !tagFilter || (s.tags || []).includes(tagFilter)
     return matchSearch && matchTag
   })
@@ -591,7 +593,7 @@ function SnippetEditor({ snippet, onSave, onCancel }) {
 
 // ─── Files Tab ──────────────────────────────────────────────────────────────
 
-function FilesTab({ userId }) {
+function FilesTab({ userId, filterQuery = '' }) {
   const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -671,8 +673,9 @@ function FilesTab({ userId }) {
 
   const isImage = (name) => /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name)
 
+  const effectiveSearch = filterQuery || search
   const filtered = files.filter(f =>
-    f.name?.toLowerCase().includes(search.toLowerCase())
+    f.name?.toLowerCase().includes(effectiveSearch.toLowerCase())
   )
 
   if (loading) return <div className="flex items-center justify-center py-16"><Spinner size="lg" /></div>
@@ -800,6 +803,24 @@ export default function Workspace() {
           <h1 className="text-2xl font-bold font-title text-white">Mi Espacio</h1>
           <p className="text-white/40 text-sm mt-1">Tu espacio personal: notas, snippets y archivos.</p>
         </div>
+        <div className="relative w-full sm:w-72">
+          <FiSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Buscar en todo el espacio..."
+            value={globalSearch}
+            onChange={e => setGlobalSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/20 transition-colors"
+          />
+          {globalSearch && (
+            <button
+              onClick={() => setGlobalSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+            >
+              <FiX size={13} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -832,9 +853,9 @@ export default function Workspace() {
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.2 }}
         >
-          {activeTab === 'notes' && <NotesTab userId={user.id} />}
-          {activeTab === 'snippets' && <SnippetsTab userId={user.id} />}
-          {activeTab === 'files' && <FilesTab userId={user.id} />}
+          {activeTab === 'notes' && <NotesTab userId={user.id} filterQuery={globalSearch} />}
+          {activeTab === 'snippets' && <SnippetsTab userId={user.id} filterQuery={globalSearch} />}
+          {activeTab === 'files' && <FilesTab userId={user.id} filterQuery={globalSearch} />}
         </motion.div>
       </AnimatePresence>
     </div>

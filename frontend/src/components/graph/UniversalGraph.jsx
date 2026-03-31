@@ -484,7 +484,14 @@ function InnerGraph({ initialNodes, initialEdges, highlightedNodeId, layout, onL
   const layoutKey = `${layout}-${nodes.length}-${edges.length}`
 
   return (
-    <>
+    <div
+      className="w-full h-full"
+      style={isFullscreen ? {
+        position: 'fixed', inset: 0, zIndex: 50,
+        background: 'var(--c-bg)',
+        borderRadius: 0,
+      } : { position: 'relative', width: '100%', height: '100%' }}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -549,7 +556,7 @@ function InnerGraph({ initialNodes, initialEdges, highlightedNodeId, layout, onL
           />
         )}
       </AnimatePresence>
-    </>
+    </div>
   )
 }
 

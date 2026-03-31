@@ -27,9 +27,28 @@ export function useMembers({ area, search } = {}) {
   return { members, loading, refetch: fetch }
 }
 
+export function useAllMembers() {
+  const [members, setMembers] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    supabase
+      .from('usuarios')
+      .select('id, nombre, foto_url, area_investigacion, es_fundador, activo, rol, fecha_registro, habilidades, carrera')
+      .order('es_fundador', { ascending: false })
+      .then(({ data }) => { setMembers(data || []); setLoading(false) })
+  }, [])
+
+  return { members, loading }
+}
+
 export function useMember(id) {
   const [member, setMember] = useState(null)
   const [stats, setStats] = useState({ proyectos: 0, avances: 0, ideas: 0, archivos: 0 })
+  const [proyectos, setProyectos] = useState([])
+  const [avances, setAvances] = useState([])
+  const [nodosData, setNodosData] = useState([])
+  const [groupCanales, setGroupCanales] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -41,12 +60,31 @@ export function useMember(id) {
       supabase.from('ideas').select('*', { count: 'exact', head: true }).eq('autor_id', id),
       supabase.from('archivos').select('*', { count: 'exact', head: true }).eq('subido_por', id),
       supabase.from('logros').select('*').eq('usuario_id', id),
-    ]).then(([{ data: m }, { count: proy }, { count: av }, { count: id_ }, { count: arch }, { data: logros }]) => {
+      supabase.from('miembros_proyecto').select('proyecto:proyectos(id, titulo, estado)').eq('usuario_id', id).eq('activo', true).limit(6),
+      supabase.from('avances').select('titulo, fecha, proyecto:proyectos(titulo)').eq('autor_id', id).order('fecha', { ascending: false }).limit(5),
+      supabase.from('nodo_miembros').select('rol, nodo:nodos(id, nombre, descripcion, color, icono)').eq('usuario_id', id),
+      supabase.from('canal_miembros').select('canal:canales(id, nombre, nodo_tipo)').eq('usuario_id', id),
+    ]).then(([
+      { data: m },
+      { count: proy },
+      { count: av },
+      { count: id_ },
+      { count: arch },
+      { data: logros },
+      { data: proyList },
+      { data: avList },
+      { data: nodosList },
+      { data: groupList },
+    ]) => {
       setMember({ ...m, logros: logros || [] })
       setStats({ proyectos: proy || 0, avances: av || 0, ideas: id_ || 0, archivos: arch || 0 })
+      setProyectos(proyList?.map(p => p.proyecto).filter(Boolean) || [])
+      setAvances(avList || [])
+      setNodosData(nodosList?.map(n => ({ ...n.nodo, rol: n.rol })).filter(Boolean) || [])
+      setGroupCanales((groupList || []).map(cm => cm.canal).filter(c => c && c.nodo_tipo === 'grupo'))
       setLoading(false)
     })
   }, [id])
 
-  return { member, stats, loading }
+  return { member, stats, proyectos, avances, nodosData, groupCanales, loading }
 }

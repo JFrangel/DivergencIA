@@ -552,13 +552,27 @@ export default function DiagramEditor({ projectId } = {}) {
             <FiPlus size={12} /> Nuevo
           </button>
 
-          {/* Export */}
+          {/* Export JSON */}
           <button
             onClick={exportJSON}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-white/40 hover:text-white bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] transition-all"
             title="Exportar JSON"
           >
             <FiDownload size={12} /> Exportar
+          </button>
+
+          {/* Export PNG */}
+          <button
+            onClick={exportPNG}
+            disabled={exporting}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-white/40 hover:text-white bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] transition-all disabled:opacity-50"
+            title="Exportar imagen PNG"
+          >
+            {exporting
+              ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              : <FiImage size={12} />
+            }
+            {exporting ? 'Exportando...' : 'PNG'}
           </button>
 
           {/* Import */}

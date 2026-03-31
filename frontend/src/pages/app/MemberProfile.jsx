@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { FiGithub, FiLinkedin, FiGlobe, FiExternalLink, FiFolder, FiActivity, FiAward, FiArrowLeft, FiLock, FiZap, FiMessageSquare } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 import { useChannels } from '../../hooks/useChat'
-import { supabase } from '../../lib/supabase'
+import { useMember } from '../../hooks/useMembers'
 import { useAuth } from '../../context/AuthContext'
 import Avatar from '../../components/ui/Avatar'
 import Badge from '../../components/ui/Badge'
@@ -99,13 +99,7 @@ export default function MemberProfile() {
   const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
   const { getOrCreateNodeChannel } = useChannels()
-  const [member, setMember] = useState(null)
-  const [stats, setStats] = useState({ proyectos: 0, avances: 0, ideas: 0 })
-  const [proyectos, setProyectos] = useState([])
-  const [avances, setAvances] = useState([])
-  const [nodosData, setNodosData] = useState([])
-  const [groupNodos, setGroupNodos] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { member, stats, proyectos, avances, nodosData, groupCanales, loading } = useMember(id)
 
   const GROUP_META = {
     fundadores:     { label: 'Fundadores',            color: '#F59E0B', icon: '👑' },
@@ -116,44 +110,10 @@ export default function MemberProfile() {
     visitantes:     { label: 'Visitantes',             color: '#6b7280', icon: '👁️' },
   }
 
-  useEffect(() => {
-    async function load() {
-      const [
-        { data: m },
-        { count: numProy },
-        { count: numAv },
-        { count: numIdeas },
-        { data: proy },
-        { data: avList },
-        { data: nodosList },
-        { data: groupList },
-      ] = await Promise.all([
-        supabase.from('usuarios').select('*').eq('id', id).single(),
-        supabase.from('miembros_proyecto').select('*', { count: 'exact', head: true }).eq('usuario_id', id),
-        supabase.from('avances').select('*', { count: 'exact', head: true }).eq('autor_id', id),
-        supabase.from('ideas').select('*', { count: 'exact', head: true }).eq('autor_id', id),
-        supabase.from('miembros_proyecto').select('proyecto:proyectos(id, titulo, estado)').eq('usuario_id', id).eq('activo', true).limit(6),
-        supabase.from('avances').select('titulo, fecha, proyecto:proyectos(titulo)').eq('autor_id', id).order('fecha', { ascending: false }).limit(5),
-        supabase.from('nodo_miembros').select('rol, nodo:nodos(id, nombre, descripcion, color, icono)').eq('usuario_id', id),
-        supabase.from('canal_miembros')
-          .select('canal:canales(id, nombre, nodo_tipo)')
-          .eq('usuario_id', id),
-      ])
-      setMember(m)
-      setStats({ proyectos: numProy || 0, avances: numAv || 0, ideas: numIdeas || 0 })
-      setProyectos(proy?.map(p => p.proyecto).filter(Boolean) || [])
-      setAvances(avList || [])
-      setNodosData(nodosList?.map(n => ({ ...n.nodo, rol: n.rol })).filter(Boolean) || [])
-      // Filter group canales and enrich with metadata
-      const groups = (groupList || [])
-        .map(cm => cm.canal)
-        .filter(c => c && c.nodo_tipo === 'grupo')
-        .map(c => ({ ...c, ...(GROUP_META[c.nombre] || { label: c.nombre, color: '#6b7280', icon: '👥' }) }))
-      setGroupNodos(groups)
-      setLoading(false)
-    }
-    load()
-  }, [id])
+  const groupNodos = groupCanales.map(c => ({
+    ...c,
+    ...(GROUP_META[c.nombre] || { label: c.nombre, color: '#6b7280', icon: '👥' }),
+  }))
 
   if (loading) return <div className="flex justify-center py-20"><Spinner /></div>
   if (!member) return <div className="text-center py-20 text-white/30">Perfil no encontrado</div>

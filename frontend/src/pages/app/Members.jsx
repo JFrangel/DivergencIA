@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { FiSearch, FiUsers, FiFilter, FiList, FiGlobe } from 'react-icons/fi'
-import { supabase } from '../../lib/supabase'
+import { useMembers, useAllMembers } from '../../hooks/useMembers'
 import Avatar from '../../components/ui/Avatar'
 import Badge from '../../components/ui/Badge'
 import Input from '../../components/ui/Input'
@@ -13,29 +13,12 @@ const AREAS = ['Todos', 'ML', 'NLP', 'Vision', 'Datos', 'General']
 const AREA_COLOR = { ML: '#FC651F', NLP: '#8B5CF6', Vision: '#00D1FF', Datos: '#22c55e', General: '#F59E0B' }
 
 export default function Members() {
-  const [members, setMembers] = useState([])
-  const [allMembers, setAllMembers] = useState([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [areaFilter, setAreaFilter] = useState('Todos')
   const [view, setView] = useState('lista')
 
-  useEffect(() => {
-    /* Fetch active members for list view */
-    supabase
-      .from('usuarios')
-      .select('id, nombre, rol, carrera, area_investigacion, bio, es_fundador, habilidades')
-      .eq('activo', true)
-      .order('es_fundador', { ascending: false })
-      .then(({ data }) => { setMembers(data || []); setLoading(false) })
-
-    /* Fetch ALL members (including inactive/egresados) for network view */
-    supabase
-      .from('usuarios')
-      .select('id, nombre, foto_url, area_investigacion, es_fundador, activo, rol, fecha_registro, habilidades, carrera')
-      .order('es_fundador', { ascending: false })
-      .then(({ data }) => { setAllMembers(data || []) })
-  }, [])
+  const { members, loading } = useMembers()
+  const { members: allMembers } = useAllMembers()
 
   const filtered = members.filter(m => {
     const matchSearch = !search ||
