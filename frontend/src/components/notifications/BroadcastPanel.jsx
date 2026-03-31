@@ -125,7 +125,7 @@ const TYPES = [
     color: '#22c55e',
     desc: 'Recibir nuevos miembros',
     templates: [
-      '¡Bienvenido/a a DivergencIA! Explora los proyectos y únete al equipo. 🚀',
+      '¡Bienvenido/a a ATHENIA! Explora los proyectos y únete al equipo. 🚀',
       '¡Nos alegra tenerte aquí! Completa tu perfil para empezar tu aventura.',
       'Un nuevo investigador se une al semillero — ¡Dales la bienvenida!',
       'Inicia completando tu perfil y uniéndote a un proyecto activo. ¡Éxito!',

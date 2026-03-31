@@ -324,7 +324,7 @@ export async function broadcastNotification(tipo, mensaje, target = { type: 'tod
           nombre: u.nombre || 'investigador/a',
           mensaje,
           asunto,
-          remitente: 'DivergencIA',
+          remitente: 'ATHENIA',
           rolRemitente: 'Administración',
           urgente,
         })

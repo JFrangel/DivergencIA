@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect } from 'react'
 const THEMES_MAP = {
   default: {
     id: 'default',
-    label: 'DivergencIA',
+    label: 'ATHENIA',
     primary: '#FC651F',
     secondary: '#8B5CF6',
     accent: '#00D1FF',
@@ -55,7 +55,7 @@ const ThemeContext = createContext(null)
 
 export function ThemeProvider({ children }) {
   const [themeId, setThemeId] = useState(() => {
-    return localStorage.getItem('divergencia-theme') || 'default'
+    return localStorage.getItem('divergencia-theme') || 'ocean'
   })
 
   const theme = THEMES_MAP[themeId] || THEMES_MAP.default

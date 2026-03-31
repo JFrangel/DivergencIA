@@ -66,12 +66,23 @@ export function trackProgress(userId, trackKey, amount = 1, absolute = false) {
   if (newUnlocks.length > 0) {
     setLocalUnlocked(userId, prevUnlocked)
     newUnlocks.forEach(({ def, now }) => {
+      // Persist achievement to DB
       supabase.from('logros_usuario').upsert({
         usuario_id: userId,
         logro_id: def.id,
         fecha_obtenido: now,
         progreso: next,
       }, { onConflict: 'usuario_id,logro_id' }).then(() => {}).catch(() => {})
+
+      // Send in-app notification so it appears in the bell regardless of current page
+      supabase.from('notificaciones').insert({
+        usuario_id: userId,
+        tipo: 'logro_desbloqueado',
+        titulo: `¡Logro desbloqueado! ${def.badge || '🏆'}`,
+        mensaje: `Obtuviste: ${def.label}${def.tier ? ` (${def.tier})` : ''}`,
+        leida: false,
+        fecha: now,
+      }).then(() => {}).catch(() => {})
     })
   }
 }

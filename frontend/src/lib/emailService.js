@@ -95,7 +95,7 @@ export function emailMeetingInvite({ nombre, eventoTitulo, fecha, lugar, descrip
     </div>
   </td></tr>
   <tr><td style="padding-top:20px;text-align:center;">
-    <p style="color:rgba(255,255,255,0.15);font-size:11px;margin:0;">DivergencIA — Email automático, no respondas</p>
+    <p style="color:rgba(255,255,255,0.15);font-size:11px;margin:0;">ATHENIA — Email automático, no respondas</p>
   </td></tr>
 </table>
 </td></tr>

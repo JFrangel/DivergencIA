@@ -209,10 +209,11 @@ function CronologiaView({ roadmap }) {
   }
 
   const fmtDate = (d) => d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })
+  const sortedYears = Object.entries(byYear).sort(([a], [b]) => Number(a) - Number(b))
 
   return (
     <Card className="!p-6 !pt-4">
-      {Object.entries(byYear).map(([year, yearEvents], yi) => (
+      {sortedYears.map(([year, yearEvents], yi) => (
         <div key={year}>
           {/* Year header */}
           <motion.div
@@ -479,7 +480,7 @@ export default function Roadmap() {
             </div>
             <div>
               <h1 className="text-2xl font-bold font-title text-white">Roadmap</h1>
-              <p className="text-white/30 text-sm">La hoja de ruta de DivergencIA</p>
+              <p className="text-white/30 text-sm">La hoja de ruta de ATHENIA</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -625,7 +626,13 @@ export default function Roadmap() {
                 </div>
               </Card>
             )}
-            {roadmap.map((phase, i) => {
+            {[...roadmap].sort((a, b) => {
+              // Sort by fecha_estimada when available, fallback to orden
+              if (a.fecha_estimada && b.fecha_estimada) return new Date(a.fecha_estimada) - new Date(b.fecha_estimada)
+              if (a.fecha_estimada) return -1
+              if (b.fecha_estimada) return 1
+              return (a.orden || 0) - (b.orden || 0)
+            }).map((phase, i) => {
               const phaseColor = phase.color || '#8B5CF6'
               const meta = STATE_META[phase.estado] || STATE_META.pendiente
               const StateIcon = meta.icon

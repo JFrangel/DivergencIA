@@ -34,7 +34,7 @@ function HubNode({ data }) {
       {/* Label */}
       <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap">
         <span className="text-[10px] font-title font-bold text-white/80">
-          {data.label || 'DivergencIA'}
+          {data.label || 'ATHENIA'}
         </span>
       </div>
       <Handle type="source" position={Position.Top} className="!w-2 !h-2 !border-0" style={{ background: 'var(--c-primary)' }} />

@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiPlus, FiEdit2, FiTrash2, FiCopy, FiChevronRight, FiChevronDown,
   FiUsers, FiSearch, FiX, FiCheck, FiZap, FiMove, FiUserPlus,
   FiArrowRight, FiMoreVertical, FiGrid, FiList, FiLock, FiUnlock,
+  FiInbox, FiCheckCircle, FiXCircle,
 } from 'react-icons/fi'
 import { useNodos } from '../../hooks/useNodos'
 import Avatar from '../ui/Avatar'
@@ -618,9 +619,13 @@ export default function NodosManager() {
     nodos, tree, members, loading,
     createNodo, updateNodo, deleteNodo, duplicateNodo,
     addMembersToNodo, removeMembersFromNodo, moveMembersToNodo, updateMemberRole,
+    getPendingSolicitudes, respondSolicitud,
   } = useNodos()
 
   const [selectedNodo, setSelectedNodo] = useState(null)
+  const [solicitudes, setSolicitudes] = useState([])
+  const [loadingSolicitudes, setLoadingSolicitudes] = useState(false)
+  const [showSolicitudes, setShowSolicitudes] = useState(false)
   const [formModal, setFormModal] = useState(null) // { mode: 'create'|'edit', nodo?, parentId?, parentName? }
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [treeSearch, setTreeSearch] = useState('')
@@ -629,6 +634,20 @@ export default function NodosManager() {
   const currentNodo = useMemo(() =>
     selectedNodo ? nodos.find(n => n.id === selectedNodo.id) || null : null
   , [nodos, selectedNodo])
+
+  const loadSolicitudes = useCallback(async () => {
+    setLoadingSolicitudes(true)
+    const data = await getPendingSolicitudes()
+    setSolicitudes(data)
+    setLoadingSolicitudes(false)
+  }, [getPendingSolicitudes])
+
+  useEffect(() => { if (!loading) loadSolicitudes() }, [loading, loadSolicitudes])
+
+  const handleRespond = async (solicitud, estado) => {
+    const ok = await respondSolicitud(solicitud.id, estado, solicitud.nodo_id, solicitud.usuario_id)
+    if (ok) setSolicitudes(prev => prev.filter(s => s.id !== solicitud.id))
+  }
 
   const handleCreate = () => setFormModal({ mode: 'create' })
   const handleCreateChild = (parent) => setFormModal({ mode: 'create', parentId: parent.id, parentName: `${parent.icono} ${parent.nombre}` })
@@ -688,13 +707,78 @@ export default function NodosManager() {
           </div>
         </div>
         <div className="ml-auto">
-          <button onClick={handleCreate}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white transition-all"
-            style={{ background: 'linear-gradient(135deg, #8B5CF6, #FC651F)' }}>
-            <FiPlus size={13} /> Nuevo nodo
-          </button>
+          <div className="flex items-center gap-2">
+            {solicitudes.length > 0 && (
+              <button
+                onClick={() => setShowSolicitudes(s => !s)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all relative"
+                style={{ background: 'rgba(252,101,31,0.12)', color: '#FC651F', border: '1px solid rgba(252,101,31,0.2)' }}
+              >
+                <FiInbox size={12} />
+                Solicitudes
+                <span className="ml-1 bg-[#FC651F] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {solicitudes.length}
+                </span>
+              </button>
+            )}
+            <button onClick={handleCreate}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white transition-all"
+              style={{ background: 'linear-gradient(135deg, #8B5CF6, #FC651F)' }}>
+              <FiPlus size={13} /> Nuevo nodo
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Solicitudes panel */}
+      <AnimatePresence>
+        {showSolicitudes && solicitudes.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            className="rounded-xl border border-[#FC651F]/20 overflow-hidden"
+            style={{ background: 'rgba(252,101,31,0.04)' }}
+          >
+            <div className="px-4 py-3 border-b border-[#FC651F]/10 flex items-center justify-between">
+              <span className="text-xs font-semibold text-[#FC651F]">Solicitudes pendientes de ingreso</span>
+              <button onClick={() => setShowSolicitudes(false)} className="text-white/30 hover:text-white/60"><FiX size={12} /></button>
+            </div>
+            <div className="divide-y divide-white/[0.04]">
+              {loadingSolicitudes ? (
+                <div className="py-4 flex justify-center"><span className="text-white/20 text-xs">Cargando...</span></div>
+              ) : solicitudes.map(s => (
+                <div key={s.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="w-7 h-7 rounded-full bg-white/[0.06] flex items-center justify-center text-xs text-white/40 font-semibold shrink-0">
+                    {s.usuario?.nombre?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-white/80 truncate">{s.usuario?.nombre}</p>
+                    <p className="text-[10px] text-white/30 truncate">
+                      → {s.nodo?.icono} {s.nodo?.nombre}
+                      {s.mensaje && <span className="ml-1 text-white/20">· "{s.mensaje}"</span>}
+                    </p>
+                  </div>
+                  <div className="flex gap-1.5 shrink-0">
+                    <button
+                      onClick={() => handleRespond(s, 'aprobada')}
+                      className="p-1.5 rounded-lg text-[#22c55e] hover:bg-[#22c55e]/10 transition-colors"
+                      title="Aprobar"
+                    >
+                      <FiCheckCircle size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleRespond(s, 'rechazada')}
+                      className="p-1.5 rounded-lg text-red-400 hover:bg-red-400/10 transition-colors"
+                      title="Rechazar"
+                    >
+                      <FiXCircle size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main 2-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 min-h-0" style={{ height: 'calc(100vh - 280px)' }}>

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FiBell, FiSearch, FiCheck, FiX, FiClock, FiMessageSquare, FiThumbsUp, FiActivity, FiCheckSquare, FiAward, FiUsers } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
 import { useNotifs } from '../../context/NotifContext'
+import { usePlatformConfig } from '../../hooks/usePlatformConfig'
 import Avatar from '../ui/Avatar'
 import GlobalSearch from '../ui/GlobalSearch'
 import { timeAgo } from '../../lib/utils'
@@ -50,6 +51,7 @@ export default function TopBar() {
   const { pathname } = useLocation()
   const { profile, user } = useAuth()
   const { notifications, unreadCount, markAsRead, markAllRead } = useNotifs()
+  const { platformName } = usePlatformConfig()
   const [showNotifs, setShowNotifs] = useState(false)
   const notifsRef = useRef(null)
 
@@ -63,7 +65,7 @@ export default function TopBar() {
   }, [showNotifs])
 
   const base = '/' + pathname.split('/')[1]
-  const label = ROUTE_LABELS[base] || 'DivergencIA'
+  const label = ROUTE_LABELS[base] || platformName
   const isDetail = pathname.split('/').length > 2
 
   return (
@@ -80,7 +82,7 @@ export default function TopBar() {
     >
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-white/30">DivergencIA</span>
+        <span className="text-white/30">{platformName}</span>
         <span className="text-white/20">/</span>
         {isDetail ? (
           <>

@@ -51,7 +51,7 @@ export default function AuthCallback() {
         await supabase.from('notificaciones').insert({
           usuario_id: user.id,
           tipo: 'bienvenida',
-          titulo: '¡Bienvenido/a a DivergencIA!',
+          titulo: '¡Bienvenido/a a ATHENIA!',
           mensaje: `Hola ${nombre}, ya eres parte del semillero. Explora proyectos, comparte ideas y conecta con investigadores.`,
           leida: false,
           fecha: new Date().toISOString(),

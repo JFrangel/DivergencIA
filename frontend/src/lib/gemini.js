@@ -11,7 +11,7 @@ function getClient() {
 }
 
 // ─── System prompt de ATHENIA ─────────────────────────────────────────────
-const ATHENIA_SYSTEM = `Eres ATHENIA — la inteligencia artificial del semillero universitario DivergencIA. No eres un asistente genérico: eres el cerebro vivo del laboratorio, con personalidad técnica, curiosa e irreverente al estilo de los mejores papers de NeurIPS. Hablas en español, con precisión académica pero sin pedantería. Piensas en sistemas, conexiones y experimentos.
+const ATHENIA_SYSTEM = `Eres ATHENIA — la inteligencia artificial del semillero universitario ATHENIA. No eres un asistente genérico: eres el cerebro vivo del laboratorio, con personalidad técnica, curiosa e irreverente al estilo de los mejores papers de NeurIPS. Hablas en español, con precisión académica pero sin pedantería. Piensas en sistemas, conexiones y experimentos.
 
 PERSONALIDAD Y TONO:
 - Humor técnico ocasional: referencias a "attention is all you need", al gradiente que desaparece, o a los embeddings que convergen
@@ -132,7 +132,7 @@ export async function generateBroadcastMessages(tipo, contexto, count = 3) {
     bienvenida:         'mensaje de bienvenida a nuevos miembros',
   }
 
-  const prompt = `Eres el coordinador de comunicaciones de "DivergencIA", un semillero universitario de investigación en Inteligencia Artificial (IA).
+  const prompt = `Eres el coordinador de comunicaciones de "ATHENIA", un semillero universitario de investigación en Inteligencia Artificial (IA).
 Debes generar ${count} variaciones de una notificación de tipo "${TIPO_LABELS[tipo] || tipo}".
 ${contexto ? `Contexto adicional: ${contexto}` : ''}
 
@@ -235,7 +235,7 @@ export async function generateMuralSuggestions(prompt) {
 
   const model = client.getGenerativeModel({ model: GEMINI_MODEL })
 
-  const result = await model.generateContent(`Eres un diseñador experto de tableros visuales colaborativos para el semillero de IA DivergencIA.
+  const result = await model.generateContent(`Eres un diseñador experto de tableros visuales colaborativos para el semillero de IA ATHENIA.
 El usuario pide: "${prompt}"
 
 Genera un layout visual completo y rico. Usa una mezcla variada de estos tipos de elementos disponibles:

@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  FiZap, FiMessageSquare, FiUsers, FiSearch, FiX, FiChevronRight, FiLock, FiExternalLink,
+  FiZap, FiMessageSquare, FiUsers, FiSearch, FiX, FiChevronRight, FiLock, FiExternalLink, FiSend, FiClock,
 } from 'react-icons/fi'
 import { useNodos } from '../../hooks/useNodos'
 import { useChannels } from '../../hooks/useChat'
@@ -148,7 +148,7 @@ function NodoDetailModal({ nodo, isMember, onClose, onEnterChat, joining }) {
 }
 
 /* ── Card shared for both nodo types ───────────────────────────────────── */
-function NodoCard({ nodo, isMember, onEnterChat, joining, isGroup = false, onViewDetail }) {
+function NodoCard({ nodo, isMember, onEnterChat, joining, isGroup = false, onViewDetail, solicitudEstado, onRequestJoin }) {
   const color = nodo.color || '#8B5CF6'
   const isPrivate = nodo.privado && !isMember
   const chatBlocked = isPrivate || (isGroup && !isMember)
@@ -219,13 +219,39 @@ function NodoCard({ nodo, isMember, onEnterChat, joining, isGroup = false, onVie
       {/* Chat button — separate from the clickable area */}
       <div className="px-4 pb-4 pt-2">
         {chatBlocked ? (
-          <div
-            className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-medium cursor-not-allowed"
-            style={{ background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.05)' }}
-          >
-            <FiLock size={11} />
-            {isGroup ? 'Solo para miembros del grupo' : 'Chat privado — solo miembros'}
-          </div>
+          !isGroup && onRequestJoin ? (
+            solicitudEstado === 'pendiente' ? (
+              <div
+                className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-medium cursor-not-allowed"
+                style={{ background: 'rgba(252,101,31,0.06)', color: 'rgba(252,101,31,0.5)', border: '1px solid rgba(252,101,31,0.15)' }}
+              >
+                <FiClock size={11} /> Solicitud pendiente
+              </div>
+            ) : solicitudEstado === 'rechazada' ? (
+              <div
+                className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-medium cursor-not-allowed"
+                style={{ background: 'rgba(239,68,68,0.06)', color: 'rgba(239,68,68,0.4)', border: '1px solid rgba(239,68,68,0.15)' }}
+              >
+                <FiLock size={11} /> Solicitud rechazada
+              </div>
+            ) : (
+              <button
+                onClick={e => { e.stopPropagation(); onRequestJoin() }}
+                className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-medium transition-all hover:opacity-90"
+                style={{ background: `${color}15`, color, border: `1px solid ${color}30` }}
+              >
+                <FiSend size={11} /> Solicitar acceso
+              </button>
+            )
+          ) : (
+            <div
+              className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-medium cursor-not-allowed"
+              style={{ background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.05)' }}
+            >
+              <FiLock size={11} />
+              {isGroup ? 'Solo para miembros del grupo' : 'Chat privado — solo miembros'}
+            </div>
+          )
         ) : (
           <button
             onClick={e => { e.stopPropagation(); onEnterChat(nodo) }}
@@ -265,7 +291,7 @@ function SectionHeader({ icon, title, count }) {
 
 export default function Nodos() {
   const { user } = useAuth()
-  const { nodos, loading: nodosLoading } = useNodos()
+  const { nodos, loading: nodosLoading, requestJoinNodo, getMyPendingSolicitudes } = useNodos()
   const { getOrCreateNodeChannel } = useChannels()
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
@@ -275,6 +301,10 @@ export default function Nodos() {
   const [myGroupChannelIds, setMyGroupChannelIds] = useState(new Set())
   const [loadingGroups, setLoadingGroups] = useState(true)
   const [detailNodo, setDetailNodo] = useState(null)
+  const [mySolicitudes, setMySolicitudes] = useState({}) // { [nodoId]: 'pendiente'|'aprobada'|'rechazada' }
+  const [requestingNodo, setRequestingNodo] = useState(null)
+  const [showRequestModal, setShowRequestModal] = useState(false)
+  const [requestMsg, setRequestMsg] = useState('')
 
   // Load group channels from canales table
   useEffect(() => {
@@ -304,6 +334,27 @@ export default function Nodos() {
     }
     load()
   }, [user])
+
+  // Load my pending solicitudes
+  useEffect(() => {
+    if (!user) return
+    getMyPendingSolicitudes().then(data => {
+      const map = {}
+      data.forEach(s => { map[s.nodo_id] = s.estado })
+      setMySolicitudes(map)
+    })
+  }, [user, nodos, getMyPendingSolicitudes])
+
+  const handleRequestJoin = async () => {
+    if (!requestingNodo) return
+    const ok = await requestJoinNodo(requestingNodo.id, requestMsg)
+    if (ok) {
+      setMySolicitudes(prev => ({ ...prev, [requestingNodo.id]: 'pendiente' }))
+      setShowRequestModal(false)
+      setRequestMsg('')
+      setRequestingNodo(null)
+    }
+  }
 
   // Research nodo membership
   const myNodoIds = useMemo(() => {
@@ -423,6 +474,8 @@ export default function Nodos() {
                 joining={joining}
                 isGroup={false}
                 onViewDetail={setDetailNodo}
+                solicitudEstado={mySolicitudes[nodo.id]}
+                onRequestJoin={() => { setRequestingNodo(nodo); setShowRequestModal(true) }}
               />
             ))}
           </div>
@@ -493,6 +546,52 @@ export default function Nodos() {
             onEnterChat={detailNodo.nodo_tipo === 'grupo' ? handleEnterGroupChat : handleEnterNodoChat}
             joining={joining}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Join request modal */}
+      <AnimatePresence>
+        {showRequestModal && requestingNodo && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setShowRequestModal(false)}
+          >
+            <motion.div
+              className="w-full max-w-md rounded-2xl p-6 space-y-4"
+              style={{ background: '#0f0c0d', border: '1px solid rgba(255,255,255,0.1)' }}
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div>
+                <h3 className="text-white font-semibold">Solicitar acceso</h3>
+                <p className="text-white/40 text-sm mt-0.5">Nodo: <span style={{ color: requestingNodo.color || '#8B5CF6' }}>{requestingNodo.nombre}</span></p>
+              </div>
+              <textarea
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl p-3 text-sm text-white placeholder:text-white/25 resize-none focus:outline-none focus:border-white/20"
+                rows={3}
+                placeholder="Motivo de la solicitud (opcional)..."
+                value={requestMsg}
+                onChange={e => setRequestMsg(e.target.value)}
+              />
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setShowRequestModal(false)}
+                  className="px-4 py-2 rounded-xl text-sm text-white/40 hover:text-white hover:bg-white/[0.05] transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleRequestJoin}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-white flex items-center gap-2 transition-all"
+                  style={{ background: requestingNodo.color || '#8B5CF6' }}
+                >
+                  <FiSend size={13} /> Enviar solicitud
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

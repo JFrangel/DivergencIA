@@ -83,7 +83,7 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
   const create = async (payload) => {
     const { data, error } = await supabase
       .from('ideas')
-      .insert({ ...payload, autor_id: user?.id })
+      .insert({ ...payload, autor_id: user?.id, estado: payload.estado || 'votacion' })
       .select('*, autor:usuarios!ideas_autor_id_fkey(id, nombre, foto_url, area_investigacion)')
       .single()
     if (error) { toast.error('Error al crear idea'); return { error } }

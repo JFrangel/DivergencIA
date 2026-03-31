@@ -10,7 +10,7 @@ export const COMMANDS = {
   },
   status: {
     usage: '/status',
-    desc: 'Estado del sistema DivergencIA',
+    desc: 'Estado del sistema ATHENIA',
   },
   members: {
     usage: '/members [área]',
@@ -38,7 +38,7 @@ export const COMMANDS = {
   },
   about: {
     usage: '/about',
-    desc: 'Información sobre ATHENIA y DivergencIA',
+    desc: 'Información sobre ATHENIA y ATHENIA',
   },
   tasks: {
     usage: '/tasks [mias|proyecto]',

@@ -711,7 +711,7 @@ export default function MemberNetwork({ members = [] }) {
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: 'spring', bounce: 0.4, delay: 0.1 }}
       >
-        <span className="text-[10px] leading-tight text-center">DivergencIA</span>
+        <span className="text-[10px] leading-tight text-center">ATHENIA</span>
       </motion.div>
 
       {/* Member nodes */}
@@ -766,41 +766,39 @@ export default function MemberNetwork({ members = [] }) {
               </div>
             )}
 
-            {n.foto_url ? (
+            {n.foto_url && (
               <img
                 src={n.foto_url}
                 alt={n.nombre}
                 className="w-full h-full rounded-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                  const fallback = e.currentTarget.parentElement?.querySelector('[data-fallback]')
+                  if (fallback) fallback.style.display = 'flex'
+                }}
                 style={{
                   border: `2px solid ${color}`,
-                  boxShadow: isHovered || isSelected
-                    ? `0 0 20px ${color}80`
-                    : isNew
-                    ? `0 0 12px rgba(0,209,255,0.4)`
-                    : `0 0 8px ${color}20`,
+                  boxShadow: isHovered || isSelected ? `0 0 20px ${color}80` : isNew ? `0 0 12px rgba(0,209,255,0.4)` : `0 0 8px ${color}20`,
                   transform: isHovered ? 'scale(1.25)' : isSelected ? 'scale(1.15)' : 'scale(1)',
                   transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                 }}
               />
-            ) : (
-              <div
-                className="w-full h-full rounded-full flex items-center justify-center font-title font-semibold text-[10px]"
-                style={{
-                  background: `${color}25`,
-                  border: `2px solid ${color}90`,
-                  color,
-                  boxShadow: isHovered || isSelected
-                    ? `0 0 20px ${color}80`
-                    : isNew
-                    ? `0 0 12px rgba(0,209,255,0.4)`
-                    : `0 0 8px ${color}20`,
-                  transform: isHovered ? 'scale(1.25)' : isSelected ? 'scale(1.15)' : 'scale(1)',
-                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                }}
-              >
-                {getInitials(n.nombre)}
-              </div>
             )}
+            <div
+              data-fallback=""
+              className="w-full h-full rounded-full items-center justify-center font-title font-semibold text-[10px]"
+              style={{
+                display: n.foto_url ? 'none' : 'flex',
+                background: `${color}25`,
+                border: `2px solid ${color}90`,
+                color,
+                boxShadow: isHovered || isSelected ? `0 0 20px ${color}80` : isNew ? `0 0 12px rgba(0,209,255,0.4)` : `0 0 8px ${color}20`,
+                transform: isHovered ? 'scale(1.25)' : isSelected ? 'scale(1.15)' : 'scale(1)',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              }}
+            >
+              {getInitials(n.nombre)}
+            </div>
           </motion.div>
         )
       })}

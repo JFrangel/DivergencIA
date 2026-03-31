@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 
 const ITEMS = [
-  { color: 'linear-gradient(135deg, #FC651F, #8B5CF6)', label: 'Hub DivergencIA', shape: 'circle' },
+  { color: 'linear-gradient(135deg, #FC651F, #8B5CF6)', label: 'Hub ATHENIA', shape: 'circle' },
   { color: '#F59E0B', label: 'Fundador', shape: 'circle' },
   { color: '#8B5CF6', label: 'Investigador', shape: 'circle' },
   { color: '#FC651F', label: 'Proyecto', shape: 'rect' },

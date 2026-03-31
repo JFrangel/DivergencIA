@@ -154,6 +154,111 @@ export function useNodos() {
     await fetchNodos()
   }, [fetchNodos])
 
+  // ── JOIN REQUESTS ─────────────────────────────────────────────────────────
+  const requestJoinNodo = useCallback(async (nodoId, mensaje = '') => {
+    if (!user) return false
+    const { error } = await supabase.from('nodo_solicitudes').insert({
+      nodo_id: nodoId,
+      usuario_id: user.id,
+      mensaje: mensaje || null,
+      estado: 'pendiente',
+    })
+    if (error) {
+      if (error.code === '23505') { toast.info('Ya tienes una solicitud pendiente para este nodo'); return false }
+      toast.error('Error al enviar solicitud'); return false
+    }
+
+    // Notify nodo admins
+    const nodo = nodos.find(n => n.id === nodoId)
+    const admins = (nodo?.miembros || []).filter(m => m.rol_nodo === 'admin' || m.rol_nodo === 'owner')
+    if (admins.length > 0) {
+      await supabase.from('notificaciones').insert(
+        admins.map(a => ({
+          usuario_id: a.id,
+          tipo: 'solicitudes',
+          titulo: 'Nueva solicitud de ingreso',
+          mensaje: `${user.user_metadata?.nombre || 'Un miembro'} quiere unirse al nodo "${nodo?.nombre}"`,
+          leida: false,
+        }))
+      ).catch(() => {})
+    }
+
+    toast.success('Solicitud enviada — espera la aprobación del administrador')
+    return true
+  }, [user, nodos])
+
+  const respondSolicitud = useCallback(async (solicitudId, estado, nodoId, usuarioId) => {
+    if (!user) return false
+    const { error } = await supabase
+      .from('nodo_solicitudes')
+      .update({ estado, respondido_por: user.id, updated_at: new Date().toISOString() })
+      .eq('id', solicitudId)
+    if (error) { toast.error('Error al responder solicitud'); return false }
+
+    if (estado === 'aprobada') {
+      // Add user as member of the nodo
+      await supabase.from('nodo_miembros').upsert(
+        { nodo_id: nodoId, usuario_id: usuarioId, rol: 'miembro' },
+        { onConflict: 'nodo_id,usuario_id' }
+      )
+      // Also add to the nodo's chat channel
+      const nodo = nodos.find(n => n.id === nodoId)
+      const canalNombre = nodo?.nombre?.trim().toLowerCase().replace(/\s+/g, '-')
+      if (canalNombre) {
+        const { data: canal } = await supabase
+          .from('canales').select('id').eq('nodo_id', nodoId).eq('tipo', 'nodo').single()
+        if (canal) {
+          await supabase.from('canal_miembros').upsert(
+            { canal_id: canal.id, usuario_id: usuarioId, puede_escribir: true },
+            { onConflict: 'canal_id,usuario_id' }
+          ).catch(() => {})
+        }
+      }
+    }
+
+    // Notify the requesting user of the decision
+    const nodo = nodos.find(n => n.id === nodoId)
+    await supabase.from('notificaciones').insert({
+      usuario_id: usuarioId,
+      tipo: 'solicitudes',
+      titulo: estado === 'aprobada' ? '¡Solicitud aprobada!' : 'Solicitud rechazada',
+      mensaje: estado === 'aprobada'
+        ? `Tu solicitud para unirte a "${nodo?.nombre}" fue aprobada`
+        : `Tu solicitud para unirte a "${nodo?.nombre}" fue rechazada`,
+      leida: false,
+    }).catch(() => {})
+
+    toast.success(estado === 'aprobada' ? 'Solicitud aprobada' : 'Solicitud rechazada')
+    await fetchNodos()
+    return true
+  }, [user, nodos, fetchNodos])
+
+  const getPendingSolicitudes = useCallback(async () => {
+    if (!user) return []
+    // Get requests for nodos where I am admin/owner
+    const myAdminNodos = nodos
+      .filter(n => n.miembros?.some(m => m.id === user.id && (m.rol_nodo === 'admin' || m.rol_nodo === 'owner')))
+      .map(n => n.id)
+
+    if (myAdminNodos.length === 0) return []
+    const { data } = await supabase
+      .from('nodo_solicitudes')
+      .select('*, usuario:usuarios(id, nombre, foto_url, area_investigacion), nodo:nodos(id, nombre, color, icono)')
+      .in('nodo_id', myAdminNodos)
+      .eq('estado', 'pendiente')
+      .order('created_at', { ascending: false })
+    return data || []
+  }, [user, nodos])
+
+  const getMyPendingSolicitudes = useCallback(async () => {
+    if (!user) return []
+    const { data } = await supabase
+      .from('nodo_solicitudes')
+      .select('nodo_id, estado')
+      .eq('usuario_id', user.id)
+    return data || []
+  }, [user])
+
   // Build tree structure
   const tree = buildTree(nodos)
 
@@ -161,6 +266,7 @@ export function useNodos() {
     nodos, tree, members, loading, refetch: fetchNodos,
     createNodo, updateNodo, deleteNodo, duplicateNodo,
     addMembersToNodo, removeMembersFromNodo, moveMembersToNodo, updateMemberRole,
+    requestJoinNodo, respondSolicitud, getPendingSolicitudes, getMyPendingSolicitudes,
   }
 }
 

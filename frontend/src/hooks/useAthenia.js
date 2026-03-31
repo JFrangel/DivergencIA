@@ -78,7 +78,7 @@ export function useAthenia() {
         }).join('\n')
       : '• Sin murales creados aún'
 
-    return `=== SEMILLERO DivergencIA ===
+    return `=== SEMILLERO ATHENIA ===
 Miembros activos: ${miembros || 0} | Proyectos totales: ${totalProyectos || 0} | Ideas en banco: ${totalIdeas || 0}
 
 PROYECTOS EN CURSO:

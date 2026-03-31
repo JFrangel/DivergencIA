@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// DivergencIA — Plantillas de Email v3.0
+// ATHENIA — Plantillas de Email v3.0
 // Diseño premium: dark mode, gradientes, lenguaje amigable y único
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -232,7 +232,7 @@ function layout(contentHtml, preheader = '') {
           </table>
           <div style="height:1px;background:${B.border};margin:0 0 16px;"></div>
           <p style="margin:0 0 6px;color:${B.t4};font-size:11px;">
-            <strong style="color:${B.t3};">DivergencIA</strong> &mdash; Donde la inteligencia artificial converge con la investigaci&oacute;n
+            <strong style="color:${B.t3};">ATHENIA</strong> &mdash; Donde la inteligencia artificial converge con la investigaci&oacute;n
           </p>
           <p style="margin:0;color:rgba(255,255,255,0.1);font-size:10px;line-height:1.6;">
             Este email fue generado autom&aacute;ticamente &middot; No respondas a esta direcci&oacute;n<br>
@@ -259,12 +259,12 @@ function templateBienvenida(data) {
 
   const content = `
     ${topBar(B.primary, B.secondary)}
-    ${heroBand('🎉', `¡Hola, ${esc(nombre)}! Ya eres parte del semillero.`, 'Tu solicitud fue aprobada — bienvenido/a a la familia DivergencIA', B.primary, B.secondary)}
+    ${heroBand('🎉', `¡Hola, ${esc(nombre)}! Ya eres parte del semillero.`, 'Tu solicitud fue aprobada — bienvenido/a a la familia ATHENIA', B.primary, B.secondary)}
 
     <div class="body" style="padding:32px;">
 
       <p style="color:${B.t2};font-size:14px;line-height:1.8;margin:0 0 20px;">
-        Estamos <strong style="color:${B.t1};">súper contentos</strong> de tenerte acá. DivergencIA es el espacio
+        Estamos <strong style="color:${B.t1};">súper contentos</strong> de tenerte acá. ATHENIA es el espacio
         donde investigadores curiosos como tú se reúnen a explorar la IA, colaborar en proyectos reales
         y construir cosas que importan. No hay fórmulas secretas — solo ganas de aprender y crear. ✨
       </p>
@@ -287,12 +287,12 @@ function templateBienvenida(data) {
         <p style="color:${B.t3};font-size:12px;margin:0;">Entra, explora y no tengas miedo de hacer preguntas en el chat.</p>
       </div>
 
-      ${cta('Entrar a DivergencIA', `${B.url}/dashboard`, `linear-gradient(135deg,${B.primary},${B.secondary})`)}
+      ${cta('Entrar a ATHENIA', `${B.url}/dashboard`, `linear-gradient(135deg,${B.primary},${B.secondary})`)}
 
     </div>`;
 
   return {
-    subject: `¡Bienvenido/a a DivergencIA, ${nombre}! 🎉`,
+    subject: `¡Bienvenido/a a ATHENIA, ${nombre}! 🎉`,
     html: layout(content, `Hey ${nombre}, tu cuenta está activa — el semillero te espera.`),
   };
 }
@@ -311,7 +311,7 @@ function templateEvento(data) {
     horaFin,
     ubicacion = 'Por definir',
     descripcion = '',
-    organizador = 'DivergencIA',
+    organizador = 'ATHENIA',
     eventoId = '',
   } = data;
 
@@ -325,7 +325,7 @@ function templateEvento(data) {
 
   const content = `
     ${topBar(B.secondary, B.accent)}
-    ${heroBand('📅', esc(evento), `Nuevo evento en DivergencIA · ${fechaStr}`, B.secondary, B.accent)}
+    ${heroBand('📅', esc(evento), `Nuevo evento en ATHENIA · ${fechaStr}`, B.secondary, B.accent)}
 
     <div class="body" style="padding:32px;">
 
@@ -677,8 +677,8 @@ function templateResumenSemanal(data) {
     </div>`;
 
   return {
-    subject: `📊 Tu resumen de ${esc(semana)} en DivergencIA`,
-    html: layout(content, `${nombre}, esto pasó en DivergencIA esta semana.`),
+    subject: `📊 Tu resumen de ${esc(semana)} en ATHENIA`,
+    html: layout(content, `${nombre}, esto pasó en ATHENIA esta semana.`),
   };
 }
 
@@ -711,7 +711,7 @@ function templateBroadcast(data) {
         </span>
       </div>` : ''}
 
-    ${heroBand('📢', esc(asunto), `Un mensaje del equipo de DivergencIA para ti, ${esc(nombre)}`, c1, c2)}
+    ${heroBand('📢', esc(asunto), `Un mensaje del equipo de ATHENIA para ti, ${esc(nombre)}`, c1, c2)}
 
     <div class="body" style="padding:32px;">
 
@@ -738,7 +738,7 @@ function templateBroadcast(data) {
         </div>
         <div style="display:table-cell;vertical-align:middle;padding-left:12px;">
           <div style="color:${B.t1};font-size:14px;font-weight:700;">${esc(remitente)}</div>
-          <div style="color:${B.t3};font-size:12px;margin-top:2px;">${esc(rolRemitente)} &middot; DivergencIA</div>
+          <div style="color:${B.t3};font-size:12px;margin-top:2px;">${esc(rolRemitente)} &middot; ATHENIA</div>
         </div>
       </div>
 
@@ -747,7 +747,7 @@ function templateBroadcast(data) {
     </div>`;
 
   return {
-    subject: `${urgente ? '⚠️ [URGENTE] ' : '📢 '}${esc(asunto)} — DivergencIA`,
+    subject: `${urgente ? '⚠️ [URGENTE] ' : '📢 '}${esc(asunto)} — ATHENIA`,
     html: layout(content, `${remitente} envió un comunicado: ${asunto}`),
   };
 }
@@ -772,7 +772,7 @@ function templateSolicitudNueva(data) {
     <div class="body" style="padding:32px;">
 
       <p style="color:${B.t2};font-size:14px;line-height:1.8;margin:0 0 20px;">
-        Hay alguien que quiere ser parte de DivergencIA. Revisa los datos, evalúa su motivación
+        Hay alguien que quiere ser parte de ATHENIA. Revisa los datos, evalúa su motivación
         y decide si es el momento de darle la bienvenida. 🎯
       </p>
 

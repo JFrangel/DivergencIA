@@ -767,7 +767,7 @@ export default function Landing() {
               {' '}de investigación que diverge para converger."
             </blockquote>
             <p className="text-white/35 text-lg max-w-2xl mx-auto leading-relaxed">
-              En DivergencIA creemos que las mejores ideas nacen en la intersección de disciplinas.
+              En ATHENIA creemos que las mejores ideas nacen en la intersección de disciplinas.
               Cada miembro aporta una perspectiva única: juntos construimos investigación que trasciende.
             </p>
 
@@ -1078,7 +1078,7 @@ export default function Landing() {
         {/* Bottom bar */}
         <div className="border-t border-white/[0.05] px-6 py-5 max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-[11px] text-white/20">
-            © 2026 DivergencIA · Semillero Universitario de Investigación en IA
+            © 2026 ATHENIA · Semillero Universitario de Investigación en IA
           </p>
           <div className="flex items-center gap-2">
             <span className="pulse-dot" />

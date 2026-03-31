@@ -58,7 +58,7 @@ export default function JoinRequest() {
         ) : (
           <Card>
             <div className="mb-6">
-              <h1 className="text-2xl font-bold font-title text-white mb-1">Únete a DivergencIA</h1>
+              <h1 className="text-2xl font-bold font-title text-white mb-1">Únete a ATHENIA</h1>
               <p className="text-white/40 text-sm">
                 Completa tu solicitud para unirte al semillero de investigación en IA.
               </p>

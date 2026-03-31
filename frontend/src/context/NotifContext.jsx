@@ -67,12 +67,38 @@ export function NotifProvider({ children }) {
         filter: `usuario_id=eq.${user.id}`,
       }, (payload) => {
         const notifType = payload.new?.tipo
-        // Always store the notification, but only bump unread if type is enabled
         setNotifications(prev => [payload.new, ...prev])
         if (!notifType || shouldNotify(notifType)) {
           setUnreadCount(c => c + 1)
           setLastIncoming(payload.new)
         }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'notificaciones',
+        filter: `usuario_id=eq.${user.id}`,
+      }, (payload) => {
+        setNotifications(prev => prev.map(n => n.id === payload.new.id ? { ...n, ...payload.new } : n))
+        setUnreadCount(prev => {
+          // Recalculate from current notifications state (reliable)
+          return prev // Will be corrected by re-fetch below
+        })
+        // Recalculate unread from DB to stay accurate
+        supabase.from('notificaciones').select('id', { count: 'exact', head: true })
+          .eq('usuario_id', user.id).eq('leida', false)
+          .then(({ count }) => setUnreadCount(count || 0))
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'notificaciones',
+      }, (payload) => {
+        setNotifications(prev => prev.filter(n => n.id !== payload.old.id))
+        setUnreadCount(prev => {
+          const wasUnread = !payload.old.leida
+          return wasUnread ? Math.max(0, prev - 1) : prev
+        })
       })
       .subscribe()
     return () => supabase.removeChannel(channel)

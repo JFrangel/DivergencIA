@@ -482,7 +482,7 @@ function FontPreview({ file, onDownload }) {
       </div>
       <style>{`@font-face { font-family: "PreviewFont"; src: url("${file.url}"); }`}</style>
       <div className="p-6 space-y-4">
-        {['Aa Bb Cc Dd Ee Ff Gg', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz', '0123456789 !@#$%^&*()', 'El semillero DivergencIA investiga inteligencia artificial'].map((sample, i) => (
+        {['Aa Bb Cc Dd Ee Ff Gg', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz', '0123456789 !@#$%^&*()', 'El semillero ATHENIA investiga inteligencia artificial'].map((sample, i) => (
           <p key={i} className="text-white/70" style={{ fontFamily: '"PreviewFont", sans-serif', fontSize: [32, 14, 14, 14, 18][i] }}>
             {sample}
           </p>

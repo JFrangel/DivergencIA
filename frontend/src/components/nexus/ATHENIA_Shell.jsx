@@ -132,7 +132,7 @@ function BootSplash({ onComplete }) {
 
 /* ─── Boot sequence lines ──────────────────────────────────────────────────── */
 const BOOT_LINES = [
-  { type: 'system', text: 'A.T.H.E.N.I.A v2.1.0 — Gemini 1.5 Flash — DivergencIA Research OS' },
+  { type: 'system', text: 'A.T.H.E.N.I.A v2.1.0 — Gemini 1.5 Flash — ATHENIA Research OS' },
   { type: 'info',   text: '─────────────────────────────────────────────────────────────────' },
   { type: 'success', text: 'Todos los sistemas operativos. Terminal lista.' },
   { type: 'info',   text: 'Escribe /help para ver los comandos disponibles.' },
@@ -238,7 +238,7 @@ export default function ATHENIA_Shell() {
           supabase.from('avances').select('*', { count: 'exact', head: true }),
         ])
         addLines([
-          { type: 'success', text: '──── DivergencIA System Status ────' },
+          { type: 'success', text: '──── ATHENIA System Status ────' },
           { type: 'info',    text: `  Investigadores   : ${m || 0}` },
           { type: 'info',    text: `  Proyectos        : ${p || 0}` },
           { type: 'info',    text: `  Ideas en banco   : ${i || 0}` },
@@ -311,7 +311,7 @@ export default function ATHENIA_Shell() {
         if (!rmData?.length) { addLine('warning', 'Roadmap no disponible.'); break }
         const stateMap = { completada: '✓', actual: '►', proxima: '○', bloqueada: '⊘' }
         const typeMap = { completada: 'success', actual: 'prompt', proxima: 'info', bloqueada: 'warning' }
-        const lines = [{ type: 'info', text: '──── Roadmap DivergencIA ────' }]
+        const lines = [{ type: 'info', text: '──── Roadmap ATHENIA ────' }]
         rmData.forEach(f => {
           const sym = stateMap[f.estado] || '○'
           const t = typeMap[f.estado] || 'info'
@@ -367,11 +367,11 @@ export default function ATHENIA_Shell() {
           { type: 'info', text: '' },
           { type: 'info', text: '  Versión: 2.1.0' },
           { type: 'info', text: '  Motor IA: Gemini 1.5 Flash' },
-          { type: 'info', text: '  Plataforma: DivergencIA' },
+          { type: 'info', text: '  Plataforma: ATHENIA' },
           { type: 'info', text: '' },
           { type: 'prompt', text: '  "Donde la inteligencia converge"' },
           { type: 'info', text: '' },
-          { type: 'info', text: '  DivergencIA es la plataforma digital' },
+          { type: 'info', text: '  ATHENIA es la plataforma digital' },
           { type: 'info', text: '  del Semillero de Investigación en IA.' },
           { type: 'info', text: '  Centraliza proyectos, ideas, personas' },
           { type: 'info', text: '  y conocimiento en un solo espacio.' },
@@ -452,7 +452,7 @@ export default function ATHENIA_Shell() {
           ])
           const tCompRes = await supabase.from('tareas').select('*', { count: 'exact', head: true }).eq('estado', 'completada')
           addLines([
-            { type: 'info', text: '──── Estadísticas Globales DivergencIA ────' },
+            { type: 'info', text: '──── Estadísticas Globales ATHENIA ────' },
             { type: 'info', text: `  Investigadores : ${mRes.count || 0}` },
             { type: 'info', text: `  Proyectos      : ${pRes.count || 0}` },
             { type: 'info', text: `  Ideas          : ${iRes.count || 0}` },

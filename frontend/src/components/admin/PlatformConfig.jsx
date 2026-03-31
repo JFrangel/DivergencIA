@@ -5,19 +5,10 @@ import Card from '../ui/Card'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 import { toast } from 'sonner'
+import { DEFAULT_PLATFORM_CONFIG } from '../../hooks/usePlatformConfig'
 
 const STORAGE_KEY = 'divergencia_platform_config'
-
-const DEFAULT_CONFIG = {
-  platformName: 'DivergencIA',
-  allowPublicRegistration: true,
-  requireApproval: false,
-  enableAthenia: true,
-  enableZenMode: false,
-  showPublicRoadmap: false,
-  maxUploadSizeMB: '50',
-  contactEmail: '',
-}
+const DEFAULT_CONFIG = DEFAULT_PLATFORM_CONFIG
 
 function Toggle({ enabled, onToggle, label, description }) {
   return (
@@ -71,7 +62,10 @@ export default function PlatformConfig() {
   const handleSave = () => {
     setSaving(true)
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+      const json = JSON.stringify(config)
+      localStorage.setItem(STORAGE_KEY, json)
+      // Notify same-tab listeners (storage event only fires cross-tab normally)
+      window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY, newValue: json }))
       setTimeout(() => {
         setSaving(false)
         toast.success('Configuración guardada')

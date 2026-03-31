@@ -411,6 +411,7 @@ export default function Calendar() {
         con_llamada: !!formData.con_llamada,
         canal_id,
         creado_por: user?.id,
+        estado: 'programado',
       }]).select('id').single()
 
       if (error) throw error
@@ -591,8 +592,8 @@ export default function Calendar() {
           <p className="text-white/40 text-sm mt-1">Eventos y actividades del colectivo</p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Mobile view toggle */}
-          <div className="flex sm:hidden items-center gap-1 bg-white/[0.05] rounded-lg p-0.5">
+          {/* View toggle */}
+          <div className="flex items-center gap-1 bg-white/[0.05] rounded-lg p-0.5">
             <button
               onClick={() => setMobileView('grid')}
               className={`p-1.5 rounded-md transition-colors ${mobileView === 'grid' ? 'bg-[var(--c-primary)]/20 text-[var(--c-primary)]' : 'text-white/40'}`}
