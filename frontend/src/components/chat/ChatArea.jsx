@@ -591,7 +591,7 @@ export default function ChatArea({ channel, puedeEscribir }) {
                 {/* Presence pill: others are in a call */}
                 {callHook.callPresence.length > 0 && (
                   <button
-                    onClick={() => startCallInChannel(channel.id, 'audio')}
+                    onClick={() => startCallInChannel(channel.id, 'audio', channel.nombre)}
                     className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium transition-all hover:bg-green-500/10"
                     style={{ background: 'rgba(34,197,94,0.08)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}
                     title={`Unirse a la llamada (${callHook.callPresence.map(p => p.name).join(', ')})`}
@@ -602,7 +602,7 @@ export default function ChatArea({ channel, puedeEscribir }) {
                   </button>
                 )}
                 <button
-                  onClick={() => startCallInChannel(channel.id, 'audio')}
+                  onClick={() => startCallInChannel(channel.id, 'audio', channel.nombre)}
                   className="p-1.5 rounded-lg transition-all hover:bg-white/[0.06]"
                   style={{ color: 'rgba(255,255,255,0.25)' }}
                   title="Llamada de voz"
@@ -610,7 +610,7 @@ export default function ChatArea({ channel, puedeEscribir }) {
                   <FiPhone size={15} />
                 </button>
                 <button
-                  onClick={() => startCallInChannel(channel.id, 'video')}
+                  onClick={() => startCallInChannel(channel.id, 'video', channel.nombre)}
                   className="p-1.5 rounded-lg transition-all hover:bg-white/[0.06]"
                   style={{ color: 'rgba(255,255,255,0.25)' }}
                   title="Videollamada"

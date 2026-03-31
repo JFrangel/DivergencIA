@@ -4,11 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiMic, FiMicOff, FiVideo, FiVideoOff, FiPhoneOff, FiPhone,
   FiMonitor, FiSettings, FiMinimize2, FiGrid, FiUser,
-  FiUsers, FiX, FiLink, FiSmile,
+  FiUsers, FiX, FiLink, FiSmile, FiMessageCircle, FiUserPlus, FiSend,
 } from 'react-icons/fi'
 import { MdPushPin } from 'react-icons/md'
 import { BsHandIndex } from 'react-icons/bs'
 import { useAuth } from '../../context/AuthContext'
+import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
 
 /* ── Utilities ───────────────────────────────────────────────────────────────── */
@@ -140,16 +141,18 @@ function VideoTile({
       className="relative w-full h-full rounded-[calc(1rem-2px)] overflow-hidden flex items-center justify-center group select-none"
       style={{ background: isScreen ? '#000' : 'rgba(12,5,9,0.97)' }}
     >
-      {showVideo ? (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted={isLocal}
-          className={`w-full h-full ${isScreen ? 'object-contain' : 'object-cover'}`}
-          style={isScreen ? { background: '#000' } : {}}
-        />
-      ) : (
+      {/* Video always in DOM — hide with CSS so srcObject stays set across camera toggles */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted={isLocal}
+        className={`w-full h-full ${isScreen ? 'object-contain' : 'object-cover'}`}
+        style={{ display: showVideo ? 'block' : 'none', ...(isScreen ? { background: '#000' } : {}) }}
+      />
+
+      {/* Avatar overlay — shown when camera is off */}
+      {!showVideo && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
           <motion.div
             className="rounded-full flex items-center justify-center font-bold text-white shrink-0 shadow-lg"
@@ -608,16 +611,14 @@ function MiniCallBar({ callType, participants, isMuted, isCameraOff, onToggleMut
         >
           {isMuted ? <FiMicOff size={13} color="#EF4444" /> : <FiMic size={13} color="rgba(255,255,255,0.7)" />}
         </motion.button>
-        {callType === 'video' && (
-          <motion.button
-            whileTap={{ scale: 0.88 }}
-            onClick={onToggleCamera}
-            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-            style={{ background: isCameraOff ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.08)' }}
-          >
-            {isCameraOff ? <FiVideoOff size={13} color="#EF4444" /> : <FiVideo size={13} color="rgba(255,255,255,0.7)" />}
-          </motion.button>
-        )}
+        <motion.button
+          whileTap={{ scale: 0.88 }}
+          onClick={onToggleCamera}
+          className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+          style={{ background: isCameraOff ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.08)' }}
+        >
+          {isCameraOff ? <FiVideoOff size={13} color="#EF4444" /> : <FiVideo size={13} color="rgba(255,255,255,0.7)" />}
+        </motion.button>
         <motion.button
           whileTap={{ scale: 0.88 }}
           onClick={onEndCall}
@@ -632,18 +633,660 @@ function MiniCallBar({ callType, participants, isMuted, isCameraOff, onToggleMut
   )
 }
 
+/* ── In-call chat hook ───────────────────────────────────────────────────────── */
+function useInCallChat(canalId) {
+  const { user, profile } = useAuth()
+  const [messages, setMessages] = useState([])
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
+  const bottomRef = useRef(null)
+  const MSG_SELECT = '*, autor:usuarios(id, nombre, foto_url)'
+
+  useEffect(() => {
+    if (!canalId || !user) return
+    supabase
+      .from('mensajes')
+      .select(MSG_SELECT)
+      .eq('canal_id', canalId)
+      .order('created_at', { ascending: false })
+      .limit(40)
+      .then(({ data }) => { if (data) setMessages(data.reverse()) })
+    const ch = supabase
+      .channel(`incall_chat_${canalId}_${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensajes', filter: `canal_id=eq.${canalId}` },
+        async ({ new: row }) => {
+          const { data } = await supabase.from('mensajes').select(MSG_SELECT).eq('id', row.id).single()
+          if (data) setMessages(prev => prev.some(m => m.id === data.id) ? prev : [...prev, data])
+        })
+      .subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [canalId, user])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const send = useCallback(async () => {
+    if (!text.trim() || !user || !canalId) return
+    setSending(true)
+    const content = text.trim()
+    const optimistic = {
+      id: `temp-${Date.now()}`, canal_id: canalId, autor_id: user.id,
+      contenido: content, tipo: 'texto', created_at: new Date().toISOString(),
+      autor: { nombre: profile?.nombre || 'Tú', foto_url: profile?.foto_url },
+    }
+    setMessages(prev => [...prev, optimistic])
+    setText('')
+    await supabase.from('mensajes').insert({ canal_id: canalId, autor_id: user.id, contenido: content, tipo: 'texto' })
+    setSending(false)
+  }, [text, user, canalId, profile])
+
+  return { messages, text, setText, send, sending, bottomRef }
+}
+
+/* ── In-call chat panel ──────────────────────────────────────────────────────── */
+function InCallChatPanel({ canalId, onClose }) {
+  const { user } = useAuth()
+  const chat = useInCallChat(canalId)
+
+  return (
+    <motion.div
+      className="w-64 flex flex-col border-l border-white/[0.06] shrink-0"
+      style={{ background: 'rgba(6,3,4,0.97)' }}
+      initial={{ x: '100%', opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: '100%', opacity: 0 }}
+      transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+    >
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/[0.06] shrink-0">
+        <span className="text-[11px] font-semibold text-white/50 uppercase tracking-wider">Chat</span>
+        <button onClick={onClose} className="text-white/25 hover:text-white/60 transition-colors">
+          <FiX size={13} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+        {chat.messages.length === 0 && (
+          <p className="text-[11px] text-white/20 text-center py-6 italic">Sin mensajes aún</p>
+        )}
+        {chat.messages.map(msg => {
+          const isMe = msg.autor_id === user?.id
+          return (
+            <div key={msg.id} className={`flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
+              {!isMe && (
+                <span className="text-[9px] text-white/25 px-1">{msg.autor?.nombre || '?'}</span>
+              )}
+              <div
+                className="px-2.5 py-1.5 text-xs text-white/85 max-w-[90%] break-words"
+                style={isMe
+                  ? { background: 'rgba(252,101,31,0.22)', borderRadius: '10px 10px 3px 10px' }
+                  : { background: 'rgba(255,255,255,0.07)', borderRadius: '10px 10px 10px 3px' }
+                }
+              >
+                {msg.contenido}
+              </div>
+            </div>
+          )
+        })}
+        <div ref={chat.bottomRef} />
+      </div>
+
+      <div className="flex items-center gap-1.5 px-2.5 py-2.5 border-t border-white/[0.06] shrink-0">
+        <input
+          value={chat.text}
+          onChange={e => chat.setText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chat.send() } }}
+          placeholder="Mensaje..."
+          className="flex-1 bg-white/[0.06] rounded-xl px-3 py-2 text-xs text-white outline-none placeholder:text-white/25 border border-white/[0.08] focus:border-white/20"
+        />
+        <button
+          onClick={chat.send}
+          disabled={!chat.text.trim() || chat.sending}
+          className="w-8 h-8 rounded-xl flex items-center justify-center transition-all shrink-0"
+          style={{ background: chat.text.trim() ? '#FC651F' : 'rgba(255,255,255,0.06)' }}
+        >
+          <FiSend size={12} color={chat.text.trim() ? 'white' : 'rgba(255,255,255,0.3)'} />
+        </button>
+      </div>
+    </motion.div>
+  )
+}
+
+/* ── Invite members modal ────────────────────────────────────────────────────── */
+function InviteModal({ canalId, onInvite, onClose }) {
+  const [members, setMembers] = useState([])
+  const [search, setSearch] = useState('')
+  const [invited, setInvited] = useState(new Set())
+
+  useEffect(() => {
+    supabase
+      .from('usuarios')
+      .select('id, nombre, foto_url, area_investigacion')
+      .eq('activo', true)
+      .order('nombre')
+      .limit(80)
+      .then(({ data }) => setMembers(data || []))
+  }, [])
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return members
+    const q = search.toLowerCase()
+    return members.filter(m => m.nombre?.toLowerCase().includes(q) || m.area_investigacion?.toLowerCase().includes(q))
+  }, [members, search])
+
+  const handleInvite = (m) => {
+    onInvite(m.id)
+    setInvited(prev => new Set([...prev, m.id]))
+    toast.success(`Invitación enviada a ${m.nombre}`)
+  }
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/chat?canal=${canalId}`)
+      .then(() => toast.success('Enlace de llamada copiado'))
+  }
+
+  return createPortal(
+    <motion.div
+      className="fixed inset-0 z-[280] flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        className="w-full max-w-sm rounded-2xl overflow-hidden flex flex-col"
+        style={{ background: '#0c0508', border: '1px solid rgba(252,101,31,0.2)', maxHeight: '80vh' }}
+        initial={{ scale: 0.92, opacity: 0, y: 12 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.92, opacity: 0, y: 12 }}
+        transition={{ type: 'spring', damping: 22, stiffness: 320 }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] shrink-0">
+          <div>
+            <p className="text-sm font-semibold text-white/85">Invitar a la llamada</p>
+            <p className="text-[10px] text-white/30 mt-0.5">Envía una notificación para que se unan</p>
+          </div>
+          <button onClick={onClose} className="text-white/25 hover:text-white/60 transition-colors p-1">
+            <FiX size={14} />
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="px-3 pt-3 pb-2 shrink-0">
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar miembro..."
+            autoFocus
+            className="w-full bg-white/[0.05] rounded-xl px-3 py-2 text-xs text-white outline-none placeholder:text-white/25 border border-white/[0.08] focus:border-white/20"
+          />
+        </div>
+
+        {/* Member list */}
+        <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-0.5 min-h-0">
+          {filtered.map(m => {
+            const sent = invited.has(m.id)
+            return (
+              <div
+                key={m.id}
+                className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/[0.04] transition-colors"
+              >
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                  style={{ background: avatarGradient(m.nombre, 0) }}
+                >
+                  {initials(m.nombre)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white/80 truncate">{m.nombre}</p>
+                  {m.area_investigacion && (
+                    <p className="text-[10px] text-white/30 truncate">{m.area_investigacion}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => !sent && handleInvite(m)}
+                  disabled={sent}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all shrink-0"
+                  style={sent
+                    ? { background: 'rgba(34,197,94,0.15)', color: '#22c55e' }
+                    : { background: 'rgba(252,101,31,0.15)', color: '#FC651F', cursor: 'pointer' }
+                  }
+                >
+                  {sent ? '✓ Enviada' : 'Invitar'}
+                </button>
+              </div>
+            )
+          })}
+          {filtered.length === 0 && (
+            <p className="text-[11px] text-white/25 text-center py-6">Sin resultados</p>
+          )}
+        </div>
+
+        {/* Copy link footer */}
+        <div className="px-3 py-3 border-t border-white/[0.06] shrink-0">
+          <p className="text-[10px] text-white/30 mb-1.5">O comparte el enlace directo</p>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/[0.08]" style={{ background: 'rgba(255,255,255,0.02)' }}>
+            <span className="text-[10px] text-white/25 flex-1 truncate font-mono">/chat?canal={canalId?.slice(0, 8)}…</span>
+            <button
+              onClick={copyLink}
+              className="flex items-center gap-1 text-[11px] font-medium shrink-0 transition-colors"
+              style={{ color: '#FC651F' }}
+            >
+              <FiLink size={11} /> Copiar
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body,
+  )
+}
+
+/* ── Pre-call setup screen ───────────────────────────────────────────────────── */
+function PreCallSetup({ pendingCall, onConfirm, onCancel, cameras: availableCameras, mics: availableMics }) {
+  const { profile } = useAuth()
+  const videoRef = useRef(null)
+  const streamRef = useRef(null)
+  const [camOff, setCamOff] = useState(false)
+  const [micOff, setMicOff] = useState(false)
+  const [selectedCamera, setSelectedCamera] = useState(availableCameras[0]?.deviceId || null)
+  const [selectedMic, setSelectedMic] = useState(availableMics[0]?.deviceId || null)
+  const [devices, setDevices] = useState({ cameras: availableCameras, mics: availableMics })
+  const [loadingCam, setLoadingCam] = useState(pendingCall?.type === 'video')
+  const isVideo = pendingCall?.type === 'video'
+
+  // Get preview stream for video calls
+  useEffect(() => {
+    if (!isVideo) return
+    let active = true
+    setLoadingCam(true)
+    navigator.mediaDevices.getUserMedia({
+      video: selectedCamera ? { deviceId: { exact: selectedCamera } } : true,
+      audio: false,
+    }).then(s => {
+      if (!active) { s.getTracks().forEach(t => t.stop()); return }
+      streamRef.current = s
+      if (videoRef.current) videoRef.current.srcObject = s
+      setLoadingCam(false)
+      navigator.mediaDevices.enumerateDevices().then(devs => {
+        const cams = devs.filter(d => d.kind === 'videoinput')
+        const micsArr = devs.filter(d => d.kind === 'audioinput')
+        setDevices({ cameras: cams, mics: micsArr })
+        if (!selectedCamera && cams[0]) setSelectedCamera(cams[0].deviceId)
+        if (!selectedMic && micsArr[0]) setSelectedMic(micsArr[0].deviceId)
+      })
+    }).catch(() => { if (active) setLoadingCam(false) })
+    return () => {
+      active = false
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+  }, [isVideo])
+
+  // Switch camera device in preview
+  useEffect(() => {
+    if (!isVideo || !selectedCamera || !streamRef.current) return
+    navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: selectedCamera } }, audio: false })
+      .then(s => {
+        streamRef.current?.getTracks().forEach(t => t.stop())
+        streamRef.current = s
+        if (videoRef.current) videoRef.current.srcObject = s
+      }).catch(() => {})
+  }, [selectedCamera, isVideo])
+
+  const handleConfirm = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    onConfirm(isVideo && !camOff ? selectedCamera : null, selectedMic)
+  }
+
+  const handleCancel = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    onCancel()
+  }
+
+  const avatarGrad = avatarGradient(profile?.nombre, 0)
+  const avatarInitials = initials(profile?.nombre)
+
+  return createPortal(
+    <motion.div
+      className="fixed inset-0 z-[270] flex items-center justify-center"
+      style={{ background: 'radial-gradient(ellipse at 30% 20%, rgba(252,101,31,0.08) 0%, transparent 55%), radial-gradient(ellipse at 75% 80%, rgba(139,92,246,0.06) 0%, transparent 50%), #080305' }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+    >
+      {/* Ambient blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full opacity-[0.06]" style={{ background: 'radial-gradient(circle, #FC651F, transparent 70%)' }} />
+        <div className="absolute bottom-[-15%] right-[-5%] w-[400px] h-[400px] rounded-full opacity-[0.04]" style={{ background: 'radial-gradient(circle, #8B5CF6, transparent 70%)' }} />
+      </div>
+
+      <motion.div
+        className="relative w-full flex flex-col overflow-hidden"
+        style={{
+          maxWidth: isVideo ? 820 : 440,
+          background: 'rgba(12,5,8,0.95)',
+          border: '1px solid rgba(255,255,255,0.07)',
+          boxShadow: '0 40px 120px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.05)',
+          borderRadius: 28,
+          margin: '0 16px',
+        }}
+        initial={{ scale: 0.92, opacity: 0, y: 24 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.92, opacity: 0, y: 24 }}
+        transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+      >
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(252,101,31,0.15)' }}>
+              {isVideo ? <FiVideo size={14} color="#FC651F" /> : <FiMic size={14} color="#FC651F" />}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white/90 leading-none">
+                {isVideo ? 'Videollamada' : 'Llamada de voz'}
+              </p>
+              {pendingCall?.channelName && (
+                <p className="text-[11px] text-white/35 mt-0.5">#{pendingCall.channelName}</p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={handleCancel}
+            className="w-7 h-7 rounded-xl flex items-center justify-center transition-colors hover:bg-white/10"
+          >
+            <FiX size={14} color="rgba(255,255,255,0.4)" />
+          </button>
+        </div>
+
+        {/* Main content: two-column for video, single for audio */}
+        <div className={`flex ${isVideo ? 'flex-row' : 'flex-col'} gap-0`}>
+
+          {/* ── Left: preview ── */}
+          {isVideo ? (
+            <div className="flex-1 px-5 pb-5 min-w-0">
+              {/* Video preview */}
+              <div className="relative rounded-2xl overflow-hidden" style={{ aspectRatio: '4/3', background: '#060304' }}>
+                {/* Loading */}
+                {loadingCam && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 z-10">
+                    <div className="w-6 h-6 border-2 border-white/15 border-t-white/50 rounded-full animate-spin" />
+                    <span className="text-[11px] text-white/30">Iniciando cámara…</span>
+                  </div>
+                )}
+                {/* Avatar when cam off */}
+                {camOff && !loadingCam && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10">
+                    <motion.div
+                      className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-2xl"
+                      style={{ background: avatarGrad }}
+                      initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: 'spring', damping: 20 }}
+                    >
+                      {avatarInitials}
+                    </motion.div>
+                    <p className="text-[11px] text-white/30 font-medium">Cámara desactivada</p>
+                  </div>
+                )}
+                <video
+                  ref={videoRef}
+                  autoPlay playsInline muted
+                  className="w-full h-full object-cover"
+                  style={{ display: camOff || loadingCam ? 'none' : 'block' }}
+                />
+                {/* Subtle vignette + name */}
+                <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 35%)' }} />
+                <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                  <span className="text-xs font-medium text-white/80">{profile?.nombre || 'Tú'}</span>
+                </div>
+                {/* Camera off badge */}
+                {camOff && (
+                  <div className="absolute top-3 right-3">
+                    <div className="px-2 py-0.5 rounded-lg text-[10px] font-medium" style={{ background: 'rgba(239,68,68,0.25)', color: '#FCA5A5', border: '1px solid rgba(239,68,68,0.3)' }}>
+                      Sin cámara
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick toggles under preview */}
+              <div className="flex items-center justify-center gap-3 mt-3">
+                <PreToggleBtn
+                  active={!micOff}
+                  onIcon={<FiMic size={16} />}
+                  offIcon={<FiMicOff size={16} />}
+                  label={micOff ? 'Mic apagado' : 'Mic activo'}
+                  onClick={() => setMicOff(p => !p)}
+                />
+                <PreToggleBtn
+                  active={!camOff}
+                  onIcon={<FiVideo size={16} />}
+                  offIcon={<FiVideoOff size={16} />}
+                  label={camOff ? 'Sin cámara' : 'Cámara activa'}
+                  onClick={() => setCamOff(p => !p)}
+                />
+              </div>
+            </div>
+          ) : (
+            /* Audio-only: centered avatar */
+            <div className="flex flex-col items-center gap-4 pt-2 pb-2 px-6">
+              <div className="relative">
+                <motion.div
+                  className="w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-2xl"
+                  style={{ background: avatarGrad }}
+                >
+                  {avatarInitials}
+                </motion.div>
+                {/* Ring pulse */}
+                {!micOff && (
+                  <motion.div
+                    className="absolute inset-0 rounded-full"
+                    style={{ border: '2px solid rgba(34,197,94,0.4)' }}
+                    animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                )}
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-white/85">{profile?.nombre || 'Tú'}</p>
+                <p className="text-[11px] text-white/35 mt-0.5">Listo para unirte</p>
+              </div>
+              {/* Audio bars */}
+              <div className="flex items-end gap-1" style={{ height: 20 }}>
+                {[0.4, 0.6, 1, 0.8, 0.6, 1, 0.4].map((h, i) => (
+                  <motion.div
+                    key={i}
+                    className="w-1.5 rounded-full"
+                    style={{ background: micOff ? 'rgba(255,255,255,0.12)' : '#22c55e' }}
+                    animate={!micOff
+                      ? { height: ['3px', `${h * 18}px`, '3px'] }
+                      : { height: '3px' }}
+                    transition={{ duration: 0.7 + i * 0.05, repeat: Infinity, delay: i * 0.08 }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Right: settings panel ── */}
+          <div
+            className={`flex flex-col gap-0 ${isVideo ? 'w-[200px] shrink-0 border-l' : 'border-t'}`}
+            style={{ borderColor: 'rgba(255,255,255,0.06)' }}
+          >
+            {isVideo ? (
+              /* Video: compact vertical settings */
+              <div className="flex flex-col gap-3 p-4 h-full">
+                <p className="text-[10px] uppercase tracking-widest text-white/25 font-semibold">Dispositivos</p>
+
+                {/* Camera selector */}
+                <DeviceSelector
+                  icon={<FiVideo size={12} />}
+                  label="Cámara"
+                  value={selectedCamera || ''}
+                  options={devices.cameras.map((c, i) => ({ value: c.deviceId, label: c.label || `Cámara ${i + 1}` }))}
+                  onChange={setSelectedCamera}
+                  disabled={camOff}
+                />
+
+                {/* Mic selector */}
+                <DeviceSelector
+                  icon={<FiMic size={12} />}
+                  label="Micrófono"
+                  value={selectedMic || ''}
+                  options={devices.mics.map((m, i) => ({ value: m.deviceId, label: m.label || `Micrófono ${i + 1}` }))}
+                  onChange={setSelectedMic}
+                />
+
+                {/* Status chips */}
+                <div className="mt-auto space-y-1.5">
+                  <StatusChip active={!micOff} label={micOff ? 'Micrófono apagado' : 'Micrófono activo'} />
+                  <StatusChip active={!camOff} label={camOff ? 'Cámara apagada' : 'Cámara activa'} />
+                </div>
+              </div>
+            ) : (
+              /* Audio: toggles + device pickers */
+              <div className="flex flex-col gap-4 p-5">
+                <div className="flex items-center justify-center gap-4">
+                  <PreToggleBtn
+                    active={!micOff}
+                    onIcon={<FiMic size={18} />}
+                    offIcon={<FiMicOff size={18} />}
+                    label={micOff ? 'Mic apagado' : 'Mic activo'}
+                    size="lg"
+                    onClick={() => setMicOff(p => !p)}
+                  />
+                </div>
+
+                {devices.mics.length > 1 && (
+                  <DeviceSelector
+                    icon={<FiMic size={12} />}
+                    label="Micrófono"
+                    value={selectedMic || ''}
+                    options={devices.mics.map((m, i) => ({ value: m.deviceId, label: m.label || `Micrófono ${i + 1}` }))}
+                    onChange={setSelectedMic}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex flex-col gap-2 p-4 mt-auto">
+              <motion.button
+                onClick={handleConfirm}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold text-white"
+                style={{ background: 'linear-gradient(135deg, #FC651F 0%, #FF8C42 100%)', boxShadow: '0 4px 24px rgba(252,101,31,0.3)' }}
+                whileHover={{ scale: 1.02, boxShadow: '0 6px 30px rgba(252,101,31,0.45)' }}
+                whileTap={{ scale: 0.97 }}
+              >
+                {isVideo ? <FiVideo size={14} /> : <FiPhone size={14} />}
+                Unirse
+              </motion.button>
+              <button
+                onClick={handleCancel}
+                className="w-full py-2.5 rounded-2xl text-xs font-medium transition-colors hover:bg-white/[0.06]"
+                style={{ color: 'rgba(255,255,255,0.35)' }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body,
+  )
+}
+
+/* ── PreCallSetup sub-components ─────────────────────────────────────────────── */
+function PreToggleBtn({ active, onIcon, offIcon, label, onClick, size = 'md' }) {
+  const sz = size === 'lg' ? 'w-14 h-14' : 'w-10 h-10'
+  return (
+    <button onClick={onClick} className="flex flex-col items-center gap-1.5 group">
+      <motion.div
+        className={`${sz} rounded-2xl flex items-center justify-center transition-colors relative`}
+        style={{
+          background: active ? 'rgba(255,255,255,0.1)' : 'rgba(239,68,68,0.18)',
+          border: `1px solid ${active ? 'rgba(255,255,255,0.1)' : 'rgba(239,68,68,0.3)'}`,
+        }}
+        whileTap={{ scale: 0.9 }}
+      >
+        <span style={{ color: active ? 'rgba(255,255,255,0.8)' : '#F87171' }}>
+          {active ? onIcon : offIcon}
+        </span>
+        {!active && (
+          <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />
+        )}
+      </motion.div>
+      <span className="text-[10px] font-medium" style={{ color: active ? 'rgba(255,255,255,0.4)' : 'rgba(248,113,113,0.7)' }}>
+        {label}
+      </span>
+    </button>
+  )
+}
+
+function DeviceSelector({ icon, label, value, options, onChange, disabled }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        <span style={{ color: 'rgba(255,255,255,0.25)' }}>{icon}</span>
+        <span className="text-[10px] text-white/30 font-medium">{label}</span>
+      </div>
+      <div className="relative">
+        <select
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          disabled={disabled || options.length <= 1}
+          className="w-full rounded-xl text-[11px] font-medium outline-none appearance-none cursor-pointer pr-6 pl-2.5 py-2 transition-colors"
+          style={{
+            background: disabled ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            color: disabled ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.7)',
+            colorScheme: 'dark',
+          }}
+        >
+          {options.length === 0
+            ? <option>Sin dispositivos</option>
+            : options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)
+          }
+        </select>
+        <FiSettings size={10} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'rgba(255,255,255,0.2)' }} />
+      </div>
+    </div>
+  )
+}
+
+function StatusChip({ active, label }) {
+  return (
+    <div
+      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl"
+      style={{
+        background: active ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+        border: `1px solid ${active ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}`,
+      }}
+    >
+      <div className="w-1.5 h-1.5 rounded-full" style={{ background: active ? '#22c55e' : '#ef4444' }} />
+      <span className="text-[10px] font-medium" style={{ color: active ? 'rgba(34,197,94,0.8)' : 'rgba(239,68,68,0.7)' }}>{label}</span>
+    </div>
+  )
+}
+
 /* ── Active call fullscreen ──────────────────────────────────────────────────── */
 function ActiveCall({
   callType, participants, localStream, isScreenSharing, screenStream,
-  isMuted, isCameraOff, profile,
+  isMuted, isCameraOff, profile, canalId,
   cameras, mics, selectedCamera, selectedMic, onSelectCamera, onSelectMic,
   onToggleMute, onToggleCamera, onToggleScreen, onEndCall, onMinimize,
   reactions, raisedHands, isHandRaised, onSendReaction, onToggleRaiseHand,
+  onInvite,
 }) {
   const [layoutMode, setLayoutMode] = useState('focus')
   const [pinnedKey, setPinnedKey] = useState(null)
   const [elapsed, setElapsed] = useState(0)
   const [showParticipants, setShowParticipants] = useState(false)
+  const [showChat, setShowChat] = useState(false)
+  const [showInvite, setShowInvite] = useState(false)
   const startRef = useRef(Date.now())
 
   // Timer
@@ -704,10 +1347,11 @@ function ActiveCall({
   }, [pinnedKey])
 
   const copyCallLink = useCallback(() => {
-    navigator.clipboard.writeText(window.location.href).then(() => {
+    const url = `${window.location.origin}/chat?canal=${canalId}`
+    navigator.clipboard.writeText(url).then(() => {
       toast.success('Enlace copiado — compártelo para invitar')
     })
-  }, [])
+  }, [canalId])
 
   const handsCount = raisedHands.size
 
@@ -801,7 +1445,7 @@ function ActiveCall({
           <Tooltip label="Participantes">
             <motion.button
               whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-              onClick={() => setShowParticipants(p => !p)}
+              onClick={() => { setShowParticipants(p => !p); setShowChat(false) }}
               className="relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] transition-colors"
               style={{
                 background: showParticipants ? 'rgba(252,101,31,0.18)' : 'rgba(255,255,255,0.06)',
@@ -815,6 +1459,33 @@ function ActiveCall({
                   {handsCount}
                 </span>
               )}
+            </motion.button>
+          </Tooltip>
+
+          {/* Chat toggle */}
+          <Tooltip label="Chat de llamada">
+            <motion.button
+              whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+              onClick={() => { setShowChat(p => !p); setShowParticipants(false) }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] transition-colors"
+              style={{
+                background: showChat ? 'rgba(252,101,31,0.18)' : 'rgba(255,255,255,0.06)',
+                color: showChat ? '#FC651F' : 'rgba(255,255,255,0.5)',
+              }}
+            >
+              <FiMessageCircle size={13} />
+            </motion.button>
+          </Tooltip>
+
+          {/* Invite */}
+          <Tooltip label="Invitar personas">
+            <motion.button
+              whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+              onClick={() => setShowInvite(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] transition-colors"
+              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
+            >
+              <FiUserPlus size={13} />
             </motion.button>
           </Tooltip>
 
@@ -989,7 +1660,28 @@ function ActiveCall({
             />
           )}
         </AnimatePresence>
+
+        {/* In-call chat panel */}
+        <AnimatePresence>
+          {showChat && canalId && (
+            <InCallChatPanel
+              canalId={canalId}
+              onClose={() => setShowChat(false)}
+            />
+          )}
+        </AnimatePresence>
       </div>
+
+      {/* Invite modal */}
+      <AnimatePresence>
+        {showInvite && (
+          <InviteModal
+            canalId={canalId}
+            onInvite={onInvite}
+            onClose={() => setShowInvite(false)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── Controls bar ── */}
       <div
@@ -1009,15 +1701,13 @@ function ActiveCall({
               onClick={onToggleMute}
             />
           </Tooltip>
-          {callType === 'video' && (
-            <Tooltip label={isCameraOff ? 'Activar cámara' : 'Apagar cámara'}>
-              <CtrlBtn
-                icon={isCameraOff ? <FiVideoOff size={17} /> : <FiVideo size={17} />}
-                danger={isCameraOff}
-                onClick={onToggleCamera}
-              />
-            </Tooltip>
-          )}
+          <Tooltip label={isCameraOff ? 'Activar cámara' : 'Apagar cámara'}>
+            <CtrlBtn
+              icon={isCameraOff ? <FiVideoOff size={17} /> : <FiVideo size={17} />}
+              danger={isCameraOff}
+              onClick={onToggleCamera}
+            />
+          </Tooltip>
           <Tooltip label={isScreenSharing ? 'Dejar de compartir' : 'Compartir pantalla'}>
             <CtrlBtn
               icon={<FiMonitor size={17} />}
@@ -1071,7 +1761,7 @@ function ActiveCall({
 }
 
 /* ── CallModal — main export ─────────────────────────────────────────────────── */
-export default function CallModal({ callHook }) {
+export default function CallModal({ callHook, canalId, pendingCall, onConfirmCall, onCancelCall }) {
   const { profile } = useAuth()
   const [expanded, setExpanded] = useState(true)
 
@@ -1084,7 +1774,7 @@ export default function CallModal({ callHook }) {
     reactions, raisedHands, isHandRaised,
     acceptCall, declineCall, endCall,
     toggleMute, toggleCamera, toggleScreenShare,
-    sendReaction, toggleRaiseHand,
+    sendReaction, toggleRaiseHand, sendCallInvite,
   } = callHook
 
   useEffect(() => { if (callState === 'in-call') setExpanded(true) }, [callState])
@@ -1095,6 +1785,18 @@ export default function CallModal({ callHook }) {
 
   return (
     <AnimatePresence>
+      {/* Pre-call setup screen */}
+      {pendingCall && callState === 'idle' && (
+        <PreCallSetup
+          key="pre-setup"
+          pendingCall={pendingCall}
+          onConfirm={onConfirmCall}
+          onCancel={onCancelCall}
+          cameras={cameras}
+          mics={mics}
+        />
+      )}
+
       {callState === 'ringing' && incoming && (
         <IncomingCall
           key="incoming"
@@ -1114,6 +1816,7 @@ export default function CallModal({ callHook }) {
           isMuted={isMuted}
           isCameraOff={isCameraOff}
           profile={profile}
+          canalId={canalId}
           cameras={cameras}
           mics={mics}
           selectedCamera={selectedCamera}
@@ -1130,6 +1833,7 @@ export default function CallModal({ callHook }) {
           isHandRaised={isHandRaised}
           onSendReaction={sendReaction}
           onToggleRaiseHand={toggleRaiseHand}
+          onInvite={sendCallInvite}
         />
       )}
       {showMiniBar && (

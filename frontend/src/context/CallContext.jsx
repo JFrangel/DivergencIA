@@ -6,34 +6,45 @@ const CallCtx = createContext(null)
 
 /* ── Provider — mounts once at app level ────────────────────────────────────── */
 export function CallProvider({ children }) {
-  // Active channel for the call. Set by ChatArea when the user is viewing a channel.
   const [activeChannelId, setActiveChannelId] = useState(null)
+  // pendingCall: set when user clicks "start call" — shows pre-call setup screen
+  const [pendingCall, setPendingCall] = useState(null) // { canalId, type, channelName }
 
   const callHook = useCall(activeChannelId)
 
-  // Expose a setter so ChatArea can register which channel is "in scope"
   const setCallChannel = useCallback((id) => {
-    // Only update if we're not already in a call (avoid resetting mid-call)
-    if (callHook.callState === 'idle') {
-      setActiveChannelId(id)
-    } else if (id && callHook.callState === 'in-call') {
-      // Allow switching channel context only if the new id matches current call
-      // (prevents detaching the call when navigating)
-    }
+    if (callHook.callState === 'idle') setActiveChannelId(id)
   }, [callHook.callState])
 
-  // When a call starts/ends via the hook, ensure the channelId stays locked
-  const startCallInChannel = useCallback((canalId, type, cameraId = null, micId = null) => {
+  // Show pre-call setup instead of starting immediately
+  const startCallInChannel = useCallback((canalId, type, channelName = '') => {
+    if (callHook.callState !== 'idle') return
     setActiveChannelId(canalId)
-    // Use setTimeout to let state settle before starting
+    setPendingCall({ canalId, type, channelName })
+  }, [callHook.callState])
+
+  // User confirmed in pre-call setup
+  const confirmCall = useCallback((cameraId, micId) => {
+    if (!pendingCall) return
+    const { type } = pendingCall
+    setPendingCall(null)
     setTimeout(() => callHook.startCall(type, cameraId, micId), 0)
-  }, [callHook])
+  }, [pendingCall, callHook])
+
+  const cancelPendingCall = useCallback(() => {
+    setPendingCall(null)
+  }, [])
 
   return (
     <CallCtx.Provider value={{ callHook, setCallChannel, startCallInChannel, activeChannelId }}>
       {children}
-      {/* Always mounted — renders incoming/active/mini bar anywhere in the app */}
-      <CallModal callHook={callHook} />
+      <CallModal
+        callHook={callHook}
+        canalId={activeChannelId}
+        pendingCall={pendingCall}
+        onConfirmCall={confirmCall}
+        onCancelCall={cancelPendingCall}
+      />
     </CallCtx.Provider>
   )
 }
