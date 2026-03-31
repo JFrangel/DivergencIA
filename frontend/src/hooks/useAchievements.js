@@ -541,6 +541,16 @@ export function useAchievements(userId) {
             }, { onConflict: 'usuario_id,logro_id' }).then(() => {})
               .catch(() => {})
 
+            // Fire in-app notification so bell badge updates immediately
+            supabase.from('notificaciones').insert({
+              usuario_id: targetId,
+              tipo: 'logro_desbloqueado',
+              titulo: `¡Logro desbloqueado! ${def.badge || '🏆'}`,
+              mensaje: `Obtuviste: ${def.label}${def.tier ? ` (${def.tier})` : ''}`,
+              leida: false,
+              fecha: now,
+            }).then(() => {}).catch(() => {})
+
             return nextU
           })
         }
