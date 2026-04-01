@@ -118,7 +118,7 @@ export default function Login() {
               onClick={() => { setLoginMode('magic'); setAuthError(''); setMagicSent(false) }}
               className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all ${loginMode === 'magic' ? 'bg-[var(--c-secondary)]/15 text-[var(--c-secondary)]' : 'text-white/30 hover:text-white/50'}`}
             >
-              <FiMail className="inline mr-1.5" size={12} />Magic Link
+              <FiMail className="inline mr-1.5" size={12} />Enlace mágico
             </button>
           </div>
 
