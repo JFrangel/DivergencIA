@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { FiMapPin, FiStar, FiClock, FiUser, FiX } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
+import { supabase } from '../../lib/supabase'
 
 /* ── Group configuration ── */
 const GROUP_CONFIG = {
@@ -136,7 +137,7 @@ function WelcomeBanner({ newMembers, onDismiss }) {
 }
 
 /* ── Mini profile popup ── */
-function MiniProfile({ member, x, y, color, containerW, containerH, onClose }) {
+function MiniProfile({ member, x, y, color, containerW, containerH, onClose, nodos = [] }) {
   const popupW = 220
   const popupH = 180
   let left = x
@@ -218,6 +219,20 @@ function MiniProfile({ member, x, y, color, containerW, containerH, onClose }) {
         )}
       </div>
 
+      {nodos.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-2">
+          {nodos.map((n, i) => (
+            <span
+              key={i}
+              className="px-1.5 py-0.5 rounded text-[9px] font-medium"
+              style={{ background: `${n.color || '#8B5CF6'}18`, border: `1px solid ${n.color || '#8B5CF6'}30`, color: n.color || '#8B5CF6' }}
+            >
+              {n.nombre}
+            </span>
+          ))}
+        </div>
+      )}
+
       <p className="text-[9px] text-white/20 mt-2 text-center">
         Doble clic para ver perfil completo
       </p>
@@ -272,6 +287,29 @@ export default function MemberNetwork({ members = [] }) {
     } catch { return {} }
   })
   const [connectionFilter, setConnectionFilter] = useState('all') // 'all' | 'mentor' | 'area' | 'alumni'
+  // nodosByMember: { [userId]: [{ nombre, color }] }
+  const [nodosByMember, setNodosByMember] = useState({})
+
+  /* Fetch nodo memberships for all members */
+  useEffect(() => {
+    if (!members.length) return
+    const ids = members.map(m => m.id)
+    supabase
+      .from('nodo_miembros')
+      .select('usuario_id, nodos(id, nombre, color)')
+      .in('usuario_id', ids)
+      .then(({ data }) => {
+        if (!data) return
+        const map = {}
+        data.forEach(row => {
+          if (!row.nodos) return
+          if (!map[row.usuario_id]) map[row.usuario_id] = []
+          map[row.usuario_id].push({ nombre: row.nodos.nombre, color: row.nodos.color })
+        })
+        setNodosByMember(map)
+      })
+      .catch(() => {})
+  }, [members])
 
   /* Observe container size */
   useEffect(() => {
@@ -822,6 +860,7 @@ export default function MemberNetwork({ members = [] }) {
             containerW={dims.w}
             containerH={dims.h}
             onClose={() => setSelected(null)}
+            nodos={nodosByMember[selected.id] || []}
           />
         )}
       </AnimatePresence>

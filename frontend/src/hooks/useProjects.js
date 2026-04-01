@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
 import { trackProgress } from '../lib/trackProgress'
+import { getCached, setCached, invalidateCache } from '../lib/queryCache'
 
 /** Insert a notification into the notificaciones table */
 async function createNotification(userId, tipo, mensaje, referenciaId) {
@@ -22,11 +23,12 @@ async function createNotification(userId, tipo, mensaje, referenciaId) {
 
 export function useProjects({ userId, all = false } = {}) {
   const { user } = useAuth()
-  const [projects, setProjects] = useState([])
-  const [loading, setLoading] = useState(true)
+  const cacheKey = `projects:${userId || 'all'}:${all}`
+  const [projects, setProjects] = useState(() => getCached(cacheKey).data || [])
+  const [loading, setLoading] = useState(() => !getCached(cacheKey).data)
 
-  const fetch = useCallback(async () => {
-    setLoading(true)
+  const fetch = useCallback(async (background = false) => {
+    if (!background) setLoading(true)
     let query = supabase
       .from('proyectos')
       .select(`
@@ -48,6 +50,7 @@ export function useProjects({ userId, all = false } = {}) {
         p.creador_id === userId ||
         p.miembros?.some(m => m.usuario?.id === userId && m.activo)
       )
+      setCached(cacheKey, filtered)
       setProjects(filtered)
       setLoading(false)
       return
@@ -55,11 +58,15 @@ export function useProjects({ userId, all = false } = {}) {
 
     const { data, error } = await query
     if (error) { console.error(error); setLoading(false); return }
+    setCached(cacheKey, data || [])
     setProjects(data || [])
     setLoading(false)
-  }, [userId, all])
+  }, [userId, all, cacheKey])
 
-  useEffect(() => { fetch() }, [fetch])
+  useEffect(() => {
+    const { stale } = getCached(cacheKey)
+    fetch(stale === false)
+  }, [fetch, cacheKey])
 
   const create = async (payload) => {
     const { _suggestedTasks, _suggestedWorkflow, _teamMembers, ...projectData } = payload

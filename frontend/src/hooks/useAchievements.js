@@ -484,11 +484,44 @@ export function useAchievements(userId) {
     setLoading(false)
   }, [targetId])
 
-  // Load local progress
+  // Load local progress + sync from logros_usuario DB (cross-device)
   useEffect(() => {
     if (!targetId) return
-    setProgress(getLocalProgress(targetId))
-    setUnlocked(getLocalUnlocked(targetId))
+    const localProgress = getLocalProgress(targetId)
+    const localUnlocked = getLocalUnlocked(targetId)
+    setProgress(localProgress)
+    setUnlocked(localUnlocked)
+
+    // Restore unlocked state from DB so progress isn't lost on different devices
+    supabase
+      .from('logros_usuario')
+      .select('logro_id, progreso, fecha_obtenido')
+      .eq('usuario_id', targetId)
+      .then(({ data }) => {
+        if (!data || !data.length) return
+        const dbUnlocked = {}
+        const dbProgress = { ...localProgress }
+        data.forEach(row => {
+          dbUnlocked[row.logro_id] = row.fecha_obtenido
+          // Restore progress for matching trackKey
+          const def = ACHIEVEMENT_DEFINITIONS.find(d => d.id === row.logro_id)
+          if (def && (dbProgress[def.trackKey] || 0) < row.progreso) {
+            dbProgress[def.trackKey] = row.progreso
+          }
+        })
+        // Merge: DB wins for unlocked, max wins for progress
+        setUnlocked(prev => {
+          const merged = { ...dbUnlocked, ...prev }
+          setLocalUnlocked(targetId, merged)
+          return merged
+        })
+        setProgress(prev => {
+          const merged = { ...dbProgress, ...prev }
+          setLocalProgress(targetId, merged)
+          return merged
+        })
+      })
+      .catch(() => {})
   }, [targetId])
 
   useEffect(() => { fetchLogros() }, [fetchLogros])

@@ -31,7 +31,7 @@ create policy "config_lectura_publica"
   for select
   using (true);
 
--- Solo admins pueden actualizar
+-- Solo admins y directora pueden actualizar
 create policy "config_solo_admins"
   on public.configuracion_plataforma
   for update
@@ -39,13 +39,13 @@ create policy "config_solo_admins"
     exists (
       select 1 from public.usuarios
       where usuarios.id = auth.uid()
-        and usuarios.rol = 'admin'
+        and usuarios.rol in ('admin', 'directora')
     )
   )
   with check (
     exists (
       select 1 from public.usuarios
       where usuarios.id = auth.uid()
-        and usuarios.rol = 'admin'
+        and usuarios.rol in ('admin', 'directora')
     )
   );

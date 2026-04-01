@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { getCached, setCached } from '../lib/queryCache'
 
 export function useMembers({ area, search } = {}) {
-  const [members, setMembers] = useState([])
-  const [loading, setLoading] = useState(true)
+  const cacheKey = `members:${area || ''}:${search || ''}`
+  const [members, setMembers] = useState(() => getCached(cacheKey).data || [])
+  const [loading, setLoading] = useState(() => !getCached(cacheKey).data)
 
-  const fetch = useCallback(async () => {
-    setLoading(true)
+  const fetch = useCallback(async (background = false) => {
+    if (!background) setLoading(true)
     let query = supabase
       .from('usuarios')
       .select('id, nombre, rol, carrera, semestre, bio, foto_url, github_url, linkedin_url, habilidades, area_investigacion, activo, es_fundador, fecha_registro')
@@ -18,25 +20,36 @@ export function useMembers({ area, search } = {}) {
     if (search) query = query.ilike('nombre', `%${search}%`)
 
     const { data } = await query
+    setCached(cacheKey, data || [])
     setMembers(data || [])
     setLoading(false)
-  }, [area, search])
+  }, [area, search, cacheKey])
 
-  useEffect(() => { fetch() }, [fetch])
+  useEffect(() => {
+    const { stale } = getCached(cacheKey)
+    fetch(stale === false)
+  }, [fetch, cacheKey])
 
   return { members, loading, refetch: fetch }
 }
 
 export function useAllMembers() {
-  const [members, setMembers] = useState([])
-  const [loading, setLoading] = useState(true)
+  const cacheKey = 'members:all'
+  const [members, setMembers] = useState(() => getCached(cacheKey).data || [])
+  const [loading, setLoading] = useState(() => !getCached(cacheKey).data)
 
   useEffect(() => {
+    const { stale } = getCached(cacheKey)
+    if (!stale) return // fresh cache — skip fetch
     supabase
       .from('usuarios')
       .select('id, nombre, foto_url, area_investigacion, es_fundador, activo, rol, fecha_registro, habilidades, carrera')
       .order('es_fundador', { ascending: false })
-      .then(({ data }) => { setMembers(data || []); setLoading(false) })
+      .then(({ data }) => {
+        setCached(cacheKey, data || [])
+        setMembers(data || [])
+        setLoading(false)
+      })
   }, [])
 
   return { members, loading }

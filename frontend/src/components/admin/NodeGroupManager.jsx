@@ -33,8 +33,8 @@ function getUserGroups(user) {
 }
 
 /* ─── Mini group badge ────────────────────────────────────────────────────── */
-function GroupPip({ groupKey }) {
-  const info = NODE_GROUPS[groupKey]
+function GroupPip({ groupKey, allGroupsMap = NODE_GROUPS }) {
+  const info = allGroupsMap[groupKey] || NODE_GROUPS[groupKey]
   if (!info) return null
   return (
     <span
@@ -371,6 +371,10 @@ export default function NodeGroupManager() {
   const [viewMode, setViewMode] = useState('kanban')        // 'kanban' | 'list'
   const [showOtherGroups, setShowOtherGroups] = useState(true)
   const [addingToGroup, setAddingToGroup] = useState(null)  // groupKey | null
+  const [customGroups, setCustomGroups] = useState({})      // dynamic groups from DB
+  const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [newGroup, setNewGroup] = useState({ label: '', color: '#8B5CF6', icono: '👥' })
+  const [savingGroup, setSavingGroup] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -378,20 +382,47 @@ export default function NodeGroupManager() {
 
   /* ─── Fetch ─────────────────────────────────────────────────────────────── */
   useEffect(() => {
-    supabase
-      .from('usuarios')
-      .select('id, nombre, correo, foto_url, rol, area_investigacion, es_fundador, fecha_registro, grupo_nodo, grupos_nodo, activo')
-      .order('nombre')
-      .then(({ data, error }) => {
-        if (error) toast.error('Error cargando usuarios')
-        setUsers(data || [])
-        setLoading(false)
-      })
+    Promise.all([
+      supabase
+        .from('usuarios')
+        .select('id, nombre, correo, foto_url, rol, area_investigacion, es_fundador, fecha_registro, grupo_nodo, grupos_nodo, activo')
+        .order('nombre'),
+      supabase.from('grupos_personalizados').select('clave, label, color, icono').order('created_at'),
+    ]).then(([usersRes, gruposRes]) => {
+      if (usersRes.error) toast.error('Error cargando usuarios')
+      setUsers(usersRes.data || [])
+      if (gruposRes.data) {
+        const custom = {}
+        gruposRes.data.forEach(g => { custom[g.clave] = { label: g.label, color: g.color, icon: g.icono } })
+        setCustomGroups(custom)
+      }
+      setLoading(false)
+    })
   }, [])
+
+  /* ─── All groups (static + custom) ─────────────────────────────────────── */
+  const allGroups = useMemo(() => ({ ...NODE_GROUPS, ...customGroups }), [customGroups])
+
+  /* ─── Create custom group ────────────────────────────────────────────────── */
+  const handleCreateGroup = useCallback(async () => {
+    const clave = newGroup.label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+    if (!clave || !newGroup.label.trim()) { toast.error('Nombre requerido'); return }
+    if (allGroups[clave]) { toast.error('Ese grupo ya existe'); return }
+    setSavingGroup(true)
+    const { error } = await supabase.from('grupos_personalizados').insert({
+      clave, label: newGroup.label.trim(), color: newGroup.color, icono: newGroup.icono,
+    })
+    if (error) { toast.error('Error creando grupo'); setSavingGroup(false); return }
+    setCustomGroups(prev => ({ ...prev, [clave]: { label: newGroup.label.trim(), color: newGroup.color, icon: newGroup.icono } }))
+    setNewGroup({ label: '', color: '#8B5CF6', icono: '👥' })
+    setShowCreateGroup(false)
+    toast.success(`Grupo "${newGroup.label.trim()}" creado`)
+    setSavingGroup(false)
+  }, [newGroup, allGroups])
 
   /* ─── DB helpers ──────────────────────────────────────────────────────────── */
   const saveGroups = useCallback(async (userId, newGroups) => {
-    const unique = [...new Set(newGroups)].filter(g => !!NODE_GROUPS[g])
+    const unique = [...new Set(newGroups)].filter(g => !!allGroups[g])
     const primary = unique[0] || null
     const { error } = await supabase.from('usuarios')
       .update({ grupos_nodo: unique, grupo_nodo: primary })
@@ -400,18 +431,18 @@ export default function NodeGroupManager() {
     // Sync canal_miembros so chat channels stay in sync
     supabase.rpc('sync_user_group_channels', { p_user_id: userId, p_groups: unique })
     return true
-  }, [])
+  }, [allGroups])
 
   const addToGroup = useCallback(async (userId, targetGroup) => {
     const user = users.find(u => u.id === userId)
     if (!user) return
     const current = getUserGroups(user)
-    if (current.includes(targetGroup)) { toast.info(`Ya está en ${NODE_GROUPS[targetGroup]?.label}`); return }
+    if (current.includes(targetGroup)) { toast.info(`Ya está en ${allGroups[targetGroup]?.label}`); return }
     const newGroups = [...current, targetGroup]
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, grupos_nodo: newGroups } : u))
     const ok = await saveGroups(userId, newGroups)
     if (!ok) setUsers(prev => prev.map(u => u.id === userId ? { ...u, grupos_nodo: current } : u))
-    else toast.success(`${user.nombre} agregado a ${NODE_GROUPS[targetGroup]?.label}`)
+    else toast.success(`${user.nombre} agregado a ${allGroups[targetGroup]?.label}`)
   }, [users, saveGroups])
 
   const removeFromGroup = useCallback(async (userId, groupKey) => {
@@ -423,7 +454,7 @@ export default function NodeGroupManager() {
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, grupos_nodo: newGroups } : u))
     const ok = await saveGroups(userId, newGroups)
     if (!ok) setUsers(prev => prev.map(u => u.id === userId ? { ...u, grupos_nodo: current } : u))
-    else toast.success(`${user.nombre} quitado de ${NODE_GROUPS[groupKey]?.label}`)
+    else toast.success(`${user.nombre} quitado de ${allGroups[groupKey]?.label}`)
   }, [users, saveGroups])
 
   const addMultipleToGroup = useCallback(async (userIds, targetGroup) => {
@@ -443,7 +474,7 @@ export default function NodeGroupManager() {
     }))
 
     await Promise.all(updates.map(({ uid, newGroups }) => saveGroups(uid, newGroups)))
-    toast.success(`${updates.length} miembro(s) agregado(s) a ${NODE_GROUPS[targetGroup]?.label}`)
+    toast.success(`${updates.length} miembro(s) agregado(s) a ${allGroups[targetGroup]?.label}`)
     setSelected(new Set())
   }, [users, saveGroups])
 
@@ -455,7 +486,7 @@ export default function NodeGroupManager() {
     if (!over) return
     const { user, sourceGroup } = active.data.current || {}
     const targetGroup = over.id
-    if (!user || !NODE_GROUPS[targetGroup]) return
+    if (!user || !allGroups[targetGroup]) return
     if (sourceGroup === targetGroup) return
     // Always ADD (not move) — user keeps original group
     await addToGroup(user.id, targetGroup)
@@ -464,15 +495,15 @@ export default function NodeGroupManager() {
   /* ─── Grouped data ────────────────────────────────────────────────────────── */
   const grouped = useMemo(() => {
     const groups = {}
-    Object.keys(NODE_GROUPS).forEach(k => { groups[k] = [] })
+    Object.keys(allGroups).forEach(k => { groups[k] = [] })
     users.forEach(u => {
       const gs = getUserGroups(u)
       gs.forEach(g => { if (groups[g]) groups[g].push(u) })
     })
     return groups
-  }, [users])
+  }, [users, allGroups])
 
-  const allGroupKeys = Object.keys(NODE_GROUPS)
+  const allGroupKeys = Object.keys(allGroups)
 
   const filteredUsers = useMemo(() =>
     search
@@ -504,6 +535,15 @@ export default function NodeGroupManager() {
           </div>
 
           <div className="ml-auto flex items-center gap-2 flex-wrap">
+            {/* Create group */}
+            <button
+              onClick={() => setShowCreateGroup(p => !p)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] border transition-all"
+              style={{ background: 'rgba(252,101,31,0.1)', color: '#FC651F', borderColor: 'rgba(252,101,31,0.25)' }}
+            >
+              <FiPlus size={11} /> Crear grupo
+            </button>
+
             {/* Show other groups toggle */}
             <button
               onClick={() => setShowOtherGroups(p => !p)}
@@ -537,9 +577,58 @@ export default function NodeGroupManager() {
           </div>
         </div>
 
+        {/* Create group panel */}
+        <AnimatePresence>
+          {showCreateGroup && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="flex flex-wrap items-end gap-3 p-4 rounded-xl border border-[#FC651F]/20 bg-[#FC651F]/5">
+                <div className="flex-1 min-w-[140px]">
+                  <label className="text-[10px] text-white/40 mb-1 block">Nombre del grupo</label>
+                  <input
+                    value={newGroup.label}
+                    onChange={e => setNewGroup(p => ({ ...p, label: e.target.value }))}
+                    placeholder="Ej: Mentores"
+                    className="w-full px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.08] text-sm text-white placeholder-white/20 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-white/40 mb-1 block">Emoji</label>
+                  <input
+                    value={newGroup.icono}
+                    onChange={e => setNewGroup(p => ({ ...p, icono: e.target.value }))}
+                    className="w-12 px-2 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.08] text-sm text-white text-center outline-none"
+                    maxLength={2}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-white/40 mb-1 block">Color</label>
+                  <input type="color" value={newGroup.color}
+                    onChange={e => setNewGroup(p => ({ ...p, color: e.target.value }))}
+                    className="w-10 h-8 rounded cursor-pointer border-0 bg-transparent"
+                  />
+                </div>
+                <button
+                  onClick={handleCreateGroup}
+                  disabled={savingGroup || !newGroup.label.trim()}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-40"
+                  style={{ background: 'rgba(252,101,31,0.15)', color: '#FC651F', border: '1px solid rgba(252,101,31,0.3)' }}
+                >
+                  {savingGroup ? 'Creando…' : 'Crear grupo'}
+                </button>
+                <button onClick={() => setShowCreateGroup(false)} className="text-white/25 hover:text-white/50">
+                  <FiX size={14} />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Summary pills */}
         <div className="flex gap-1.5 flex-wrap items-center">
-          {Object.entries(NODE_GROUPS).map(([key, info]) => (
+          {Object.entries(allGroups).map(([key, info]) => (
             <div key={key} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] border border-white/[0.06] bg-white/[0.02]">
               <span className="w-2 h-2 rounded-full" style={{ background: info.color }} />
               <span className="text-white/50">{info.label}</span>
@@ -554,7 +643,7 @@ export default function NodeGroupManager() {
         {/* ── KANBAN VIEW ── */}
         {viewMode === 'kanban' && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {Object.entries(NODE_GROUPS).map(([key, info]) => (
+            {Object.entries(allGroups).map(([key, info]) => (
               <GroupColumn
                 key={key}
                 groupKey={key}
@@ -566,7 +655,7 @@ export default function NodeGroupManager() {
                 onRemoveFromGroup={removeFromGroup}
                 onAddSelected={addMultipleToGroup}
                 draggingId={draggingData?.user?.id}
-                allGroups={NODE_GROUPS}
+                allGroups={allGroups}
                 showOtherGroups={showOtherGroups}
                 onAddDirect={setAddingToGroup}
               />
@@ -608,11 +697,11 @@ export default function NodeGroupManager() {
 
       {/* Quick-add modal */}
       <AnimatePresence>
-        {addingToGroup && NODE_GROUPS[addingToGroup] && (
+        {addingToGroup && allGroups[addingToGroup] && (
           <AddDirectModal
             key={addingToGroup}
             groupKey={addingToGroup}
-            info={NODE_GROUPS[addingToGroup]}
+            info={allGroups[addingToGroup]}
             allUsers={users}
             grouped={grouped}
             onAdd={addToGroup}
