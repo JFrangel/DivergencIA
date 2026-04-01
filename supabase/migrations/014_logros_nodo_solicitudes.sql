@@ -68,10 +68,18 @@ CREATE POLICY "nodo_solicitudes_update" ON public.nodo_solicitudes
     )
   );
 
--- ─── 3. Ensure eventos.estado has a default ────────────────────────────────
+-- ─── 3. Ensure eventos.estado exists and has a default ────────────────────
 ALTER TABLE public.eventos
-  ALTER COLUMN estado SET DEFAULT 'programado';
+  ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT 'programado';
+
+-- If the column already exists without a default, set it
+DO $$ BEGIN
+  ALTER TABLE public.eventos ALTER COLUMN estado SET DEFAULT 'programado';
+EXCEPTION WHEN others THEN NULL;
+END $$;
 
 -- ─── 4. Ensure ideas.estado has a default ──────────────────────────────────
-ALTER TABLE public.ideas
-  ALTER COLUMN estado SET DEFAULT 'votacion';
+DO $$ BEGIN
+  ALTER TABLE public.ideas ALTER COLUMN estado SET DEFAULT 'votacion';
+EXCEPTION WHEN others THEN NULL;
+END $$;
