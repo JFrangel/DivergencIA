@@ -1,10 +1,10 @@
 export default function StatusDot({ status = 'online', label, className = '' }) {
   const config = {
-    online:  { dot: 'pulse-dot-green',  text: 'text-[#22c55e]', label: label || 'Online' },
-    offline: { dot: '',                  text: 'text-white/40',  label: label || 'Offline' },
-    warning: { dot: 'pulse-dot-orange', text: 'text-[#F59E0B]', label: label || 'Warning' },
+    online:  { dot: 'pulse-dot-green',  text: 'text-[#22c55e]', label: label || 'En línea' },
+    offline: { dot: '',                  text: 'text-white/40',  label: label || 'Sin conexión' },
+    warning: { dot: 'pulse-dot-orange', text: 'text-[#F59E0B]', label: label || 'Advertencia' },
     error:   { dot: 'pulse-dot-red',    text: 'text-[#EF4444]', label: label || 'Error' },
-    active:  { dot: 'pulse-dot-cyan',   text: 'text-[#00D1FF]', label: label || 'Active' },
+    active:  { dot: 'pulse-dot-cyan',   text: 'text-[#00D1FF]', label: label || 'Activo' },
   }
   const c = config[status] || config.offline
 
