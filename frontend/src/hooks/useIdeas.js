@@ -4,16 +4,19 @@ import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
 import { createNotification } from './useNotifications'
 import { trackProgress } from '../lib/trackProgress'
+import { getCached, setCached } from '../lib/queryCache'
 
 export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}) {
   const { user } = useAuth()
-  const [ideas, setIdeas] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [myVotes, setMyVotes] = useState({}) // { idea_id: 'favor'|'contra' }
-  const [voteCounts, setVoteCounts] = useState({}) // { idea_id: count }
+  const cacheKey = `ideas:${estado || ''}:${area || ''}:${sort}`
+  const [ideas, setIdeas] = useState(() => getCached(cacheKey).data || [])
+  const [loading, setLoading] = useState(() => !getCached(cacheKey).data)
+  const [myVotes, setMyVotes] = useState({})
+  const [voteCounts, setVoteCounts] = useState({})
 
-  const fetch = useCallback(async () => {
-    setLoading(true)
+  const fetch = useCallback(async (background = false) => {
+    if (!background) setLoading(true)
+
     let query = supabase
       .from('ideas')
       .select('*, autor:usuarios!ideas_autor_id_fkey(id, nombre, foto_url, area_investigacion)')
@@ -21,47 +24,39 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
     if (estado) query = query.eq('estado', estado)
     if (area) query = query.eq('area_relacionada', area)
 
-    // Apply sort
-    if (sort === 'votos') {
-      query = query.order('votos_favor', { ascending: false })
-    } else if (sort === 'fecha') {
-      query = query.order('created_at', { ascending: false })
-    } else if (sort === 'deadline') {
-      query = query.order('fecha_limite_votacion', { ascending: true, nullsFirst: false })
-    }
+    if (sort === 'votos') query = query.order('votos_favor', { ascending: false })
+    else if (sort === 'fecha') query = query.order('created_at', { ascending: false })
+    else if (sort === 'deadline') query = query.order('fecha_limite_votacion', { ascending: true, nullsFirst: false })
 
-    const { data } = await query
+    // Run ideas fetch + my votes in parallel
+    const [{ data }, votesRes] = await Promise.all([
+      query,
+      user
+        ? supabase.from('votos_ideas').select('idea_id, tipo').eq('usuario_id', user.id)
+        : Promise.resolve({ data: [] }),
+    ])
+
+    setCached(cacheKey, data || [])
     setIdeas(data || [])
 
-    // Load my votes
-    if (user) {
-      const { data: votes } = await supabase
-        .from('votos_ideas')
-        .select('idea_id, tipo')
-        .eq('usuario_id', user.id)
-      const map = {}
-      votes?.forEach(v => { map[v.idea_id] = v.tipo })
-      setMyVotes(map)
-    }
+    const map = {}
+    votesRes.data?.forEach(v => { map[v.idea_id] = v.tipo })
+    setMyVotes(map)
 
-    // Load vote counts per idea
+    // Vote counts: use votos_favor already on each idea row (avoids extra query)
     if (data?.length) {
-      const ids = data.map(i => i.id)
-      const { data: counts } = await supabase
-        .from('votos_ideas')
-        .select('idea_id')
-        .in('idea_id', ids)
       const countMap = {}
-      counts?.forEach(v => {
-        countMap[v.idea_id] = (countMap[v.idea_id] || 0) + 1
-      })
+      data.forEach(i => { countMap[i.id] = i.votos_favor || 0 })
       setVoteCounts(countMap)
     }
 
     setLoading(false)
-  }, [estado, area, sort, user])
+  }, [estado, area, sort, user, cacheKey])
 
-  useEffect(() => { fetch() }, [fetch])
+  useEffect(() => {
+    const { stale } = getCached(cacheKey)
+    fetch(stale === false)
+  }, [fetch, cacheKey])
 
   // Client-side filtering for search
   const filtered = useMemo(() => {

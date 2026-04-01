@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
+import { getCached, setCached } from '../lib/queryCache'
 
 // Fire-and-forget: notify channel members of a new message
 async function notifyChannelMembers({ canalId, canalTipo, canalNombre, senderName, senderId, contenido, tipo }) {
@@ -43,12 +44,13 @@ async function notifyChannelMembers({ canalId, canalTipo, canalNombre, senderNam
 // ─── useChannels — lista de canales del usuario ───────────────────────────────
 export function useChannels() {
   const { user, isAdmin } = useAuth()
-  const [channels, setChannels] = useState([])
-  const [loading, setLoading] = useState(true)
+  const cacheKey = user ? `channels:${user.id}` : null
+  const [channels, setChannels] = useState(() => (cacheKey ? getCached(cacheKey).data : null) || [])
+  const [loading, setLoading] = useState(() => !cacheKey || !getCached(cacheKey).data)
 
-  const fetchChannels = useCallback(async () => {
+  const fetchChannels = useCallback(async (background = false) => {
     if (!user) return
-    setLoading(true)
+    if (!background) setLoading(true)
 
     const { data } = await supabase
       .from('canal_miembros')
@@ -79,12 +81,17 @@ export function useChannels() {
         ch = ch.map(c => c.tipo === 'directo' ? { ...c, dm_partner: partnerMap[c.id] || null } : c)
       }
 
+      if (cacheKey) setCached(cacheKey, ch)
       setChannels(ch)
     }
     setLoading(false)
-  }, [user])
+  }, [user, cacheKey])
 
-  useEffect(() => { fetchChannels() }, [fetchChannels])
+  useEffect(() => {
+    if (!cacheKey) return
+    const { stale } = getCached(cacheKey)
+    fetchChannels(stale === false)
+  }, [fetchChannels, cacheKey])
 
   // Realtime: si me añaden a un canal nuevo, refetch
   useEffect(() => {

@@ -1,14 +1,19 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, memo } from 'react'
 import { motion } from 'framer-motion'
 import { FiFolder, FiUsers, FiStar, FiBook, FiActivity, FiTrendingUp } from 'react-icons/fi'
 import { supabase } from '../../lib/supabase'
+import { getCached, setCached } from '../../lib/queryCache'
 import MetricCard from '../ui/MetricCard'
 
-export default function StatsWidget() {
-  const [stats, setStats] = useState({ proyectos: 0, miembros: 0, ideas: 0, archivos: 0, avances: 0 })
-  const [loading, setLoading] = useState(true)
+const STATS_CACHE_KEY = 'dashboard:stats'
 
-  const fetchStats = useCallback(async () => {
+function StatsWidget() {
+  const cached = getCached(STATS_CACHE_KEY)
+  const [stats, setStats] = useState(cached.data || { proyectos: 0, miembros: 0, ideas: 0, archivos: 0, avances: 0 })
+  const [loading, setLoading] = useState(!cached.data)
+
+  const fetchStats = useCallback(async (background = false) => {
+    if (!background) setLoading(true)
     const [{ count: p }, { count: m }, { count: i }, { count: a }, { count: av }] = await Promise.all([
       supabase.from('proyectos').select('*', { count: 'exact', head: true }),
       supabase.from('usuarios').select('*', { count: 'exact', head: true }).eq('activo', true),
@@ -16,12 +21,15 @@ export default function StatsWidget() {
       supabase.from('archivos').select('*', { count: 'exact', head: true }),
       supabase.from('avances').select('*', { count: 'exact', head: true }),
     ])
-    setStats({ proyectos: p || 0, miembros: m || 0, ideas: i || 0, archivos: a || 0, avances: av || 0 })
+    const next = { proyectos: p || 0, miembros: m || 0, ideas: i || 0, archivos: a || 0, avances: av || 0 }
+    setCached(STATS_CACHE_KEY, next)
+    setStats(next)
     setLoading(false)
   }, [])
 
   useEffect(() => {
-    fetchStats()
+    const { stale } = getCached(STATS_CACHE_KEY)
+    fetchStats(stale === false)
     // 30s refresh fallback
     const interval = setInterval(fetchStats, 30000)
     // Realtime: re-fetch on any insert/delete in these tables
@@ -63,3 +71,5 @@ export default function StatsWidget() {
     </div>
   )
 }
+export default memo(StatsWidget)
+

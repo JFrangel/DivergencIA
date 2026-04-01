@@ -2,15 +2,18 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from 'sonner'
 import { useAuth } from '../context/AuthContext'
+import { getCached, setCached, invalidateCache } from '../lib/queryCache'
+
+const NODOS_CACHE_KEY = 'nodos:all'
 
 export function useNodos() {
   const { user } = useAuth()
-  const [nodos, setNodos] = useState([])
-  const [members, setMembers] = useState([])   // all platform users
-  const [loading, setLoading] = useState(true)
+  const [nodos, setNodos] = useState(() => getCached(NODOS_CACHE_KEY).data?.nodos || [])
+  const [members, setMembers] = useState(() => getCached(NODOS_CACHE_KEY).data?.members || [])
+  const [loading, setLoading] = useState(() => !getCached(NODOS_CACHE_KEY).data)
 
-  const fetchNodos = useCallback(async () => {
-    setLoading(true)
+  const fetchNodos = useCallback(async (background = false) => {
+    if (!background) setLoading(true)
     const [{ data: nodosData }, { data: miembrosData }, { data: usersData }] = await Promise.all([
       supabase.from('nodos').select('*').eq('activo', true).order('orden').order('created_at'),
       supabase.from('nodo_miembros').select('nodo_id, usuario_id, rol, joined_at, usuario:usuarios(id, nombre, foto_url, area_investigacion, rol, es_fundador)'),
@@ -29,13 +32,18 @@ export function useNodos() {
         const user = m.usuario || usersMap[m.usuario_id]
         if (user) membersByNodo[m.nodo_id].push({ ...user, rol_nodo: m.rol, joined_at: m.joined_at })
       })
-      setNodos(nodosData.map(n => ({ ...n, miembros: membersByNodo[n.id] || [] })))
+      const nodosWithMembers = nodosData.map(n => ({ ...n, miembros: membersByNodo[n.id] || [] }))
+      setCached(NODOS_CACHE_KEY, { nodos: nodosWithMembers, members: usersData || [] })
+      setNodos(nodosWithMembers)
     }
     setMembers(usersData || [])
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchNodos() }, [fetchNodos])
+  useEffect(() => {
+    const { stale } = getCached(NODOS_CACHE_KEY)
+    fetchNodos(stale === false)
+  }, [fetchNodos])
 
   // Realtime: refetch when nodos or memberships change (e.g. admin panel updates)
   useEffect(() => {

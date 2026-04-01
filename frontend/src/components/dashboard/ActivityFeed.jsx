@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { FiActivity, FiFolder, FiStar, FiUpload, FiUser } from 'react-icons/fi'
 import { supabase } from '../../lib/supabase'
+import { getCached, setCached } from '../../lib/queryCache'
 import { useRealtime } from '../../hooks/useRealtime'
 import Avatar from '../ui/Avatar'
 import { timeAgo } from '../../lib/utils'
 import Card from '../ui/Card'
 import Spinner from '../ui/Spinner'
+
+const FEED_CACHE_KEY = 'dashboard:activity'
 
 const TYPE_META = {
   avance:  { icon: FiActivity, color: '#FC651F', label: 'Avance registrado' },
@@ -16,10 +19,11 @@ const TYPE_META = {
 }
 
 export default function ActivityFeed({ limit = 8 }) {
-  const [items, setItems] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState(() => getCached(FEED_CACHE_KEY).data || [])
+  const [loading, setLoading] = useState(() => !getCached(FEED_CACHE_KEY).data)
 
-  const loadFeed = async () => {
+  const loadFeed = async (background = false) => {
+    if (!background) setLoading(true)
     const [avances, ideas, archivos] = await Promise.all([
       supabase.from('avances')
         .select('id, titulo, fecha, autor:usuarios(id, nombre, foto_url, area_investigacion), proyecto:proyectos(id, titulo)')
@@ -40,11 +44,15 @@ export default function ActivityFeed({ limit = 8 }) {
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, limit)
 
+    setCached(FEED_CACHE_KEY, feed)
     setItems(feed)
     setLoading(false)
   }
 
-  useEffect(() => { loadFeed() }, [])
+  useEffect(() => {
+    const { stale } = getCached(FEED_CACHE_KEY)
+    loadFeed(stale === false)
+  }, [])
 
   // Realtime: nuevo avance → prepend
   useRealtime('avances', {

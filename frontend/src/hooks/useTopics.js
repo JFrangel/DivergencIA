@@ -2,14 +2,16 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
+import { getCached, setCached } from '../lib/queryCache'
 
 export function useTopics({ categoria, nivel } = {}) {
   const { user } = useAuth()
-  const [topics, setTopics] = useState([])
-  const [loading, setLoading] = useState(true)
+  const cacheKey = `topics:${categoria || ''}:${nivel || ''}`
+  const [topics, setTopics] = useState(() => getCached(cacheKey).data || [])
+  const [loading, setLoading] = useState(() => !getCached(cacheKey).data)
 
-  const fetchTopics = useCallback(async () => {
-    setLoading(true)
+  const fetchTopics = useCallback(async (background = false) => {
+    if (!background) setLoading(true)
     let query = supabase
       .from('temas_aprendizaje')
       .select('*, skills_relacionadas, autor:usuarios!temas_aprendizaje_autor_id_fkey(id, nombre, foto_url, area_investigacion)')
@@ -24,11 +26,15 @@ export function useTopics({ categoria, nivel } = {}) {
       toast.error('Error al cargar temas')
       console.error(error)
     }
+    setCached(cacheKey, data || [])
     setTopics(data || [])
     setLoading(false)
-  }, [categoria, nivel])
+  }, [categoria, nivel, cacheKey])
 
-  useEffect(() => { fetchTopics() }, [fetchTopics])
+  useEffect(() => {
+    const { stale } = getCached(cacheKey)
+    fetchTopics(stale === false)
+  }, [fetchTopics, cacheKey])
 
   const createTopic = async (payload) => {
     const { data, error } = await supabase
