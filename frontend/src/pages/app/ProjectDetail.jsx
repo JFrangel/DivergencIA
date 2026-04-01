@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiArrowLeft, FiPlus, FiEdit2, FiActivity, FiClock, FiTrash2, FiAlertTriangle, FiCamera, FiPaperclip, FiSearch, FiX, FiFile, FiImage, FiFilm, FiCode, FiDatabase, FiFileText, FiLink } from "react-icons/fi"
+import { FiArrowLeft, FiPlus, FiEdit2, FiActivity, FiClock, FiTrash2, FiAlertTriangle, FiCamera, FiPaperclip, FiSearch, FiX, FiFile, FiImage, FiFilm, FiCode, FiDatabase, FiFileText, FiLink, FiSend, FiCheck } from "react-icons/fi"
 import { HiLightBulb as FiLightbulb } from "react-icons/hi"
 import { useProject, useAdvances, useTasks } from '../../hooks/useProjects'
 import { useAuth } from '../../context/AuthContext'
@@ -160,6 +160,14 @@ export default function ProjectDetail() {
   const [deleting, setDeleting] = useState(false)
   const [metrics, setMetrics] = useState(project?.metricas || [])
   const [coverUploading, setCoverUploading] = useState(false)
+  // Join request state
+  const [myJoinRequest, setMyJoinRequest] = useState(null) // null | { estado }
+  const [showJoinModal, setShowJoinModal] = useState(false)
+  const [joinMsg, setJoinMsg] = useState('')
+  const [sendingJoin, setSendingJoin] = useState(false)
+  // Pending requests (for leaders)
+  const [pendingRequests, setPendingRequests] = useState([])
+  const [loadingRequests, setLoadingRequests] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -171,11 +179,83 @@ export default function ProjectDetail() {
   if (loading) return <div className="flex justify-center py-20"><Spinner /></div>
   if (!project) return <div className="text-center py-20 text-white/30">Proyecto no encontrado</div>
 
+  const isMember = project.miembros?.some(m => m.usuario?.id === user?.id && m.activo) || project.creador_id === user?.id
+
+  // Fetch existing join request for this user
+  useEffect(() => {
+    if (!user || !id || isMember) return
+    supabase.from('solicitudes_proyecto')
+      .select('id, estado')
+      .eq('proyecto_id', id).eq('usuario_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => setMyJoinRequest(data))
+  }, [id, user, isMember])
+
+  const handleJoinRequest = async () => {
+    setSendingJoin(true)
+    const { error } = await supabase.from('solicitudes_proyecto').insert({
+      proyecto_id: id, usuario_id: user.id, mensaje: joinMsg || null,
+    })
+    if (error) {
+      if (error.code === '23505') { import('sonner').then(m => m.toast.info('Ya tienes una solicitud pendiente')) }
+      else { import('sonner').then(m => m.toast.error('Error al enviar solicitud')) }
+      setSendingJoin(false); return
+    }
+    // Notify project leaders
+    const leaders = project.miembros?.filter(m => m.rol_equipo === 'lider' && m.activo) || []
+    if (leaders.length) {
+      await supabase.from('notificaciones').insert(leaders.map(l => ({
+        usuario_id: l.usuario?.id || l.usuario_id,
+        tipo: 'solicitud_proyecto',
+        titulo: 'Nueva solicitud de proyecto',
+        mensaje: `${user.user_metadata?.nombre || user.email} quiere unirse a "${project.titulo}"`,
+        referencia_id: id, leida: false, fecha: new Date().toISOString(),
+      })))
+    }
+    import('sonner').then(m => m.toast.success('Solicitud enviada'))
+    setMyJoinRequest({ estado: 'pendiente' })
+    setShowJoinModal(false); setJoinMsg(''); setSendingJoin(false)
+  }
+
   const totalTareas = tasks.length
   const done = tasks.filter(t => t.estado === 'completada').length
   const progress = totalTareas ? Math.round((done / totalTareas) * 100) : 0
   const isOwner = project.creador_id === user?.id
   const canManageTeam = isOwner || isAdmin
+
+  // Load pending join requests for leaders
+  useEffect(() => {
+    if (!canManageTeam || !id) return
+    setLoadingRequests(true)
+    supabase.from('solicitudes_proyecto')
+      .select('id, mensaje, created_at, estado, solicitante:usuarios!solicitudes_proyecto_usuario_id_fkey(id, nombre, foto_url, carrera)')
+      .eq('proyecto_id', id).eq('estado', 'pendiente')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { setPendingRequests(data || []); setLoadingRequests(false) })
+  }, [id, canManageTeam])
+
+  const respondProjectRequest = async (solId, estado, usuarioId) => {
+    await supabase.from('solicitudes_proyecto')
+      .update({ estado, respondida_por: user.id, updated_at: new Date().toISOString() })
+      .eq('id', solId)
+    if (estado === 'aprobada') {
+      await supabase.from('miembros_proyecto').upsert(
+        { proyecto_id: id, usuario_id: usuarioId, rol_equipo: 'miembro', activo: true },
+        { onConflict: 'proyecto_id,usuario_id' }
+      )
+    }
+    await supabase.from('notificaciones').insert({
+      usuario_id: usuarioId, tipo: 'solicitud_proyecto',
+      titulo: estado === 'aprobada' ? '¡Solicitud aprobada!' : 'Solicitud rechazada',
+      mensaje: estado === 'aprobada'
+        ? `Fuiste aceptado en el proyecto "${project.titulo}"`
+        : `Tu solicitud para "${project.titulo}" fue rechazada`,
+      referencia_id: id, leida: false, fecha: new Date().toISOString(),
+    })
+    setPendingRequests(prev => prev.filter(r => r.id !== solId))
+    const { toast: t } = await import('sonner')
+    t.success(estado === 'aprobada' ? 'Miembro añadido al proyecto' : 'Solicitud rechazada')
+  }
 
   const handleCoverUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -284,6 +364,25 @@ export default function ProjectDetail() {
                   <ProgressBar value={progress} max={100} height={5} />
                 </div>
               )}
+              {/* Join request button — shown to non-members */}
+              {!isMember && !isAdmin && (
+                <div className="flex items-center gap-2">
+                  {myJoinRequest?.estado === 'pendiente' ? (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white/40 border border-white/10">
+                      <FiCheck size={11} /> Solicitud enviada
+                    </span>
+                  ) : myJoinRequest?.estado === 'rechazada' ? (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-red-400/60 border border-red-500/20">
+                      Solicitud rechazada
+                    </span>
+                  ) : (
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowJoinModal(true)}>
+                      <FiSend size={12} /> Solicitar unirse
+                    </Button>
+                  )}
+                </div>
+              )}
+
               {canManageTeam && (
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowEditForm(true)}>
@@ -309,6 +408,39 @@ export default function ProjectDetail() {
 
       {tab === 'overview' && (
         <div className="space-y-4">
+          {/* Pending join requests — visible to project leaders only */}
+          {canManageTeam && pendingRequests.length > 0 && (
+            <div className="rounded-xl border border-[#FC651F]/20 bg-[#FC651F]/5 p-4 space-y-3">
+              <h4 className="text-xs font-semibold text-[#FC651F] uppercase tracking-wider flex items-center gap-2">
+                <FiSend size={11} /> Solicitudes de acceso ({pendingRequests.length})
+              </h4>
+              {pendingRequests.map(req => (
+                <div key={req.id} className="flex items-center gap-3 bg-white/[0.03] rounded-lg px-3 py-2">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                    style={{ background: '#FC651F20', color: '#FC651F' }}>
+                    {req.solicitante?.nombre?.charAt(0) || '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-white truncate">{req.solicitante?.nombre}</p>
+                    {req.mensaje && <p className="text-[10px] text-white/35 truncate">"{req.mensaje}"</p>}
+                  </div>
+                  <div className="flex gap-1.5 shrink-0">
+                    <button onClick={() => respondProjectRequest(req.id, 'aprobada', req.solicitante?.id)}
+                      className="px-2 py-1 rounded-lg text-[11px] font-medium transition-all"
+                      style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}>
+                      <FiCheck size={11} />
+                    </button>
+                    <button onClick={() => respondProjectRequest(req.id, 'rechazada', req.solicitante?.id)}
+                      className="px-2 py-1 rounded-lg text-[11px] font-medium transition-all"
+                      style={{ background: 'rgba(239,68,68,0.1)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+                      <FiX size={11} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <TeamSection
               members={project.miembros?.filter(m => m.activo) || []}
@@ -593,6 +725,35 @@ export default function ProjectDetail() {
       <AdvanceForm open={showAdvForm} onClose={() => setShowAdvForm(false)} onSubmit={createAdvance} />
       <ProjectForm open={showEditForm} onClose={() => setShowEditForm(false)} defaultValues={project}
         onSubmit={async (data) => { await updateProject(data); setShowEditForm(false) }} />
+
+      {/* Join request modal */}
+      <AnimatePresence>
+        {showJoinModal && (
+          <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowJoinModal(false)} />
+            <motion.div className="relative w-full max-w-sm rounded-2xl border border-white/10 p-6 shadow-2xl"
+              style={{ background: 'rgba(12,6,8,0.97)' }}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}>
+              <h3 className="text-base font-semibold text-white mb-1">Solicitar unirse</h3>
+              <p className="text-xs text-white/40 mb-4">Proyecto: <span className="text-white/70">{project.titulo}</span></p>
+              <textarea
+                value={joinMsg}
+                onChange={e => setJoinMsg(e.target.value)}
+                placeholder="Mensaje opcional para el líder del proyecto..."
+                rows={3}
+                className="w-full px-3 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] text-sm text-white placeholder-white/20 outline-none resize-none mb-4"
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="ghost" size="sm" onClick={() => setShowJoinModal(false)}>Cancelar</Button>
+                <Button variant="solid" size="sm" onClick={handleJoinRequest} disabled={sendingJoin}>
+                  <FiSend size={13} /> {sendingJoin ? 'Enviando…' : 'Enviar solicitud'}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Delete confirm modal */}
       <AnimatePresence>

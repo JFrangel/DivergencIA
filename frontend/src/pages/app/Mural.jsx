@@ -383,6 +383,7 @@ export default function Mural() {
   const history         = useRef([])
   const historyIndex    = useRef(-1)
   const skipHistory     = useRef(false)
+  const muralLoadingRef = useRef(false) // prevents auto-save while loading from DB
   // Refs for draw native listener (avoid stale closures)
   const penColorRef       = useRef(penColor)
   const penSizeRef        = useRef(penSize)
@@ -446,6 +447,7 @@ export default function Mural() {
 
   /* ── Load mural ────────────────────────────────────────────────────── */
   const loadMural = useCallback(async (muralId) => {
+    muralLoadingRef.current = true  // block auto-save until DB data is loaded
     setActiveMuralId(muralId)
     setSelectedId(null)
     setPan({ x: 0, y: 0 })
@@ -461,6 +463,7 @@ export default function Mural() {
       const raw = data.elements
       const elems = (typeof raw === 'string' ? JSON.parse(raw) : raw) || []
       setElements(elems)
+      muralLoadingRef.current = false  // allow auto-save again
     } else if (error && muralId === GENERAL_MURAL_ID) {
       // Auto-create general mural if missing
       const { data: created } = await supabase.from('murales').insert({
@@ -469,9 +472,11 @@ export default function Mural() {
       }).select().single()
       setActiveMural(created || { id: GENERAL_MURAL_ID, titulo: 'Mural General', tipo: 'general', shared_with: [] })
       setElements([])
+      muralLoadingRef.current = false
     } else if (error) {
       console.warn('[Mural] Load error:', error.message)
       setSaveStatus('error')
+      muralLoadingRef.current = false
     }
   }, [user])
 
@@ -654,7 +659,7 @@ export default function Mural() {
   const { debounced: debouncedSave, cancel: cancelSave } = useStableDebouncedCallback(saveToDb, AUTOSAVE_DELAY)
 
   useEffect(() => {
-    if (!user || !activeMuralId) return
+    if (!user || !activeMuralId || muralLoadingRef.current) return
     debouncedSave(elements, activeMuralId)
   }, [elements]) // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -654,7 +654,7 @@ export default function Calendar() {
       </motion.div>
 
       {/* Calendar grid */}
-      <motion.div {...FU(0.1)} className={mobileView === 'list' ? 'hidden sm:block' : ''}>
+      <motion.div {...FU(0.1)} className={mobileView === 'list' ? 'hidden' : ''}>
         <Card className="!p-4">
           {/* Day headers */}
           <div className="grid grid-cols-7 gap-1 mb-2">

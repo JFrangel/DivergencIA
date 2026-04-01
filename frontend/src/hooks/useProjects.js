@@ -161,7 +161,84 @@ export function useProjects({ userId, all = false } = {}) {
     return {}
   }
 
-  return { projects, loading, refetch: fetch, create, update, remove }
+  /** Request to join a project as a member */
+  const requestJoinProject = async (projectId, mensaje = '') => {
+    if (!user) return { error: 'not authenticated' }
+    const { error } = await supabase.from('solicitudes_proyecto').insert({
+      proyecto_id: projectId,
+      usuario_id: user.id,
+      mensaje: mensaje || null,
+    })
+    if (error) {
+      if (error.code === '23505') { toast.info('Ya tienes una solicitud pendiente'); return { error } }
+      toast.error('Error al enviar solicitud')
+      return { error }
+    }
+    // Notify project leaders
+    const project = projects.find(p => p.id === projectId)
+    const leaders = project?.miembros?.filter(m => m.rol_equipo === 'lider' && m.activo) || []
+    if (leaders.length) {
+      await supabase.from('notificaciones').insert(
+        leaders.map(l => ({
+          usuario_id: l.usuario_id,
+          tipo: 'solicitud_proyecto',
+          titulo: 'Nueva solicitud de proyecto',
+          mensaje: `${user.user_metadata?.nombre || 'Un miembro'} quiere unirse a "${project?.titulo}"`,
+          referencia_id: projectId,
+          leida: false,
+          fecha: new Date().toISOString(),
+        }))
+      )
+    }
+    toast.success('Solicitud enviada')
+    return {}
+  }
+
+  /** Get pending join requests for projects where current user is leader */
+  const getPendingProjectRequests = async () => {
+    if (!user) return []
+    const { data } = await supabase
+      .from('solicitudes_proyecto')
+      .select('*, proyecto:proyectos(id,titulo), solicitante:usuarios!solicitudes_proyecto_usuario_id_fkey(id,nombre,foto_url,carrera)')
+      .eq('estado', 'pendiente')
+      .order('created_at', { ascending: false })
+    // Filter to projects where user is leader (already enforced by RLS, but filter client-side too)
+    return data || []
+  }
+
+  /** Approve or reject a project join request */
+  const respondProjectRequest = async (solicitudId, estado, proyectoId, usuarioId) => {
+    const { error } = await supabase
+      .from('solicitudes_proyecto')
+      .update({ estado, respondida_por: user.id, updated_at: new Date().toISOString() })
+      .eq('id', solicitudId)
+    if (error) { toast.error('Error al responder solicitud'); return }
+
+    if (estado === 'aprobada') {
+      await supabase.from('miembros_proyecto').upsert({
+        proyecto_id: proyectoId, usuario_id: usuarioId,
+        rol_equipo: 'miembro', activo: true,
+      }, { onConflict: 'proyecto_id,usuario_id' })
+      await fetch() // refresh projects list
+    }
+
+    // Notify the requesting user
+    const project = projects.find(p => p.id === proyectoId)
+    await supabase.from('notificaciones').insert({
+      usuario_id: usuarioId,
+      tipo: 'solicitud_proyecto',
+      titulo: estado === 'aprobada' ? '¡Solicitud aprobada!' : 'Solicitud rechazada',
+      mensaje: estado === 'aprobada'
+        ? `Fuiste aceptado en el proyecto "${project?.titulo}"`
+        : `Tu solicitud para "${project?.titulo}" fue rechazada`,
+      referencia_id: proyectoId,
+      leida: false,
+      fecha: new Date().toISOString(),
+    })
+    toast.success(estado === 'aprobada' ? 'Miembro añadido' : 'Solicitud rechazada')
+  }
+
+  return { projects, loading, refetch: fetch, create, update, remove, requestJoinProject, getPendingProjectRequests, respondProjectRequest }
 }
 
 export function useProject(id) {

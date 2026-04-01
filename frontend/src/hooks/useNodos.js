@@ -37,6 +37,16 @@ export function useNodos() {
 
   useEffect(() => { fetchNodos() }, [fetchNodos])
 
+  // Realtime: refetch when nodos or memberships change (e.g. admin panel updates)
+  useEffect(() => {
+    const channel = supabase
+      .channel('nodos-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'nodos' }, () => { fetchNodos() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'nodo_miembros' }, () => { fetchNodos() })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [fetchNodos])
+
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const createNodo = useCallback(async ({ nombre, descripcion, color, icono, parent_id }) => {
     if (!user) return null
