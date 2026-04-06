@@ -64,15 +64,17 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle, c
   const [localCollapsed, setLocalCollapsed] = useState(false)
   const isCollapsed = onToggle ? collapsed : localCollapsed
   const toggle = onToggle ? onToggle : () => setLocalCollapsed(p => !p)
-  const { profile, isAdmin, signOut, isInvitado } = useAuth()
+  const { user, profile, isAdmin, signOut, isInvitado } = useAuth()
   const { enterZen } = useZen()
   const navigate = useNavigate()
 
-  // Determina si una ruta está completamente bloqueada para visitantes
+  // Determina si una ruta está completamente bloqueada para visitantes (no autenticados o rol invitado)
   const isRouteBlocked = (path) => {
-    if (!isInvitado) return false
-    const routeName = path.replace('/', '').split('?')[0]
-    return COMPLETELY_BLOCKED_ROUTES.includes(routeName)
+    if (!user || isInvitado) {
+      const routeName = path.replace('/', '').split('?')[0]
+      return COMPLETELY_BLOCKED_ROUTES.includes(routeName)
+    }
+    return false
   }
 
   const handleSignOut = async () => {
