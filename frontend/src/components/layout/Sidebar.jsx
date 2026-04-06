@@ -5,7 +5,7 @@ import {
   FiZap, FiGrid, FiFolder, FiStar, FiBook, FiBookOpen, FiLayers,
   FiUsers, FiUser, FiGlobe, FiTerminal, FiShield,
   FiChevronLeft, FiChevronRight, FiBell, FiLogOut, FiSun,
-  FiMap, FiSettings, FiCalendar, FiPlay, FiLayout, FiMessageSquare,
+  FiMap, FiSettings, FiCalendar, FiPlay, FiLayout, FiMessageSquare, FiLock,
 } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
 import { useZen } from '../../context/ZenContext'
@@ -58,13 +58,22 @@ const NAV_SECTIONS = [
   },
 ]
 
+const COMPLETELY_BLOCKED_ROUTES = ['dashboard', 'calendar', 'chat', 'mural', 'roadmap']
+
 export default function Sidebar({ notifCount = 0, collapsed = false, onToggle, chatUnreadCount = 0 }) {
   const [localCollapsed, setLocalCollapsed] = useState(false)
   const isCollapsed = onToggle ? collapsed : localCollapsed
   const toggle = onToggle ? onToggle : () => setLocalCollapsed(p => !p)
-  const { profile, isAdmin, signOut } = useAuth()
+  const { profile, isAdmin, signOut, isInvitado } = useAuth()
   const { enterZen } = useZen()
   const navigate = useNavigate()
+
+  // Determina si una ruta está completamente bloqueada para visitantes
+  const isRouteBlocked = (path) => {
+    if (!isInvitado) return false
+    const routeName = path.replace('/', '').split('?')[0]
+    return COMPLETELY_BLOCKED_ROUTES.includes(routeName)
+  }
 
   const handleSignOut = async () => {
     await signOut()
@@ -118,26 +127,40 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle, c
                 {section.label}
               </p>
             )}
-            {section.items.map(item => (
+            {section.items.map(item => {
+              const isBlocked = isRouteBlocked(item.to)
+              return (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-2 py-2 rounded-lg mb-0.5 transition-all duration-150 group ${
+                    isBlocked ? 'cursor-not-allowed' : ''
+                  } ${
                     isActive
                       ? ''
                       : 'text-white/50 hover:text-white hover:bg-white/[0.05]'
                   }`
                 }
-                style={({ isActive }) => isActive ? { background: 'color-mix(in srgb, var(--c-primary) 15%, transparent)', color: 'var(--c-primary)' } : {}}
+                style={({ isActive }) => {
+                  if (isBlocked) {
+                    return { opacity: 0.3 }
+                  }
+                  return isActive ? { background: 'color-mix(in srgb, var(--c-primary) 15%, transparent)', color: 'var(--c-primary)' } : {}
+                }}
+                title={isBlocked ? 'Únete para acceder' : ''}
               >
                 {({ isActive }) => (
                   <>
                     <div className="relative shrink-0">
-                      <item.icon
-                        size={17}
-                        style={isActive ? { filter: 'drop-shadow(0 0 6px currentColor)' } : {}}
-                      />
+                      {isBlocked ? (
+                        <FiLock size={17} />
+                      ) : (
+                        <item.icon
+                          size={17}
+                          style={isActive ? { filter: 'drop-shadow(0 0 6px currentColor)' } : {}}
+                        />
+                      )}
                       {item.to === '/notificaciones' && notifCount > 0 && isCollapsed && (
                         <span
                           className="absolute -top-1 -right-1 min-w-3.5 h-3.5 px-0.5 rounded-full text-[8px] font-bold flex items-center justify-center text-white"
@@ -187,7 +210,8 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle, c
                   </>
                 )}
               </NavLink>
-            ))}
+            )
+            })}
           </div>
         ))}
 
