@@ -129,24 +129,20 @@ export function useNotifications() {
     return () => supabase.removeChannel(channel)
   }, [user])
 
-  // ── Mark as read ───────────────────────────────────────────────────────────
+  // ── Mark as read (optimistic — update state first, then DB) ───────────────
   const markAsRead = useCallback(async (id) => {
-    const { error } = await supabase
-      .from('notificaciones')
-      .update({ leida: true })
-      .eq('id', id)
-    if (error) { console.error(error); return }
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, leida: true } : n))
+    supabase.from('notificaciones').update({ leida: true }).eq('id', id).then(({ error }) => {
+      if (error) setNotifications(prev => prev.map(n => n.id === id ? { ...n, leida: false } : n))
+    })
   }, [])
 
-  // ── Mark as unread ─────────────────────────────────────────────────────────
+  // ── Mark as unread (optimistic) ────────────────────────────────────────────
   const markAsUnread = useCallback(async (id) => {
-    const { error } = await supabase
-      .from('notificaciones')
-      .update({ leida: false })
-      .eq('id', id)
-    if (error) { console.error(error); return }
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, leida: false } : n))
+    supabase.from('notificaciones').update({ leida: false }).eq('id', id).then(({ error }) => {
+      if (error) setNotifications(prev => prev.map(n => n.id === id ? { ...n, leida: true } : n))
+    })
   }, [])
 
   // ── Mark all as read ───────────────────────────────────────────────────────
