@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { usePlatformConfig } from '../../hooks/usePlatformConfig'
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
 import {
   FiZap, FiArrowRight, FiUsers, FiFolder, FiStar, FiCheck,
@@ -575,6 +576,7 @@ function ContactForm() {
 
 /* ──────── Landing ──────── */
 export default function Landing() {
+  const { platformName, logoUrl } = usePlatformConfig()
   const [stats, setStats] = useState({ miembros: 0, proyectos: 0, ideas: 0, avances: 0 })
   const [selectedFeature, setSelectedFeature] = useState(null)
   const heroRef = useRef(null)
@@ -652,9 +654,8 @@ export default function Landing() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
             >
-              <span className="text-white">Divergenc</span>
-              <span className="relative inline-block bg-gradient-to-r from-[#FC651F] via-[#FF8A50] to-[#8B5CF6] bg-clip-text text-transparent">
-                IA
+              <span className="relative inline-block bg-gradient-to-r from-white via-white to-[#FC651F] bg-clip-text text-transparent">
+                {platformName || 'DivergencIA'}
                 {/* Bloom glow */}
                 <motion.span
                   className="absolute inset-0 blur-3xl bg-gradient-to-r from-[#FC651F] to-[#8B5CF6] opacity-30 pointer-events-none"
@@ -891,7 +892,7 @@ export default function Landing() {
               {' '}de investigación que diverge para converger."
             </blockquote>
             <p className="text-white/35 text-lg max-w-2xl mx-auto leading-relaxed">
-              En ATHENIA creemos que las mejores ideas nacen en la intersección de disciplinas.
+              Creemos que las mejores ideas nacen en la intersección de disciplinas.
               Cada miembro aporta una perspectiva única: juntos construimos investigación que trasciende.
             </p>
 
@@ -1114,11 +1115,17 @@ export default function Landing() {
           {/* Brand column */}
           <div className="md:col-span-2">
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-[#FC651F] to-[#8B5CF6]">
-                <FiZap size={20} className="text-white" />
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden"
+                style={!logoUrl ? { background: 'linear-gradient(135deg, #FC651F, #8B5CF6)' } : {}}
+              >
+                {logoUrl
+                  ? <img src={logoUrl} alt="logo" className="w-full h-full object-contain" />
+                  : <FiZap size={20} className="text-white" />
+                }
               </div>
               <span className="text-xl font-bold text-white font-title tracking-tight">
-                Divergenc<span className="text-[#FC651F]">IA</span>
+                {platformName || 'DivergencIA'}
               </span>
             </div>
             <p className="text-white/35 text-sm leading-relaxed max-w-xs mb-6">
@@ -1202,7 +1209,7 @@ export default function Landing() {
         {/* Bottom bar */}
         <div className="border-t border-white/[0.05] px-6 py-5 max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-[11px] text-white/20">
-            © 2026 ATHENIA · Semillero Universitario de Investigación en IA
+            © 2026 Semillero Universitario de Investigación en IA
           </p>
           <div className="flex items-center gap-2">
             <span className="pulse-dot" />

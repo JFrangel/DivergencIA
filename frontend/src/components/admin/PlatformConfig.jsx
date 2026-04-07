@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   FiSettings, FiSave, FiToggleLeft, FiToggleRight,
-  FiType, FiMail, FiUpload, FiRefreshCw, FiAlertCircle,
+  FiType, FiMail, FiUpload, FiRefreshCw, FiAlertCircle, FiImage,
+  FiPlus, FiTrash2, FiEye, FiEyeOff, FiTag,
 } from 'react-icons/fi'
 import Card from '../ui/Card'
 import Button from '../ui/Button'
@@ -16,6 +17,7 @@ const STORAGE_KEY = 'divergencia_platform_config'
 
 const DEFAULT_CONFIG = {
   nombre_plataforma:   DEFAULT_PLATFORM_CONFIG.platformName,
+  logo_url:            DEFAULT_PLATFORM_CONFIG.logoUrl,
   registro_publico:    DEFAULT_PLATFORM_CONFIG.allowPublicRegistration,
   requiere_aprobacion: DEFAULT_PLATFORM_CONFIG.requireApproval,
   athenia_activo:      DEFAULT_PLATFORM_CONFIG.enableAthenia,
@@ -76,6 +78,7 @@ export default function PlatformConfig() {
             const legacy = JSON.parse(stored)
             setConfig({
               nombre_plataforma:   legacy.platformName          ?? DEFAULT_CONFIG.nombre_plataforma,
+              logo_url:            legacy.logoUrl               ?? DEFAULT_CONFIG.logo_url,
               registro_publico:    legacy.allowPublicRegistration ?? DEFAULT_CONFIG.registro_publico,
               requiere_aprobacion: legacy.requireApproval        ?? DEFAULT_CONFIG.requiere_aprobacion,
               athenia_activo:      legacy.enableAthenia          ?? DEFAULT_CONFIG.athenia_activo,
@@ -90,6 +93,7 @@ export default function PlatformConfig() {
       } else if (data) {
         setConfig({
           nombre_plataforma:   data.nombre_plataforma,
+          logo_url:            data.logo_url ?? '',
           registro_publico:    data.registro_publico,
           requiere_aprobacion: data.requiere_aprobacion,
           athenia_activo:      data.athenia_activo,
@@ -114,6 +118,7 @@ export default function PlatformConfig() {
     // Always sync localStorage so usePlatformConfig hook reacts immediately
     const localPayload = JSON.stringify({
       platformName:            config.nombre_plataforma,
+      logoUrl:                 config.logo_url,
       allowPublicRegistration: config.registro_publico,
       requireApproval:         config.requiere_aprobacion,
       enableAthenia:           config.athenia_activo,
@@ -213,6 +218,22 @@ export default function PlatformConfig() {
               placeholder="DivergencIA"
               disabled={saving}
             />
+            <div className="space-y-2">
+              <Input
+                label="URL del logo (imagen)"
+                icon={<FiImage size={14} />}
+                value={config.logo_url}
+                onChange={e => updateField('logo_url', e.target.value)}
+                placeholder="https://... (PNG, SVG recomendado)"
+                disabled={saving}
+              />
+              {config.logo_url && (
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                  <img src={config.logo_url} alt="preview" className="w-10 h-10 object-contain rounded-lg bg-white/5" onError={e => { e.target.style.display='none' }} />
+                  <span className="text-xs text-white/30">Vista previa del logo</span>
+                </div>
+              )}
+            </div>
             <Input
               label="Tamaño máximo de archivo (MB)"
               icon={<FiUpload size={14} />}
@@ -246,6 +267,162 @@ export default function PlatformConfig() {
           Guardar configuración
         </Button>
       </motion.div>
+
+      {/* Changelog / novedades */}
+      <ChangelogManager />
     </div>
+  )
+}
+
+/* ──────── Changelog Manager ──────── */
+function ChangelogManager() {
+  const { user } = useAuth()
+  const [novedades, setNovedades] = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving]     = useState(false)
+  const [form, setForm] = useState({ version: '', titulo: '', contenido: '', publicado: false })
+
+  useEffect(() => {
+    supabase.from('novedades_version')
+      .select('*')
+      .order('fecha', { ascending: false })
+      .then(({ data }) => { setNovedades(data || []); setLoading(false) })
+  }, [])
+
+  const handleCreate = async () => {
+    if (!form.version.trim() || !form.titulo.trim() || !form.contenido.trim()) {
+      toast.error('Completa todos los campos'); return
+    }
+    setSaving(true)
+    const { data, error } = await supabase.from('novedades_version')
+      .insert({ ...form, creado_por: user?.id })
+      .select().single()
+    if (error) { toast.error('Error al guardar'); setSaving(false); return }
+    setNovedades(prev => [data, ...prev])
+    setForm({ version: '', titulo: '', contenido: '', publicado: false })
+    setShowForm(false)
+    toast.success('Novedad publicada ✓')
+    setSaving(false)
+  }
+
+  const togglePublish = async (novedad) => {
+    const nuevo = !novedad.publicado
+    const { error } = await supabase.from('novedades_version').update({ publicado: nuevo }).eq('id', novedad.id)
+    if (error) { toast.error('Error'); return }
+    setNovedades(prev => prev.map(n => n.id === novedad.id ? { ...n, publicado: nuevo } : n))
+    toast.success(nuevo ? 'Publicado ✓' : 'Despublicado')
+  }
+
+  const handleDelete = async (id) => {
+    const { error } = await supabase.from('novedades_version').delete().eq('id', id)
+    if (error) { toast.error('Error'); return }
+    setNovedades(prev => prev.filter(n => n.id !== id))
+    toast.success('Eliminado')
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider flex items-center gap-2">
+            <FiTag size={12} /> Novedades de versión
+          </h3>
+          <Button size="xs" icon={<FiPlus size={12} />} onClick={() => setShowForm(s => !s)}>
+            Nueva versión
+          </Button>
+        </div>
+
+        {/* New version form */}
+        {showForm && (
+          <div className="mb-4 p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Versión (ej: v1.2.0)"
+                value={form.version}
+                onChange={e => setForm(f => ({ ...f, version: e.target.value }))}
+                placeholder="v1.0.0"
+                disabled={saving}
+              />
+              <Input
+                label="Título"
+                value={form.titulo}
+                onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))}
+                placeholder="Mejoras de rendimiento"
+                disabled={saving}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-white/40 mb-1 block">Contenido (Markdown soportado)</label>
+              <textarea
+                className="w-full rounded-xl px-3 py-2 text-sm text-white/80 bg-white/[0.04] border border-white/[0.08] placeholder-white/20 focus:outline-none focus:border-[var(--c-primary)]/50 resize-none"
+                rows={5}
+                placeholder="- Corrección del bug de notificaciones&#10;- Mejora del panel de admin&#10;- Nuevo sistema de logros"
+                value={form.contenido}
+                onChange={e => setForm(f => ({ ...f, contenido: e.target.value }))}
+                disabled={saving}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, publicado: !f.publicado }))}
+                className="flex items-center gap-2 text-xs text-white/40 hover:text-white/70 transition-colors"
+              >
+                {form.publicado
+                  ? <FiEye size={13} className="text-green-400" />
+                  : <FiEyeOff size={13} />
+                }
+                {form.publicado ? 'Publicar al guardar' : 'Guardar como borrador'}
+              </button>
+              <div className="flex gap-2">
+                <Button size="xs" variant="ghost" onClick={() => setShowForm(false)}>Cancelar</Button>
+                <Button size="xs" loading={saving} onClick={handleCreate}>Guardar</Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* List */}
+        {loading ? (
+          <div className="flex justify-center py-6"><FiRefreshCw size={16} className="text-white/30 animate-spin" /></div>
+        ) : novedades.length === 0 ? (
+          <p className="text-xs text-white/20 text-center py-6">No hay versiones publicadas aún</p>
+        ) : (
+          <div className="space-y-2">
+            {novedades.map(n => (
+              <div key={n.id} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] group">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-xs font-mono font-bold text-[var(--c-primary)]">{n.version}</span>
+                    <span className="text-xs font-medium text-white/70">{n.titulo}</span>
+                    <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full ${n.publicado ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-white/30'}`}>
+                      {n.publicado ? 'Publicado' : 'Borrador'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-white/30 line-clamp-2 whitespace-pre-line">{n.contenido}</p>
+                </div>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  <button
+                    onClick={() => togglePublish(n)}
+                    className="p-1.5 rounded-lg text-white/30 hover:text-green-400 hover:bg-green-500/10 transition-all"
+                    title={n.publicado ? 'Despublicar' : 'Publicar'}
+                  >
+                    {n.publicado ? <FiEyeOff size={12} /> : <FiEye size={12} />}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(n.id)}
+                    className="p-1.5 rounded-lg text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                    title="Eliminar"
+                  >
+                    <FiTrash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </motion.div>
   )
 }

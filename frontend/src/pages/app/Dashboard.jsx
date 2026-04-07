@@ -9,6 +9,7 @@ import TasksWidget from '../../components/dashboard/TasksWidget'
 import IdeasWidget from '../../components/dashboard/IdeasWidget'
 import TimelinePulse from '../../components/dashboard/TimelinePulse'
 import EventsWidget from '../../components/dashboard/EventsWidget'
+import SolicitudesWidget from '../../components/dashboard/SolicitudesWidget'
 import Card from '../../components/ui/Card'
 import { greetingByHour } from '../../lib/utils'
 
@@ -60,6 +61,7 @@ export default function Dashboard() {
 
         {/* Right col — Tasks + Quick actions + status (1/3) */}
         <motion.div className="space-y-4" {...FU(0.2)}>
+          <SolicitudesWidget />
           <TasksWidget />
           <EventsWidget />
           <QuickActions />

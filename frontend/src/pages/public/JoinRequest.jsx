@@ -8,8 +8,10 @@ import Card from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
 import Textarea from '../../components/ui/Textarea'
 import Button from '../../components/ui/Button'
+import { getPlatformName } from '../../hooks/usePlatformConfig'
 
 export default function JoinRequest() {
+  const platformName = getPlatformName()
   const [sent, setSent] = useState(false)
   const { register, handleSubmit, formState: { isSubmitting, errors } } = useForm()
 
@@ -58,7 +60,7 @@ export default function JoinRequest() {
         ) : (
           <Card>
             <div className="mb-6">
-              <h1 className="text-2xl font-bold font-title text-white mb-1">Únete a ATHENIA</h1>
+              <h1 className="text-2xl font-bold font-title text-white mb-1">Únete a {platformName}</h1>
               <p className="text-white/40 text-sm">
                 Completa tu solicitud para unirte al semillero de investigación en IA.
               </p>

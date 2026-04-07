@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
 import { useZen } from '../../context/ZenContext'
+import { usePlatformConfig } from '../../hooks/usePlatformConfig'
 import Avatar from '../ui/Avatar'
 import ThemeSwitcher from '../ui/ThemeSwitcher'
 import SoundToggle from '../ui/SoundToggle'
@@ -58,7 +59,7 @@ const NAV_SECTIONS = [
   },
 ]
 
-const COMPLETELY_BLOCKED_ROUTES = ['dashboard', 'calendar', 'chat', 'mural', 'roadmap']
+const COMPLETELY_BLOCKED_ROUTES = ['dashboard', 'chat', 'notificaciones', 'workspace']
 
 export default function Sidebar({ notifCount = 0, collapsed = false, onToggle, chatUnreadCount = 0 }) {
   const [localCollapsed, setLocalCollapsed] = useState(false)
@@ -67,6 +68,7 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle, c
   const { user, profile, isAdmin, signOut, isInvitado } = useAuth()
   const { enterZen } = useZen()
   const navigate = useNavigate()
+  const platformConfig = usePlatformConfig()
 
   // Determina si una ruta está completamente bloqueada para visitantes (no autenticados o rol invitado)
   const isRouteBlocked = (path) => {
@@ -99,10 +101,14 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle, c
       <div className="flex items-center h-16 px-4 border-b border-white/[0.06]">
         <Link to="/dashboard" className="flex items-center gap-3 overflow-hidden">
           <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: 'linear-gradient(135deg, var(--c-primary), var(--c-secondary))' }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden"
+            style={!platformConfig.logoUrl ? { background: 'linear-gradient(135deg, var(--c-primary), var(--c-secondary))' } : {}}
           >
-            <FiZap size={15} className="text-white" />
+            {platformConfig.logoUrl ? (
+              <img src={platformConfig.logoUrl} alt="logo" className="w-full h-full object-contain" />
+            ) : (
+              <FiZap size={15} className="text-white" />
+            )}
           </div>
           <AnimatePresence>
             {!collapsed && (
@@ -113,7 +119,7 @@ export default function Sidebar({ notifCount = 0, collapsed = false, onToggle, c
                 exit={{ opacity: 0, x: -8 }}
                 transition={{ duration: 0.2 }}
               >
-                Divergenc<span style={{ color: 'var(--c-primary)' }}>IA</span>
+                {platformConfig.platformName || 'DivergencIA'}
               </motion.span>
             )}
           </AnimatePresence>

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import GuestBanner from './GuestBanner'
+import ChangelogModal from '../ui/ChangelogModal'
 import { useAuth } from '../../context/AuthContext'
 import { useChannels, useUnreadCounts } from '../../hooks/useChat'
 
@@ -29,6 +30,9 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </motion.div>
+
+      {/* Changelog popup — solo para usuarios autenticados */}
+      {user && <ChangelogModal />}
     </div>
   )
 }

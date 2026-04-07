@@ -21,6 +21,9 @@ export const NOTIFICATION_TYPES = {
   reconocimiento:       { label: 'Reconocimiento',          color: '#F59E0B', icon: 'award'      },
   mensaje_nuevo:        { label: 'Mensaje en canal',        color: '#00D1FF', icon: 'message'    },
   mensaje_directo:      { label: 'Mensaje directo',         color: '#22c55e', icon: 'dm'         },
+  nodo_solicitud:       { label: 'Solicitud de nodo',       color: '#8B5CF6', icon: 'request'    },
+  nodo_aprobado:        { label: 'Nodo aprobado',           color: '#22c55e', icon: 'approved'   },
+  nodo_rechazado:       { label: 'Solicitud rechazada',     color: '#EF4444', icon: 'rejected'   },
   // Legacy types from existing system
   comentarios:          { label: 'Comentario',              color: '#FC651F', icon: 'comment'    },
   votos:                { label: 'Voto',                    color: '#F59E0B', icon: 'vote'       },
@@ -60,6 +63,10 @@ export function getNotificationRoute(notification) {
       return '/learning'
     case 'solicitudes':
       return '/admin'
+    case 'nodo_solicitud':
+    case 'nodo_aprobado':
+    case 'nodo_rechazado':
+      return '/dashboard'
     case 'mensaje_nuevo':
     case 'mensaje_directo':
       return referencia_id ? `/chat?canal=${referencia_id}` : '/chat'

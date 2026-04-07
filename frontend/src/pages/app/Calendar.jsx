@@ -282,6 +282,17 @@ export default function Calendar() {
   const [mobileView, setMobileView] = useState('list')
   const [proyectos, setProyectos] = useState([])
 
+  // ── Join event canal (adds user to canal_miembros then navigates) ──────────
+  const handleJoinEvent = useCallback(async (canalId, autoCall = false) => {
+    if (!user || !canalId) return
+    // Ensure the user is a member of the meeting canal
+    await supabase.from('canal_miembros')
+      .upsert({ canal_id: canalId, usuario_id: user.id, puede_escribir: true },
+               { onConflict: 'canal_id,usuario_id', ignoreDuplicates: true })
+    const url = autoCall ? `/chat?canal=${canalId}&autoCall=video` : `/chat?canal=${canalId}`
+    navigate(url)
+  }, [user, navigate])
+
   /* Fetch active projects once */
   useEffect(() => {
     supabase.from('proyectos').select('id, titulo')
@@ -411,6 +422,7 @@ export default function Calendar() {
         con_llamada: !!formData.con_llamada,
         canal_id,
         creado_por: user?.id,
+        usuario_id: user?.id,
         estado: 'programado',
       }]).select('id').single()
 
@@ -454,10 +466,12 @@ export default function Calendar() {
       if (todos?.length) {
         const notifs = todos.map(u => ({
           usuario_id: u.id,
-          tipo: 'info',
-          titulo: `Nuevo evento: ${formData.titulo}`,
+          tipo: 'evento_proximo',
+          titulo: `📅 Nuevo Evento: ${formData.titulo}`,
           mensaje: `${new Date(formData.fecha).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}${formData.lugar ? ` · ${formData.lugar}` : ''}`,
+          referencia_id: evento?.id,
           leida: false,
+          fecha: new Date().toISOString()
         }))
         supabase.from('notificaciones').insert(notifs).catch(() => {})
       }
@@ -466,7 +480,8 @@ export default function Calendar() {
       setShowCreateModal(false)
       setFormData(EMPTY_FORM)
       fetchEvents()
-    } catch {
+    } catch (err) {
+      console.error('[Calendar.handleCreate]', err)
       toast.error('Error al crear evento')
     } finally {
       setSaving(false)
@@ -560,17 +575,26 @@ export default function Calendar() {
               <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(34,197,94,0.15)' }}>
                 <FiBell size={14} style={{ color: '#22c55e' }} />
               </div>
-              <div>
-                <p className="font-semibold text-sm">La reunión "{ev.titulo}" empieza en {Math.ceil(diff / 60000)} min</p>
-                <button
-                  onClick={() => navigate(`/chat?canal=${ev.canal_id}`)}
-                  className="text-xs text-[#22c55e] mt-0.5 hover:underline"
-                >
-                  Unirse ahora →
-                </button>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm text-white">🎥 "{ev.titulo}" empieza en {Math.ceil(diff / 60000)} min</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <button
+                    onClick={() => handleJoinEvent(ev.canal_id, true)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all hover:opacity-90"
+                    style={{ background: 'rgba(34,197,94,0.2)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}
+                  >
+                    <FiVideo size={11} /> Unirse a la videollamada
+                  </button>
+                  <button
+                    onClick={() => handleJoinEvent(ev.canal_id)}
+                    className="text-xs text-white/40 hover:text-white/70 transition-colors"
+                  >
+                    Solo chat →
+                  </button>
+                </div>
               </div>
             </div>,
-            { id: `meeting-${ev.id}`, duration: 20000 },
+            { id: `meeting-${ev.id}`, duration: 30000 },
           )
         }
       })
@@ -578,7 +602,7 @@ export default function Calendar() {
     check()
     const t = setInterval(check, 60000)
     return () => clearInterval(t)
-  }, [events, navigate])
+  }, [events, handleJoinEvent])
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -814,12 +838,12 @@ export default function Calendar() {
                     {/* Join meeting button */}
                     {ev.canal_id && (
                       <button
-                        onClick={() => navigate(`/chat?canal=${ev.canal_id}`)}
+                        onClick={() => handleJoinEvent(ev.canal_id, !!ev.con_llamada)}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold shrink-0 transition-all hover:scale-105"
                         style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}
-                        title="Unirse al canal de reunión"
+                        title={ev.con_llamada ? 'Unirse a la videollamada' : 'Unirse al canal de reunión'}
                       >
-                        <FiPhone size={11} /> Unirse
+                        {ev.con_llamada ? <FiVideo size={11} /> : <FiPhone size={11} />} Unirse
                       </button>
                     )}
 
@@ -921,13 +945,22 @@ export default function Calendar() {
                       )}
                       {/* Join meeting button */}
                       {ev.canal_id && (
-                        <div className="mt-3">
+                        <div className="mt-3 flex items-center gap-2 flex-wrap">
+                          {ev.con_llamada && (
+                            <button
+                              onClick={() => { setSelectedDay(null); handleJoinEvent(ev.canal_id, true) }}
+                              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-105"
+                              style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}
+                            >
+                              <FiVideo size={13} /> Unirse a la videollamada
+                            </button>
+                          )}
                           <button
-                            onClick={() => { setSelectedDay(null); navigate(`/chat?canal=${ev.canal_id}`) }}
+                            onClick={() => { setSelectedDay(null); handleJoinEvent(ev.canal_id) }}
                             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-105"
-                            style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)' }}
+                            style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}
                           >
-                            <FiPhone size={13} /> Unirse a la reunión
+                            <FiPhone size={13} /> {ev.con_llamada ? 'Solo chat' : 'Unirse a la reunión'}
                           </button>
                         </div>
                       )}

@@ -428,8 +428,9 @@ export default function NodeGroupManager() {
       .update({ grupos_nodo: unique, grupo_nodo: primary })
       .eq('id', userId)
     if (error) { toast.error('Error al actualizar grupos'); return false }
-    // Sync canal_miembros so chat channels stay in sync
-    supabase.rpc('sync_user_group_channels', { p_user_id: userId, p_groups: unique })
+    // Sync canal_miembros so chat channels stay in sync (MUST be awaited — Nodos page reads canal_miembros)
+    const { error: rpcError } = await supabase.rpc('sync_user_group_channels', { p_user_id: userId, p_groups: unique })
+    if (rpcError) console.error('[NodeGroupManager] sync_user_group_channels failed:', rpcError)
     return true
   }, [allGroups])
 

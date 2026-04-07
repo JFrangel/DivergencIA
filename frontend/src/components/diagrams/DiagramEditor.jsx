@@ -230,17 +230,21 @@ export default function DiagramEditor({ projectId } = {}) {
   }
 
   useEffect(() => {
-    if (!user) return
     loadDiagramList()
   }, [user, projectId])
 
   const loadDiagramList = async () => {
-    if (!user) return
     let query = supabase
       .from('diagramas')
       .select('id, titulo, tipo, created_at, updated_at')
-      .eq('autor_id', user.id)
       .order('updated_at', { ascending: false })
+
+    // Show own diagrams if authenticated, otherwise show public ones
+    if (user) {
+      query = query.eq('autor_id', user.id)
+    } else {
+      query = query.eq('publico', true)
+    }
     if (projectId) query = query.eq('proyecto_id', projectId)
     const { data } = await query
     setSavedDiagrams(data || [])

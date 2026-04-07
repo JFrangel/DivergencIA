@@ -60,6 +60,11 @@ function NodoDetailModal({ nodo, isMember, onClose, onEnterChat, joining }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-base font-bold text-white/95">{nodo.displayName || nodo.nombre}</h2>
+              {nodo.estado === 'pendiente_aprobacion' && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-yellow-500/10 text-yellow-500/70 flex items-center gap-1">
+                  ⏳ Pendiente
+                </span>
+              )}
               {isMember && (
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider"
                   style={{ background: `${color}20`, color }}>Miembro</span>
@@ -150,8 +155,7 @@ function NodoDetailModal({ nodo, isMember, onClose, onEnterChat, joining }) {
 /* ── Card shared for both nodo types ───────────────────────────────────── */
 function NodoCard({ nodo, isMember, onEnterChat, joining, isGroup = false, onViewDetail, solicitudEstado, onRequestJoin }) {
   const color = nodo.color || '#8B5CF6'
-  const isPrivate = nodo.privado && !isMember
-  const chatBlocked = isPrivate || (isGroup && !isMember)
+  const chatBlocked = !isMember
 
   return (
     <motion.div
@@ -181,6 +185,11 @@ function NodoCard({ nodo, isMember, onEnterChat, joining, isGroup = false, onVie
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm font-semibold text-white/90 truncate">{nodo.displayName || nodo.nombre}</h3>
+              {nodo.estado === 'pendiente_aprobacion' && (
+                <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-yellow-500/10 text-yellow-500/70 flex items-center gap-1">
+                  ⏳ Pendiente
+                </span>
+              )}
               {isMember && (
                 <span
                   className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider"

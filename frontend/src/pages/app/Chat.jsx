@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import { useChannels, useUnreadCounts } from '../../hooks/useChat'
 import { useAuth } from '../../context/AuthContext'
+import { useCallContext } from '../../context/CallContext'
 import ChannelList from '../../components/chat/ChannelList'
 import ChatArea from '../../components/chat/ChatArea'
 import NewDMModal from '../../components/chat/NewDMModal'
@@ -19,15 +20,29 @@ export default function Chat() {
   const [showNewGroup, setShowNewGroup] = useState(false)
   const [showNewNode, setShowNewNode] = useState(false)
   const [searchParams] = useSearchParams()
+  const { startCallInChannel } = useCallContext()
+  const autoCallFiredRef = useRef(false)
 
   // Auto-select from URL param or default to #general
+  // Also handles ?autoCall=video to start a video call immediately
   useEffect(() => {
     if (!channels.length) return
 
     const canalId = searchParams.get('canal')
+    const autoCall = searchParams.get('autoCall')
+
     if (canalId) {
       const found = channels.find(c => c.id === canalId)
-      if (found) { setActiveChannel(found); return }
+      if (found) {
+        setActiveChannel(found)
+        // Trigger call once if requested and not already fired this session
+        if (autoCall === 'video' && !autoCallFiredRef.current) {
+          autoCallFiredRef.current = true
+          // Small delay to let ChatArea mount and signaling channel connect
+          setTimeout(() => startCallInChannel(canalId, 'video', found.nombre || 'Reunión'), 1200)
+        }
+        return
+      }
     }
 
     // Default to #general
@@ -35,7 +50,7 @@ export default function Chat() {
       const general = channels.find(c => c.tipo === 'global' && c.nombre === 'general')
       if (general) setActiveChannel(general)
     }
-  }, [channels, searchParams])
+  }, [channels, searchParams, startCallInChannel])
 
   // Mark channel as read when selected
   const handleSelectChannel = (ch) => {

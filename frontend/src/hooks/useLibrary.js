@@ -32,8 +32,13 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
 
     // Visibility filter — admins see all, others filtered
     if (!isAdminUser) {
-      // Show: todos, miembros (authenticated = miembro), or own files
-      query = query.or(`visibilidad.eq.todos,visibilidad.eq.miembros,visibilidad.is.null,subido_por.eq.${user?.id}`)
+      if (user) {
+        // Authenticated users: see todos, miembros, or own files
+        query = query.or(`visibilidad.eq.todos,visibilidad.eq.miembros,visibilidad.is.null,subido_por.eq.${user.id}`)
+      } else {
+        // Visitors: see only public files (visibilidad.eq.todos)
+        query = query.or(`visibilidad.eq.todos,visibilidad.is.null`)
+      }
     }
 
     const { data } = await query

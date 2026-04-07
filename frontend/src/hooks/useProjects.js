@@ -99,14 +99,20 @@ export function useProjects({ userId, all = false } = {}) {
         }))
       if (memberInserts.length > 0) {
         await supabase.from('miembros_proyecto').insert(memberInserts)
-        // Notify each added member
-        for (const uid of _teamMembers.filter(id => id !== user?.id)) {
-          createNotification(
-            uid,
-            'proyectos',
-            `Te han agregado al proyecto "${data.titulo || 'Nuevo proyecto'}"`,
-            data.id
-          )
+        // Notify all added members in a single batch insert
+        const notifTargets = _teamMembers.filter(id => id !== user?.id)
+        if (notifTargets.length > 0) {
+          await supabase.from('notificaciones').insert(
+            notifTargets.map(uid => ({
+              usuario_id: uid,
+              tipo: 'proyectos',
+              titulo: `Nuevo proyecto: ${data.titulo || 'Nuevo proyecto'}`,
+              mensaje: `Te han agregado al proyecto "${data.titulo || 'Nuevo proyecto'}"`,
+              referencia_id: data.id,
+              leida: false,
+              fecha: new Date().toISOString(),
+            }))
+          ).catch(() => {})
         }
       }
     }
@@ -411,17 +417,23 @@ export function useAdvances(projectId) {
         .eq('id', projectId)
         .single()
       const projectTitle = proj?.titulo || 'proyecto'
-      ;(members || []).forEach((m) => {
-        const memberId = m.usuario?.id
-        if (memberId && memberId !== user?.id) {
-          createNotification(
-            memberId,
-            'avances',
-            `Nuevo avance "${data.titulo}" en "${projectTitle}"`,
-            data.id
-          )
-        }
-      })
+      // Batch insert all advance notifications in a single query
+      const advanceTargets = (members || [])
+        .map(m => m.usuario?.id)
+        .filter(id => id && id !== user?.id)
+      if (advanceTargets.length > 0) {
+        await supabase.from('notificaciones').insert(
+          advanceTargets.map(uid => ({
+            usuario_id: uid,
+            tipo: 'avances',
+            titulo: `Nuevo avance en ${projectTitle}`,
+            mensaje: `Nuevo avance "${data.titulo}" en "${projectTitle}"`,
+            referencia_id: data.id,
+            leida: false,
+            fecha: new Date().toISOString(),
+          }))
+        ).catch(() => {})
+      }
     }
 
     return { data }

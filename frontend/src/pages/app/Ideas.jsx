@@ -29,7 +29,7 @@ export default function Ideas() {
   const cardRefs = useRef({})
   const [pendingHighlight, setPendingHighlight] = useState(null) // idea id to highlight after tab loads
 
-  const { ideas, loading, myVotes, create, vote, updateEstado, updateIdea, mergeIdeas, refetch } = useIdeas({ estado: tab })
+  const { ideas, loading, myVotes, create, vote, updateEstado, updateIdea, deleteIdea, mergeIdeas, refetch } = useIdeas({ estado: tab })
 
   const handleEditSubmit = async (payload) => {
     if (!editingIdea) return
@@ -171,6 +171,7 @@ export default function Ideas() {
                 canChangeEstado={canChangeEstado}
                 onChangeEstado={handleChangeEstado}
                 onEdit={setEditingIdea}
+                onDelete={deleteIdea}
                 currentUserId={user?.id}
                 index={i}
               />

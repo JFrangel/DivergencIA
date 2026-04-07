@@ -34,6 +34,9 @@ const TYPE_ICONS = {
   tareas:               FiCheckSquare,
   logros:               FiAward,
   solicitudes:          FiUsers,
+  nodo_solicitud:       FiUsers,
+  nodo_aprobado:        FiCheckCircle,
+  nodo_rechazado:       FiTrash2,
 }
 
 function getTypeColor(tipo) {
@@ -57,6 +60,8 @@ const TYPE_FILTERS = [
   { key: 'avance_nuevo',         label: 'Avances' },
   { key: 'evento_proximo',       label: 'Eventos' },
   { key: 'logro_desbloqueado',   label: 'Logros' },
+  { key: 'nodo_solicitud',       label: 'Solicitudes de nodo' },
+  { key: 'solicitudes',          label: 'Solicitudes' },
   { key: 'admin_broadcast',      label: 'Mensajes' },
   { key: 'sugerencia',           label: 'Sugerencias' },
   { key: 'voto_recordatorio',    label: 'Votos' },

@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react'
 const STORAGE_KEY = 'divergencia_platform_config'
 
 export const DEFAULT_PLATFORM_CONFIG = {
-  platformName: 'ATHENIA',
+  platformName: 'DivergencIA',
+  logoUrl: '',
   allowPublicRegistration: true,
   requireApproval: false,
   enableAthenia: true,
@@ -24,7 +25,7 @@ export function getPlatformConfig() {
 }
 
 export function getPlatformName() {
-  return getPlatformConfig().platformName || 'ATHENIA'
+  return getPlatformConfig().platformName || 'DivergencIA'
 }
 
 export function usePlatformConfig() {

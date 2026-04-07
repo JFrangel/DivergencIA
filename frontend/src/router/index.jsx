@@ -80,6 +80,9 @@ export const router = createBrowserRouter([
       { path: '/roadmap',     element: withSuspense(Roadmap) },
       { path: '/calendar',    element: withSuspense(Calendar) },
       { path: '/learning',    element: withSuspense(Learning) },
+      { path: '/diagrams',    element: withSuspense(Diagrams) },
+      { path: '/library',     element: withSuspense(Library) },
+      { path: '/mural',       element: withSuspense(Mural) },
     ],
   },
 
@@ -89,12 +92,9 @@ export const router = createBrowserRouter([
     children: [
       { path: '/dashboard',    element: withSuspense(Dashboard) },
       { path: '/projects/:id', element: withSuspense(ProjectDetail) },
-      { path: '/library',      element: withSuspense(Library) },
       { path: '/profile',      element: withSuspense(MyProfile) },
       { path: '/athenia',      element: withSuspense(Athenia) },
       { path: '/settings',     element: withSuspense(Settings) },
-      { path: '/diagrams',     element: withSuspense(Diagrams) },
-      { path: '/mural',        element: withSuspense(Mural) },
       { path: '/arcade',       element: withSuspense(Arcade) },
       { path: '/workspace',      element: withSuspense(Workspace) },
       { path: '/notificaciones', element: withSuspense(NotificationCenter) },

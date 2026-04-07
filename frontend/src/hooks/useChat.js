@@ -275,6 +275,8 @@ export function useChat(canalId) {
         table: 'mensajes',
         filter: `canal_id=eq.${canalId}`,
       }, async (payload) => {
+        // Skip re-fetch for own messages — already added optimistically by sendMessage()
+        if (payload.new.autor_id === user?.id) return
         const { data } = await supabase
           .from('mensajes')
           .select(MSG_SELECT)
@@ -409,16 +411,16 @@ export function useUnreadCounts(channels, activeChannelId = null) {
     const canalIds = channels.map(c => c.id)
 
     const fetchCounts = async () => {
+      // Single query for all channels instead of N separate count queries
       const results = {}
-      await Promise.all(canalIds.map(async (cid) => {
-        const { count } = await supabase
-          .from('mensajes')
-          .select('*', { count: 'exact', head: true })
-          .eq('canal_id', cid)
-          .not('leido_por', 'cs', `{${user.id}}`)
-          .neq('autor_id', user.id)
-        results[cid] = count || 0
-      }))
+      canalIds.forEach(id => { results[id] = 0 })
+      const { data: rows } = await supabase
+        .from('mensajes')
+        .select('canal_id')
+        .in('canal_id', canalIds)
+        .not('leido_por', 'cs', `{${user.id}}`)
+        .neq('autor_id', user.id)
+      ;(rows || []).forEach(r => { results[r.canal_id] = (results[r.canal_id] || 0) + 1 })
       setCounts(results)
     }
 

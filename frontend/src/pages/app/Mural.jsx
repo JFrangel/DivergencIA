@@ -431,15 +431,17 @@ export default function Mural() {
 
   /* ── Load murals list ──────────────────────────────────────────────── */
   const fetchMurales = useCallback(async () => {
-    if (!user) return
     const { data } = await supabase
       .from('murales').select('id,titulo,tipo,creador_id,shared_with,updated_at')
       .order('updated_at', { ascending: false })
     if (!data) return
-    const visible = data.filter(m =>
-      m.tipo === 'general' || m.tipo === 'publico' ||
-      m.creador_id === user.id || m.shared_with?.includes(user.id)
-    )
+    const visible = data.filter(m => {
+      // Show public murals to everyone
+      if (m.tipo === 'general' || m.tipo === 'publico') return true
+      // For authenticated users, show their own + shared murals
+      if (user && (m.creador_id === user.id || m.shared_with?.includes(user.id))) return true
+      return false
+    })
     setMurales(visible)
   }, [user])
 
@@ -480,7 +482,7 @@ export default function Mural() {
     }
   }, [user])
 
-  useEffect(() => { if (user) loadMural(GENERAL_MURAL_ID) }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadMural(GENERAL_MURAL_ID) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Realtime presence (cursors) ───────────────────────────────────── */
   useEffect(() => {

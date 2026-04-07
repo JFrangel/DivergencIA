@@ -17,6 +17,8 @@ import NodeGroupManager from '../../components/admin/NodeGroupManager'
 import BroadcastPanel from '../../components/notifications/BroadcastPanel'
 import { toast } from 'sonner'
 import { timeAgo } from '../../lib/utils'
+import { useNodos } from '../../hooks/useNodos'
+import { useAuth } from '../../context/AuthContext'
 
 const AREAS = ['ML', 'NLP', 'Vision', 'Datos', 'General']
 const AREA_COLORS = { ML: '#FC651F', NLP: '#8B5CF6', Vision: '#00D1FF', Datos: '#22c55e', General: '#F59E0B' }
@@ -153,6 +155,7 @@ const tabs = [
   { id: 'moderation', label: 'Moderación' },
   { id: 'reports', label: 'Reportes' },
   { id: 'nodes', label: 'Nodos' },
+  { id: 'pending-nodes', label: 'Nodos Pendientes' },
   { id: 'broadcast', label: 'Broadcast' },
   { id: 'config', label: 'Configuración' },
 ]
@@ -455,60 +458,176 @@ function UserTable() {
 
 /* ──────── Requests Panel ──────── */
 function RequestsPanel() {
-  const [requests, setRequests] = useState([])
+  const { user } = useAuth()
+  const [signupRequests, setSignupRequests] = useState([])
+  const [nodoRequests, setNodoRequests] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.from('solicitudes_ingreso').select('*').order('fecha', { ascending: false })
-      .then(({ data }) => { setRequests(data || []); setLoading(false) })
+    Promise.all([
+      supabase.from('solicitudes_ingreso').select('*').order('fecha', { ascending: false }),
+      supabase.from('nodo_solicitudes')
+        .select('*, usuario:usuarios!nodo_solicitudes_usuario_id_fkey(id, nombre, correo, foto_url), nodo:nodos!nodo_solicitudes_nodo_id_fkey(id, nombre)')
+        .eq('estado', 'pendiente')
+        .order('created_at', { ascending: false })
+    ]).then(([{ data: signup }, { data: nodo }]) => {
+      setSignupRequests(signup || [])
+      setNodoRequests(nodo || [])
+      setLoading(false)
+    })
   }, [])
 
-  const handleAction = async (id, estado) => {
+  const handleSignupAction = async (id, estado) => {
     const { error } = await supabase.from('solicitudes_ingreso').update({ estado }).eq('id', id)
     if (error) { toast.error('Error'); return }
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, estado } : r))
+    setSignupRequests(prev => prev.map(r => r.id === id ? { ...r, estado } : r))
     toast.success(estado === 'aprobada' ? 'Solicitud aprobada' : 'Solicitud rechazada')
+  }
+
+  const handleNodoAction = async (id, estado, nodoId, usuarioId) => {
+    const { error } = await supabase.from('nodo_solicitudes').update({ estado, respondido_por: user?.id, updated_at: new Date().toISOString() }).eq('id', id)
+    if (error) { toast.error('Error'); return }
+
+    if (estado === 'aprobada' && nodoId && usuarioId) {
+      // Add user as nodo member
+      await supabase.from('nodo_miembros').upsert(
+        { nodo_id: nodoId, usuario_id: usuarioId, rol: 'miembro' },
+        { onConflict: 'nodo_id,usuario_id' }
+      )
+      // Notify the applicant
+      await supabase.from('notificaciones').insert({
+        usuario_id: usuarioId,
+        tipo: 'nodo_solicitud',
+        titulo: '¡Solicitud aprobada!',
+        mensaje: `Tu solicitud de ingreso al nodo fue aprobada`,
+        referencia_id: nodoId,
+        leida: false,
+        fecha: new Date().toISOString(),
+      }).catch(() => {})
+    } else if (estado === 'rechazada' && usuarioId) {
+      // Notify the applicant of rejection
+      await supabase.from('notificaciones').insert({
+        usuario_id: usuarioId,
+        tipo: 'nodo_solicitud',
+        titulo: 'Solicitud rechazada',
+        mensaje: `Tu solicitud de ingreso al nodo fue rechazada`,
+        referencia_id: nodoId,
+        leida: false,
+        fecha: new Date().toISOString(),
+      }).catch(() => {})
+    }
+
+    setNodoRequests(prev => prev.filter(r => r.id !== id))
+    toast.success(estado === 'aprobada' ? 'Usuario añadido al nodo' : 'Solicitud rechazada')
   }
 
   if (loading) return <div className="flex justify-center py-10"><Spinner /></div>
 
+  const hasPending = signupRequests.filter(r => r.estado === 'pendiente').length > 0 ||
+    nodoRequests.filter(r => r.estado === 'pendiente').length > 0
+
   return (
-    <div className="space-y-3">
-      {requests.length === 0 ? (
+    <div className="space-y-6">
+      {/* Signup Requests */}
+      <div>
+        <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <FiUsers size={14} /> Solicitudes de Ingreso
+          {signupRequests.filter(r => r.estado === 'pendiente').length > 0 && (
+            <span className="text-xs font-bold px-2 py-1 rounded-full bg-[#FC651F]/20 text-[#FC651F]">
+              {signupRequests.filter(r => r.estado === 'pendiente').length}
+            </span>
+          )}
+        </h3>
+        <div className="space-y-3">
+          {signupRequests.length === 0 ? (
+            <Card className="text-center py-8">
+              <FiInbox size={24} className="mx-auto text-white/10 mb-2" />
+              <p className="text-white/30 text-xs">No hay solicitudes de ingreso</p>
+            </Card>
+          ) : (
+            signupRequests.map(r => (
+              <Card key={r.id}>
+                <div className="flex items-start gap-4">
+                  <Avatar name={r.nombre || ''} size="sm" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-semibold text-white">{r.nombre}</p>
+                      <Badge
+                        preset={r.estado === 'aprobada' ? 'aprobada' : r.estado === 'rechazada' ? 'rechazada' : 'pendiente'}
+                        size="xs"
+                      />
+                    </div>
+                    <p className="text-xs text-white/40">{r.correo} · {r.carrera || '—'}</p>
+                    {r.motivacion && <p className="text-xs text-white/30 mt-2 italic border-l-2 border-white/10 pl-2">{r.motivacion}</p>}
+                    <p className="text-[10px] text-white/20 mt-2">{timeAgo(r.fecha)}</p>
+                  </div>
+                  {r.estado === 'pendiente' && (
+                    <div className="flex gap-1.5 shrink-0">
+                      <Button variant="solid" size="xs" className="gap-1" onClick={() => handleSignupAction(r.id, 'aprobada')}>
+                        <FiCheck size={11} /> Aprobar
+                      </Button>
+                      <Button variant="danger" size="xs" className="gap-1" onClick={() => handleSignupAction(r.id, 'rechazada')}>
+                        <FiX size={11} /> Rechazar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Nodo Join Requests */}
+      <div>
+        <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <FiUsers size={14} /> Solicitudes de Nodos
+          {nodoRequests.length > 0 && (
+            <span className="text-xs font-bold px-2 py-1 rounded-full bg-[#8B5CF6]/20 text-[#8B5CF6]">
+              {nodoRequests.length}
+            </span>
+          )}
+        </h3>
+        <div className="space-y-3">
+          {nodoRequests.length === 0 ? (
+            <Card className="text-center py-8">
+              <FiInbox size={24} className="mx-auto text-white/10 mb-2" />
+              <p className="text-white/30 text-xs">No hay solicitudes pendientes de nodos</p>
+            </Card>
+          ) : (
+            nodoRequests.map(r => (
+              <Card key={r.id}>
+                <div className="flex items-start gap-4">
+                  <Avatar name={r.usuario?.nombre || ''} src={r.usuario?.foto_url} size="sm" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-semibold text-white">{r.usuario?.nombre || 'Usuario'}</p>
+                      <Badge label={r.nodo?.nombre || 'Nodo'} variant="secondary" size="xs" />
+                    </div>
+                    <p className="text-xs text-white/40">{r.usuario?.correo}</p>
+                    {r.mensaje && <p className="text-xs text-white/30 mt-2 italic border-l-2 border-white/10 pl-2">{r.mensaje}</p>}
+                    <p className="text-[10px] text-white/20 mt-2">{timeAgo(r.created_at)}</p>
+                  </div>
+                  <div className="flex gap-1.5 shrink-0">
+                    <Button variant="solid" size="xs" className="gap-1" onClick={() => handleNodoAction(r.id, 'aprobada', r.nodo_id, r.usuario_id)}>
+                      <FiCheck size={11} /> Aprobar
+                    </Button>
+                    <Button variant="danger" size="xs" className="gap-1" onClick={() => handleNodoAction(r.id, 'rechazada', r.nodo_id, r.usuario_id)}>
+                      <FiX size={11} /> Rechazar
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+      </div>
+
+      {!hasPending && signupRequests.length === 0 && nodoRequests.length === 0 && (
         <Card className="text-center py-10">
-          <FiInbox size={28} className="mx-auto text-white/10 mb-3" />
-          <p className="text-white/30 text-sm">No hay solicitudes pendientes</p>
+          <FiCheck size={28} className="mx-auto text-green-500/30 mb-3" />
+          <p className="text-white/30 text-sm">Todo al día — sin solicitudes pendientes</p>
         </Card>
-      ) : (
-        requests.map(r => (
-          <Card key={r.id}>
-            <div className="flex items-start gap-4">
-              <Avatar name={r.nombre || ''} size="sm" />
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-sm font-semibold text-white">{r.nombre}</p>
-                  <Badge
-                    preset={r.estado === 'aprobada' ? 'aprobada' : r.estado === 'rechazada' ? 'rechazada' : 'pendiente'}
-                    size="xs"
-                  />
-                </div>
-                <p className="text-xs text-white/40">{r.correo} · {r.carrera || '—'}</p>
-                {r.motivacion && <p className="text-xs text-white/30 mt-2 italic border-l-2 border-white/10 pl-2">{r.motivacion}</p>}
-                <p className="text-[10px] text-white/20 mt-2">{timeAgo(r.fecha)}</p>
-              </div>
-              {r.estado === 'pendiente' && (
-                <div className="flex gap-1.5 shrink-0">
-                  <Button variant="solid" size="xs" className="gap-1" onClick={() => handleAction(r.id, 'aprobada')}>
-                    <FiCheck size={11} /> Aprobar
-                  </Button>
-                  <Button variant="danger" size="xs" className="gap-1" onClick={() => handleAction(r.id, 'rechazada')}>
-                    <FiX size={11} /> Rechazar
-                  </Button>
-                </div>
-              )}
-            </div>
-          </Card>
-        ))
       )}
     </div>
   )
@@ -541,7 +660,8 @@ function ReportsPanel() {
       supabase.from('avances').select('fecha'),
       supabase.from('ideas').select('estado, votos_favor'),
       supabase.from('archivos').select('tipo, descargas'),
-    ]).then(([{ data: users }, { data: proys }, { data: avs }, { data: ideas }, { data: files }]) => {
+      supabase.from('nodo_solicitudes').select('estado'),
+    ]).then(([{ data: users }, { data: proys }, { data: avs }, { data: ideas }, { data: files }, { data: sols }]) => {
       // Area distribution
       const areaCounts = {}
       ;(users || []).forEach(u => { areaCounts[u.area_investigacion || 'Sin área'] = (areaCounts[u.area_investigacion || 'Sin área'] || 0) + 1 })
@@ -558,6 +678,10 @@ function ReportsPanel() {
       const fileCounts = {}
       let totalDownloads = 0
       ;(files || []).forEach(f => { fileCounts[f.tipo || 'otro'] = (fileCounts[f.tipo || 'otro'] || 0) + 1; totalDownloads += f.descargas || 0 })
+
+      // Nodo solicitudes
+      const solicitudCounts = {}
+      ;(sols || []).forEach(s => { solicitudCounts[s.estado] = (solicitudCounts[s.estado] || 0) + 1 })
 
       // Monthly activity from avances
       const monthlyActivity = {}
@@ -588,6 +712,8 @@ function ReportsPanel() {
         totalFiles: files?.length || 0,
         fileCounts,
         totalDownloads,
+        totalNodoSolicitudes: sols?.length || 0,
+        solicitudCounts,
         activityData,
       })
       setLoading(false)
@@ -611,6 +737,7 @@ function ReportsPanel() {
     { label: 'Avances', value: stats.totalAvances, color: '#22c55e', icon: FiBarChart2, trend: stats.totalAvances > 10 ? 'up' : 'neutral' },
     { label: 'Ideas', value: stats.totalIdeas, color: '#F59E0B', icon: FiStar, trend: stats.totalIdeas > 5 ? 'up' : 'neutral' },
     { label: 'Archivos', value: stats.totalFiles, color: '#EC4899', icon: FiInbox, trend: stats.totalFiles > 0 ? 'up' : 'neutral' },
+    { label: 'Solicitudes', value: stats.totalNodoSolicitudes, color: '#8B5CF6', icon: FiClock, trend: (stats.solicitudCounts?.pendiente || 0) > 0 ? 'up' : 'neutral' },
   ]
 
   const TrendIcon = ({ trend, color }) => {
@@ -1013,6 +1140,104 @@ function NodesTabContent() {
 }
 
 /* ──────── Main Admin Panel ──────── */
+/* ──────── Pending Nodes Manager ──────── */
+function PendingNodesManager() {
+  const { getPendingNodos, approvePendingNodo, rejectPendingNodo } = useNodos()
+  const [pendingNodos, setPendingNodos] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const loadPendingNodos = async () => {
+      setLoading(true)
+      const nodos = await getPendingNodos()
+      setPendingNodos(nodos)
+      setLoading(false)
+    }
+    loadPendingNodos()
+  }, [getPendingNodos])
+
+  const handleApprove = async (nodoId) => {
+    const approved = await approvePendingNodo(nodoId)
+    if (approved) {
+      setPendingNodos(prev => prev.filter(n => n.id !== nodoId))
+    }
+  }
+
+  const handleReject = async (nodoId) => {
+    const rejected = await rejectPendingNodo(nodoId)
+    if (rejected) {
+      setPendingNodos(prev => prev.filter(n => n.id !== nodoId))
+    }
+  }
+
+  if (loading) return <div className="flex justify-center py-10"><Spinner /></div>
+
+  return (
+    <div className="space-y-4">
+      {pendingNodos.length === 0 ? (
+        <Card className="text-center py-12">
+          <p className="text-white/30 text-sm">No hay nodos pendientes de aprobación</p>
+        </Card>
+      ) : (
+        <Card className="!p-0 overflow-hidden">
+          <div className="divide-y divide-white/[0.06]">
+            {pendingNodos.map((nodo, i) => (
+              <motion.div
+                key={nodo.id}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="p-4 hover:bg-white/[0.02] transition-colors"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <h3 className="text-sm font-semibold text-white">{nodo.nombre}</h3>
+                    {nodo.descripcion && (
+                      <p className="text-xs text-white/40 mt-1">{nodo.descripcion}</p>
+                    )}
+                    <div className="flex items-center gap-3 mt-2">
+                      {nodo.creator && (
+                        <span className="text-xs text-white/40 flex items-center gap-1.5">
+                          <FiUsers size={12} />
+                          Creado por {nodo.creator.nombre}
+                        </span>
+                      )}
+                      <span className="text-xs text-white/30 flex items-center gap-1">
+                        <FiClock size={12} />
+                        {timeAgo(nodo.created_at)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="solid"
+                      size="sm"
+                      className="gap-1.5 !bg-[#22c55e] hover:!bg-[#16a34a]"
+                      onClick={() => handleApprove(nodo.id)}
+                    >
+                      <FiCheck size={14} />
+                      Aprobar
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => handleReject(nodo.id)}
+                    >
+                      <FiX size={14} />
+                      Rechazar
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  )
+}
+
 export default function AdminPanel() {
   const [tab, setTab] = useState('users')
 
@@ -1033,7 +1258,7 @@ export default function AdminPanel() {
         <Badge variant="admin" className="ml-auto" />
       </motion.div>
 
-      <Tabs tabs={tabs} defaultTab="users" onChange={setTab} />
+      <Tabs tabs={tabs} value={tab} onChange={setTab} />
 
       {tab === 'users' && <UserTable />}
       {tab === 'requests' && <RequestsPanel />}
@@ -1042,6 +1267,7 @@ export default function AdminPanel() {
       {tab === 'moderation' && <ContentModerator />}
       {tab === 'reports' && <ReportsPanel />}
       {tab === 'nodes' && <NodesTabContent />}
+      {tab === 'pending-nodes' && <PendingNodesManager />}
       {tab === 'broadcast' && <BroadcastPanel />}
       {tab === 'config' && <PlatformConfig />}
     </div>

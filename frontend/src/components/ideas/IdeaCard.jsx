@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiMessageCircle, FiClock, FiChevronDown, FiMaximize2, FiEdit2, FiAlertTriangle } from 'react-icons/fi'
+import { FiMessageCircle, FiClock, FiChevronDown, FiMaximize2, FiEdit2, FiAlertTriangle, FiTrash2 } from 'react-icons/fi'
 import Card from '../ui/Card'
 import Badge from '../ui/Badge'
 import Avatar from '../ui/Avatar'
@@ -13,15 +13,17 @@ import { timeAgo } from '../../lib/utils'
 // Estados que requieren aprobación del admin/director para editar
 const PROTECTED_ESTADOS = ['aprobada', 'en_desarrollo', 'completada']
 
-export default function IdeaCard({ idea, myVote, onVote, onChangeEstado, canChangeEstado, onEdit, currentUserId, index = 0 }) {
+export default function IdeaCard({ idea, myVote, onVote, onChangeEstado, canChangeEstado, onEdit, onDelete, currentUserId, index = 0 }) {
   const { titulo, descripcion, estado, area_relacionada, votos_favor, votos_contra, fecha_publicacion, autor } = idea
   const [showComments, setShowComments] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
   const [votingExpired, setVotingExpired] = useState(false)
   const [showEditRequest, setShowEditRequest] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const isOwner = currentUserId && idea.autor_id === currentUserId
   const canEdit = isOwner || canChangeEstado
+  const canDelete = isOwner || canChangeEstado
   const isProtected = PROTECTED_ESTADOS.includes(estado)
 
   const handleEditClick = () => {
@@ -59,6 +61,15 @@ export default function IdeaCard({ idea, myVote, onVote, onChangeEstado, canChan
                   title={isProtected && !canChangeEstado ? 'Solicitar edición' : 'Editar idea'}
                 >
                   <FiEdit2 size={12} />
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="p-1 rounded-md text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
+                  title="Eliminar idea"
+                >
+                  <FiTrash2 size={12} />
                 </button>
               )}
               <button
@@ -156,6 +167,54 @@ export default function IdeaCard({ idea, myVote, onVote, onChangeEstado, canChan
         canChangeEstado={canChangeEstado}
         onChangeEstado={onChangeEstado}
       />
+
+      {/* Delete confirmation */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.6)' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setShowDeleteConfirm(false)}
+          >
+            <motion.div
+              className="rounded-2xl px-6 py-5 flex flex-col gap-4 w-80"
+              style={{ background: '#130a0f', border: '1px solid rgba(239,68,68,0.3)' }}
+              initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(239,68,68,0.15)' }}>
+                  <FiTrash2 size={16} className="text-red-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white/90">Eliminar idea</p>
+                  <p className="text-[11px] text-white/40 mt-1 leading-relaxed">
+                    Esta acción no se puede deshacer. La idea y sus votos serán eliminados permanentemente.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => { setShowDeleteConfirm(false); await onDelete?.(idea.id) }}
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all hover:opacity-90"
+                  style={{ background: '#EF4444' }}
+                >
+                  Eliminar
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 py-2 rounded-xl text-xs font-medium transition-all"
+                  style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Edit request confirmation — for protected states */}
       <AnimatePresence>

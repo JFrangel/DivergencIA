@@ -73,7 +73,7 @@ export function AuthProvider({ children }) {
       await supabase.from('notificaciones').insert({
         usuario_id: data.user.id,
         tipo: 'bienvenida',
-        mensaje: 'Bienvenido/a a DivergencIA. Explora proyectos, comparte ideas y aprende con la comunidad.',
+        mensaje: 'Bienvenido/a al semillero. Explora proyectos, comparte ideas y aprende con la comunidad.',
         leida: false,
         fecha: new Date().toISOString(),
       })

@@ -4,9 +4,10 @@ import {
   FiFileText, FiCode, FiUpload, FiSearch, FiPlus, FiTrash2,
   FiCopy, FiDownload, FiStar, FiEdit3, FiX, FiCheck,
   FiBold, FiItalic, FiList, FiImage, FiFile, FiTag,
-  FiChevronRight, FiAlertCircle,
+  FiChevronRight, FiAlertCircle, FiUsers, FiClock, FiCheckCircle, FiXCircle,
 } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
+import { useNodos } from '../../hooks/useNodos'
 import { supabase } from '../../lib/supabase'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
@@ -19,6 +20,7 @@ const TABS = [
   { id: 'notes', label: 'Notas', icon: FiFileText },
   { id: 'snippets', label: 'Snippets', icon: FiCode },
   { id: 'files', label: 'Archivos', icon: FiUpload },
+  { id: 'solicitudes', label: 'Solicitudes', icon: FiUsers },
 ]
 
 const LS_NOTES_KEY = 'workspace_notes'
@@ -786,6 +788,168 @@ function FilesTab({ userId, filterQuery = '' }) {
   )
 }
 
+// ─── Solicitudes Tab ───────────────────────────────────────────────────────
+
+function SolicitudesTab({ userId }) {
+  const { getMyPendingSolicitudes, getPendingSolicitudes, respondSolicitud, nodos } = useNodos()
+  const { isAdmin } = useAuth()
+  const [mySolicitudes, setMySolicitudes] = useState([])
+  const [receivedSolicitudes, setReceivedSolicitudes] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [responding, setResponding] = useState(null)
+
+  useEffect(() => {
+    loadSolicitudes()
+  }, [userId])
+
+  const loadSolicitudes = async () => {
+    setLoading(true)
+    const [myReqs, receivedReqs] = await Promise.all([
+      getMyPendingSolicitudes(),
+      isAdmin ? getPendingSolicitudes() : Promise.resolve([]),
+    ])
+    setMySolicitudes(myReqs || [])
+    setReceivedSolicitudes(receivedReqs || [])
+    setLoading(false)
+  }
+
+  const handleRespondSolicitud = async (solicitudId, nodoId, usuarioId, estado) => {
+    setResponding(solicitudId)
+    const result = await respondSolicitud(solicitudId, estado, nodoId, usuarioId)
+    setResponding(null)
+    if (!result.error) {
+      loadSolicitudes()
+    }
+  }
+
+  const getNodoName = (nodoId) => nodos?.find(n => n.id === nodoId)?.nombre || 'Nodo desconocido'
+  const getEstadoColor = (estado) => {
+    if (estado === 'pendiente') return '#F59E0B'
+    if (estado === 'aprobada') return '#22c55e'
+    if (estado === 'rechazada') return '#EF4444'
+    return '#FC651F'
+  }
+  const getEstadoIcon = (estado) => {
+    if (estado === 'pendiente') return FiClock
+    if (estado === 'aprobada') return FiCheckCircle
+    if (estado === 'rechazada') return FiXCircle
+    return FiAlertCircle
+  }
+
+  if (loading) return <div className="flex items-center justify-center py-16"><Spinner size="lg" /></div>
+
+  const hasAny = mySolicitudes.length > 0 || receivedSolicitudes.length > 0
+
+  return (
+    <div className="space-y-6">
+      {/* Mis Solicitudes */}
+      <div className="rounded-xl border border-white/[0.06] p-6" style={{ background: 'rgba(255,255,255,0.02)' }}>
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <FiUpload size={18} /> Solicitudes que Envié
+        </h3>
+        {mySolicitudes.length > 0 ? (
+          <div className="space-y-3">
+            {mySolicitudes.map(sol => {
+              const Icon = getEstadoIcon(sol.estado)
+              const color = getEstadoColor(sol.estado)
+              const nodoName = getNodoName(sol.nodo_id)
+              return (
+                <motion.div
+                  key={sol.id}
+                  className="flex items-center justify-between p-3 rounded-lg border border-white/[0.06] hover:border-white/[0.1] transition-colors"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <div className="flex items-center gap-3 flex-1">
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: `color-mix(in srgb, ${color} 12%, transparent)` }}
+                    >
+                      <Icon size={14} style={{ color }} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-white">{nodoName}</p>
+                      <p className="text-xs text-white/40">Enviada hace {formatDate(sol.created_at)}</p>
+                    </div>
+                  </div>
+                  <span
+                    className="text-xs font-bold px-2 py-1 rounded capitalize"
+                    style={{ color, background: `color-mix(in srgb, ${color} 12%, transparent)` }}
+                  >
+                    {sol.estado === 'pendiente' ? 'Pendiente' : sol.estado === 'aprobada' ? 'Aprobada' : 'Rechazada'}
+                  </span>
+                </motion.div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-white/40">No has enviado solicitudes de acceso</p>
+        )}
+      </div>
+
+      {/* Solicitudes Recibidas (Admin only) */}
+      {isAdmin && (
+        <div className="rounded-xl border border-white/[0.06] p-6" style={{ background: 'rgba(255,255,255,0.02)' }}>
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <FiDownload size={18} /> Solicitudes Recibidas
+          </h3>
+          {receivedSolicitudes.length > 0 ? (
+            <div className="space-y-3">
+              {receivedSolicitudes.map(sol => {
+                const nodoName = getNodoName(sol.nodo_id)
+                return (
+                  <motion.div
+                    key={sol.id}
+                    className="flex items-center justify-between p-3 rounded-lg border border-white/[0.06] hover:border-white/[0.1] transition-colors"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ background: 'color-mix(in srgb, #F59E0B 12%, transparent)' }}
+                      >
+                        <FiClock size={14} style={{ color: '#F59E0B' }} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-white">{nodoName}</p>
+                        <p className="text-xs text-white/40">Pendiente de revisión</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleRespondSolicitud(sol.id, sol.nodo_id, sol.usuario_id, 'aprobada')}
+                        disabled={responding === sol.id}
+                        className="px-3 py-1 rounded text-xs font-medium bg-green-500/20 text-green-300 hover:bg-green-500/30 transition-colors disabled:opacity-50"
+                      >
+                        Aprobar
+                      </button>
+                      <button
+                        onClick={() => handleRespondSolicitud(sol.id, sol.nodo_id, sol.usuario_id, 'rechazada')}
+                        disabled={responding === sol.id}
+                        className="px-3 py-1 rounded text-xs font-medium bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                      >
+                        Rechazar
+                      </button>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-white/40">Sin solicitudes pendientes en tus nodos</p>
+          )}
+        </div>
+      )}
+
+      {!hasAny && (
+        <EmptyState icon={<FiUsers size={40} className="text-white/20" />}
+          title="Sin solicitudes" description="No tienes solicitudes de acceso a nodos" />
+      )}
+    </div>
+  )
+}
+
 // ─── Main Workspace Page ────────────────────────────────────────────────────
 
 export default function Workspace() {
@@ -856,6 +1020,7 @@ export default function Workspace() {
           {activeTab === 'notes' && <NotesTab userId={user.id} filterQuery={globalSearch} />}
           {activeTab === 'snippets' && <SnippetsTab userId={user.id} filterQuery={globalSearch} />}
           {activeTab === 'files' && <FilesTab userId={user.id} filterQuery={globalSearch} />}
+          {activeTab === 'solicitudes' && <SolicitudesTab userId={user.id} />}
         </motion.div>
       </AnimatePresence>
     </div>

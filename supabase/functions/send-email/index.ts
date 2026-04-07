@@ -1,6 +1,9 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || 're_PesrK9Kb_6tZww8sZwtZs9BgQm7CFLFKW'
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
+if (!RESEND_API_KEY) {
+  throw new Error('RESEND_API_KEY environment variable is required')
+}
 // NOTE: onboarding@resend.dev only delivers to your Resend-registered email (sandbox restriction).
 // To send to any address, verify a domain at resend.com/domains and change FROM_EMAIL below.
 const FROM_EMAIL = Deno.env.get('FROM_EMAIL') || 'DivergencIA <onboarding@resend.dev>'

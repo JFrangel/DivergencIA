@@ -78,13 +78,40 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
   const create = async (payload) => {
     const { data, error } = await supabase
       .from('ideas')
-      .insert({ ...payload, autor_id: user?.id, estado: payload.estado || 'votacion' })
+      .insert({ ...payload, autor_id: user?.id, usuario_id: user?.id, estado: payload.estado || 'votacion' })
       .select('*, autor:usuarios!ideas_autor_id_fkey(id, nombre, foto_url, area_investigacion)')
       .single()
-    if (error) { toast.error('Error al crear idea'); return { error } }
+    if (error) { console.error('[useIdeas.create]', error); toast.error('Error al crear idea'); return { error } }
+
     setIdeas(i => [data, ...i])
     toast.success('Idea publicada')
     trackProgress(user?.id, 'ideas_submitted', 1)
+
+    // Notify all active users about the new idea
+    try {
+      const { data: allUsers } = await supabase
+        .from('usuarios')
+        .select('id')
+        .eq('activo', true)
+
+      if (allUsers && allUsers.length > 0) {
+        const userName = user?.user_metadata?.nombre || 'Un miembro'
+        await supabase.from('notificaciones').insert(
+          allUsers.map(u => ({
+            usuario_id: u.id,
+            tipo: 'idea_nueva',
+            titulo: '✨ Nueva Idea Publicada',
+            mensaje: `${userName} publicó la idea: "${data.titulo || 'Sin título'}"`,
+            referencia_id: data.id,
+            leida: false,
+            fecha: new Date().toISOString()
+          }))
+        ).catch(err => console.error('Error notifying about new idea:', err))
+      }
+    } catch (err) {
+      console.error('[useIdeas.create] Error notifying users:', err)
+    }
+
     return { data }
   }
 
@@ -258,6 +285,14 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
     ).slice(0, 5)
   }, [ideas])
 
+  const deleteIdea = async (id) => {
+    const { error } = await supabase.from('ideas').delete().eq('id', id)
+    if (error) { toast.error('Error al eliminar la idea'); return { error } }
+    setIdeas(prev => prev.filter(i => i.id !== id))
+    toast.success('Idea eliminada')
+    return { success: true }
+  }
+
   return {
     ideas: filtered,
     allIdeas: ideas,
@@ -269,6 +304,7 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
     vote,
     updateEstado,
     updateIdea,
+    deleteIdea,
     mergeIdeas,
     isVotingExpired,
     getVoteDetails,

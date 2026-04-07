@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { FiMapPin, FiStar, FiClock, FiUser, FiX } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { getPlatformName } from '../../hooks/usePlatformConfig'
 
 /* ── Group configuration ── */
 const GROUP_CONFIG = {
@@ -749,7 +750,7 @@ export default function MemberNetwork({ members = [] }) {
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: 'spring', bounce: 0.4, delay: 0.1 }}
       >
-        <span className="text-[10px] leading-tight text-center">ATHENIA</span>
+        <span className="text-[10px] leading-tight text-center">{getPlatformName()}</span>
       </motion.div>
 
       {/* Member nodes */}

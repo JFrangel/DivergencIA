@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { FiZap } from 'react-icons/fi'
 import { supabase } from '../../lib/supabase'
+import { getPlatformName } from '../../hooks/usePlatformConfig'
 
 export default function AuthCallback() {
   const navigate = useNavigate()
   const [status, setStatus] = useState('Verificando sesión...')
+  const platformName = getPlatformName()
 
   useEffect(() => {
     let handled = false
@@ -51,7 +53,7 @@ export default function AuthCallback() {
         await supabase.from('notificaciones').insert({
           usuario_id: user.id,
           tipo: 'bienvenida',
-          titulo: '¡Bienvenido/a a ATHENIA!',
+          titulo: `¡Bienvenido/a a ${platformName}!`,
           mensaje: `Hola ${nombre}, ya eres parte del semillero. Explora proyectos, comparte ideas y conecta con investigadores.`,
           leida: false,
           fecha: new Date().toISOString(),
@@ -121,7 +123,7 @@ export default function AuthCallback() {
         {/* Text */}
         <div className="text-center">
           <p className="text-white font-bold text-xl font-title tracking-tight">
-            Divergenc<span style={{ color: '#FC651F' }}>IA</span>
+            {platformName}
           </p>
           <p className="text-white/40 text-sm mt-1.5">{status}</p>
         </div>

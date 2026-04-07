@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FiZap, FiMenu, FiX, FiArrowRight, FiCpu, FiFolder, FiUsers, FiGlobe, FiStar, FiMap, FiBookOpen } from 'react-icons/fi'
 import Button from '../ui/Button'
+import { usePlatformConfig } from '../../hooks/usePlatformConfig'
 
 const NAV_LINKS = [
   { href: '/members',  label: 'Investigadores', icon: FiUsers },
@@ -17,6 +18,7 @@ export default function Navbar() {
   const { pathname } = useLocation()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { platformName, logoUrl } = usePlatformConfig()
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 30)
@@ -43,15 +45,19 @@ export default function Navbar() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 group flex-shrink-0">
             <motion.div
-              className="w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br from-[#FC651F] to-[#8B5CF6]"
-              whileHover={{ scale: 1.1, rotate: 10 }}
+              className="w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden"
+              style={!logoUrl ? { background: 'linear-gradient(135deg, #FC651F, #8B5CF6)' } : {}}
+              whileHover={{ scale: 1.1, rotate: logoUrl ? 0 : 10 }}
               transition={{ type: 'spring', stiffness: 400, damping: 15 }}
             >
-              <FiZap size={17} className="text-white" />
+              {logoUrl
+                ? <img src={logoUrl} alt="logo" className="w-full h-full object-contain" />
+                : <FiZap size={17} className="text-white" />
+              }
             </motion.div>
             <div>
               <span className="font-bold text-white font-title tracking-tight text-[15px]">
-                Divergenc<span className="text-[#FC651F]">IA</span>
+                {platformName || 'DivergencIA'}
               </span>
               <p className="text-[9px] text-white/25 leading-none hidden sm:block">Semillero de IA</p>
             </div>

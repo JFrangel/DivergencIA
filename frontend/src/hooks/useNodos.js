@@ -7,38 +7,71 @@ import { getCached, setCached, invalidateCache } from '../lib/queryCache'
 const NODOS_CACHE_KEY = 'nodos:all'
 
 export function useNodos() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const [nodos, setNodos] = useState(() => getCached(NODOS_CACHE_KEY).data?.nodos || [])
   const [members, setMembers] = useState(() => getCached(NODOS_CACHE_KEY).data?.members || [])
   const [loading, setLoading] = useState(() => !getCached(NODOS_CACHE_KEY).data)
 
   const fetchNodos = useCallback(async (background = false) => {
     if (!background) setLoading(true)
-    const [{ data: nodosData }, { data: miembrosData }, { data: usersData }] = await Promise.all([
-      supabase.from('nodos').select('*').eq('activo', true).order('orden').order('created_at'),
-      supabase.from('nodo_miembros').select('nodo_id, usuario_id, rol, joined_at, usuario:usuarios(id, nombre, foto_url, area_investigacion, rol, es_fundador)'),
-      supabase.from('usuarios').select('id, nombre, foto_url, area_investigacion, rol, es_fundador, activo').eq('activo', true).order('nombre'),
-    ])
 
-    if (nodosData) {
-      // Build user lookup as fallback when FK join is unavailable
-      const usersMap = {}
-      ;(usersData || []).forEach(u => { usersMap[u.id] = u })
+    // Fetch active nodos for everyone + pending nodos for the current user (creator)
+    let nodosQuery = supabase.from('nodos').select('*').order('orden').order('created_at')
 
-      const membersByNodo = {}
-      ;(miembrosData || []).forEach(m => {
-        if (!membersByNodo[m.nodo_id]) membersByNodo[m.nodo_id] = []
-        // Use FK join result if available, else fall back to usersMap lookup
-        const user = m.usuario || usersMap[m.usuario_id]
-        if (user) membersByNodo[m.nodo_id].push({ ...user, rol_nodo: m.rol, joined_at: m.joined_at })
-      })
-      const nodosWithMembers = nodosData.map(n => ({ ...n, miembros: membersByNodo[n.id] || [] }))
-      setCached(NODOS_CACHE_KEY, { nodos: nodosWithMembers, members: usersData || [] })
-      setNodos(nodosWithMembers)
+    if (user) {
+      // Admins/directoras see all nodos; others see active + their own pending
+      const nodosFilter = isAdmin
+        ? nodosQuery
+        : nodosQuery.or(`estado.eq.activo,and(estado.eq.pendiente_aprobacion,creado_por.eq.${user.id})`)
+      const { data: nodosData } = await nodosFilter
+
+      const [{ data: miembrosData }, { data: usersData }] = await Promise.all([
+        supabase.from('nodo_miembros').select('nodo_id, usuario_id, rol, joined_at, usuario:usuarios(id, nombre, foto_url, area_investigacion, rol, es_fundador)'),
+        supabase.from('usuarios').select('id, nombre, foto_url, area_investigacion, rol, es_fundador, activo').eq('activo', true).order('nombre'),
+      ])
+
+      if (nodosData) {
+        const usersMap = {}
+        ;(usersData || []).forEach(u => { usersMap[u.id] = u })
+
+        const membersByNodo = {}
+        ;(miembrosData || []).forEach(m => {
+          if (!membersByNodo[m.nodo_id]) membersByNodo[m.nodo_id] = []
+          const user = m.usuario || usersMap[m.usuario_id]
+          if (user) membersByNodo[m.nodo_id].push({ ...user, rol_nodo: m.rol, joined_at: m.joined_at })
+        })
+        const nodosWithMembers = nodosData.map(n => ({ ...n, miembros: membersByNodo[n.id] || [] }))
+        setCached(NODOS_CACHE_KEY, { nodos: nodosWithMembers, members: usersData || [] })
+        setNodos(nodosWithMembers)
+        setMembers(usersData || [])
+      }
+    } else {
+      // Not logged in: only fetch active nodos
+      const [{ data: nodosData }, { data: miembrosData }, { data: usersData }] = await Promise.all([
+        nodosQuery.eq('estado', 'activo'),
+        supabase.from('nodo_miembros').select('nodo_id, usuario_id, rol, joined_at, usuario:usuarios(id, nombre, foto_url, area_investigacion, rol, es_fundador)'),
+        supabase.from('usuarios').select('id, nombre, foto_url, area_investigacion, rol, es_fundador, activo').eq('activo', true).order('nombre'),
+      ])
+
+      if (nodosData) {
+        const usersMap = {}
+        ;(usersData || []).forEach(u => { usersMap[u.id] = u })
+
+        const membersByNodo = {}
+        ;(miembrosData || []).forEach(m => {
+          if (!membersByNodo[m.nodo_id]) membersByNodo[m.nodo_id] = []
+          const user = m.usuario || usersMap[m.usuario_id]
+          if (user) membersByNodo[m.nodo_id].push({ ...user, rol_nodo: m.rol, joined_at: m.joined_at })
+        })
+        const nodosWithMembers = nodosData.map(n => ({ ...n, miembros: membersByNodo[n.id] || [] }))
+        setCached(NODOS_CACHE_KEY, { nodos: nodosWithMembers, members: usersData || [] })
+        setNodos(nodosWithMembers)
+        setMembers(usersData || [])
+      }
     }
-    setMembers(usersData || [])
+
     setLoading(false)
-  }, [])
+  }, [user, isAdmin])
 
   useEffect(() => {
     const { stale } = getCached(NODOS_CACHE_KEY)
@@ -59,12 +92,32 @@ export function useNodos() {
   const createNodo = useCallback(async ({ nombre, descripcion, color, icono, parent_id }) => {
     if (!user) return null
     const maxOrden = nodos.filter(n => n.parent_id === (parent_id || null)).length
+    const estadoInicial = isAdmin ? 'activo' : 'pendiente_aprobacion'
     const { data, error } = await supabase
       .from('nodos')
-      .insert({ nombre, descripcion, color, icono, parent_id: parent_id || null, creado_por: user.id, orden: maxOrden })
+      .insert({ nombre, descripcion, color, icono, parent_id: parent_id || null, creado_por: user.id, orden: maxOrden, estado: estadoInicial })
       .select()
       .single()
     if (error) { toast.error('Error al crear nodo'); return null }
+
+    // Only notify admins if created by non-admin (pending approval needed)
+    if (!isAdmin) {
+      const { data: admins } = await supabase
+        .from('usuarios')
+        .select('id')
+        .in('rol', ['admin', 'directora'])
+      if (admins && admins.length > 0) {
+        await supabase.from('notificaciones').insert(
+          admins.map(admin => ({
+            usuario_id: admin.id,
+            tipo: 'nodo_pendiente',
+            titulo: 'Nuevo nodo pendiente de aprobación',
+            mensaje: `Se ha creado un nuevo nodo "${nombre}" esperando tu aprobación`,
+            leida: false,
+          }))
+        ).catch(() => {})
+      }
+    }
 
     // Auto-create chat channel for this nodo
     const canalNombre = nombre.trim().toLowerCase().replace(/\s+/g, '-')
@@ -77,7 +130,7 @@ export function useNodos() {
       await supabase.from('canal_miembros').insert({ canal_id: canal.id, usuario_id: user.id, puede_escribir: true })
     }
 
-    toast.success(`Nodo "${nombre}" creado`)
+    toast.success(isAdmin ? `Nodo "${nombre}" creado` : `Nodo "${nombre}" creado — esperando aprobación del administrador`)
     await fetchNodos()
     return data
   }, [user, nodos, fetchNodos])
@@ -186,17 +239,32 @@ export function useNodos() {
       toast.error('Error al enviar solicitud'); return false
     }
 
-    // Notify nodo admins
+    // Notify nodo admins + platform admins/directoras
     const nodo = nodos.find(n => n.id === nodoId)
-    const admins = (nodo?.miembros || []).filter(m => m.rol_nodo === 'admin' || m.rol_nodo === 'owner')
-    if (admins.length > 0) {
+    const nodoAdmins = (nodo?.miembros || []).filter(m => m.rol_nodo === 'admin' || m.rol_nodo === 'owner')
+    const nodoAdminIds = new Set(nodoAdmins.map(a => a.id))
+
+    // Always fetch platform admins/directoras to ensure someone gets notified
+    const { data: platformAdmins } = await supabase
+      .from('usuarios')
+      .select('id')
+      .in('rol', ['admin', 'directora'])
+
+    const allRecipients = [
+      ...nodoAdmins.map(a => a.id),
+      ...(platformAdmins || []).map(a => a.id).filter(id => !nodoAdminIds.has(id)),
+    ]
+
+    if (allRecipients.length > 0) {
       await supabase.from('notificaciones').insert(
-        admins.map(a => ({
-          usuario_id: a.id,
-          tipo: 'solicitudes',
+        allRecipients.map(uid => ({
+          usuario_id: uid,
+          tipo: 'nodo_solicitud',
           titulo: 'Nueva solicitud de ingreso',
-          mensaje: `${user.user_metadata?.nombre || 'Un miembro'} quiere unirse al nodo "${nodo?.nombre}"`,
+          mensaje: `${user.user_metadata?.nombre || user.email || 'Un miembro'} quiere unirse al nodo "${nodo?.nombre}"`,
+          referencia_id: nodoId,
           leida: false,
+          fecha: new Date().toISOString(),
         }))
       ).catch(() => {})
     }
@@ -238,12 +306,13 @@ export function useNodos() {
     const nodo = nodos.find(n => n.id === nodoId)
     await supabase.from('notificaciones').insert({
       usuario_id: usuarioId,
-      tipo: 'solicitudes',
+      tipo: estado === 'aprobada' ? 'nodo_aprobado' : 'nodo_rechazado',
       titulo: estado === 'aprobada' ? '¡Solicitud aprobada!' : 'Solicitud rechazada',
       mensaje: estado === 'aprobada'
         ? `Tu solicitud para unirte a "${nodo?.nombre}" fue aprobada`
         : `Tu solicitud para unirte a "${nodo?.nombre}" fue rechazada`,
       leida: false,
+      fecha: new Date().toISOString(),
     }).catch(() => {})
 
     toast.success(estado === 'aprobada' ? 'Solicitud aprobada' : 'Solicitud rechazada')
@@ -277,6 +346,66 @@ export function useNodos() {
     return data || []
   }, [user])
 
+  // ── NODO APPROVAL (ADMIN ONLY) ────────────────────────────────────────────
+  const getPendingNodos = useCallback(async () => {
+    if (!user) return []
+    // Get pending nodos where user is admin
+    const { data } = await supabase
+      .from('nodos')
+      .select('id, nombre, descripcion, creado_por, created_at, creator:usuarios(id, nombre, foto_url)')
+      .eq('estado', 'pendiente_aprobacion')
+      .order('created_at', { ascending: false })
+    return data || []
+  }, [user])
+
+  const approvePendingNodo = useCallback(async (nodoId) => {
+    const { error } = await supabase
+      .from('nodos')
+      .update({ estado: 'activo' })
+      .eq('id', nodoId)
+    if (error) { toast.error('Error al aprobar nodo'); return false }
+
+    // Notify creator
+    const nodo = nodos.find(n => n.id === nodoId)
+    if (nodo?.creado_por) {
+      await supabase.from('notificaciones').insert({
+        usuario_id: nodo.creado_por,
+        tipo: 'nodo_aprobado',
+        titulo: '¡Nodo aprobado!',
+        mensaje: `Tu nodo "${nodo.nombre}" ha sido aprobado y es ahora visible para todos`,
+        leida: false,
+      }).catch(() => {})
+    }
+
+    toast.success('Nodo aprobado')
+    await fetchNodos()
+    return true
+  }, [nodos, fetchNodos])
+
+  const rejectPendingNodo = useCallback(async (nodoId) => {
+    const { error } = await supabase
+      .from('nodos')
+      .update({ estado: 'archivado' })
+      .eq('id', nodoId)
+    if (error) { toast.error('Error al rechazar nodo'); return false }
+
+    // Notify creator
+    const nodo = nodos.find(n => n.id === nodoId)
+    if (nodo?.creado_por) {
+      await supabase.from('notificaciones').insert({
+        usuario_id: nodo.creado_por,
+        tipo: 'nodo_rechazado',
+        titulo: 'Nodo rechazado',
+        mensaje: `Tu nodo "${nodo.nombre}" ha sido rechazado. Contacta al administrador para más información.`,
+        leida: false,
+      }).catch(() => {})
+    }
+
+    toast.success('Nodo rechazado')
+    await fetchNodos()
+    return true
+  }, [nodos, fetchNodos])
+
   // Build tree structure
   const tree = buildTree(nodos)
 
@@ -285,6 +414,7 @@ export function useNodos() {
     createNodo, updateNodo, deleteNodo, duplicateNodo,
     addMembersToNodo, removeMembersFromNodo, moveMembersToNodo, updateMemberRole,
     requestJoinNodo, respondSolicitud, getPendingSolicitudes, getMyPendingSolicitudes,
+    getPendingNodos, approvePendingNodo, rejectPendingNodo,
   }
 }
 

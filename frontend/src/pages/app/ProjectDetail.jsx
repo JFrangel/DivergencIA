@@ -176,10 +176,9 @@ export default function ProjectDetail() {
       .then(({ data }) => { setLinkedIdeas(data || []); setIdeasLoading(false) })
   }, [id])
 
-  if (loading) return <div className="flex justify-center py-20"><Spinner /></div>
-  if (!project) return <div className="text-center py-20 text-white/30">Proyecto no encontrado</div>
-
-  const isMember = project.miembros?.some(m => m.usuario?.id === user?.id && m.activo) || project.creador_id === user?.id
+  const isMember = project?.miembros?.some(m => m.usuario?.id === user?.id && m.activo) || project?.creador_id === user?.id
+  const isOwnerEarly = project?.creador_id === user?.id
+  const canManageTeamEarly = isOwnerEarly || isAdmin
 
   // Fetch existing join request for this user
   useEffect(() => {
@@ -190,6 +189,20 @@ export default function ProjectDetail() {
       .maybeSingle()
       .then(({ data }) => setMyJoinRequest(data))
   }, [id, user, isMember])
+
+  // Load pending join requests for leaders
+  useEffect(() => {
+    if (!canManageTeamEarly || !id) return
+    setLoadingRequests(true)
+    supabase.from('solicitudes_proyecto')
+      .select('id, mensaje, created_at, estado, solicitante:usuarios!solicitudes_proyecto_usuario_id_fkey(id, nombre, foto_url, carrera)')
+      .eq('proyecto_id', id).eq('estado', 'pendiente')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { setPendingRequests(data || []); setLoadingRequests(false) })
+  }, [id, canManageTeamEarly])
+
+  if (loading) return <div className="flex justify-center py-20"><Spinner /></div>
+  if (!project) return <div className="text-center py-20 text-white/30">Proyecto no encontrado</div>
 
   const handleJoinRequest = async () => {
     setSendingJoin(true)
@@ -222,17 +235,6 @@ export default function ProjectDetail() {
   const progress = totalTareas ? Math.round((done / totalTareas) * 100) : 0
   const isOwner = project.creador_id === user?.id
   const canManageTeam = isOwner || isAdmin
-
-  // Load pending join requests for leaders
-  useEffect(() => {
-    if (!canManageTeam || !id) return
-    setLoadingRequests(true)
-    supabase.from('solicitudes_proyecto')
-      .select('id, mensaje, created_at, estado, solicitante:usuarios!solicitudes_proyecto_usuario_id_fkey(id, nombre, foto_url, carrera)')
-      .eq('proyecto_id', id).eq('estado', 'pendiente')
-      .order('created_at', { ascending: false })
-      .then(({ data }) => { setPendingRequests(data || []); setLoadingRequests(false) })
-  }, [id, canManageTeam])
 
   const respondProjectRequest = async (solId, estado, usuarioId) => {
     await supabase.from('solicitudes_proyecto')

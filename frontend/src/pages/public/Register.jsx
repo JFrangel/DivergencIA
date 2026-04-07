@@ -9,6 +9,7 @@ import { useAuth } from '../../context/AuthContext'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
+import { usePlatformConfig } from '../../hooks/usePlatformConfig'
 
 const ImmersiveBackground = lazy(() => import('../../components/visuals/ImmersiveBackground'))
 
@@ -39,6 +40,7 @@ export default function Register() {
   const { signUp, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
   const [authError, setAuthError] = useState('')
+  const { platformName, logoUrl } = usePlatformConfig()
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(schema),
@@ -81,13 +83,16 @@ export default function Register() {
         <div className="flex flex-col items-center mb-8">
           <Link to="/" className="flex items-center gap-2.5 mb-3">
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #FC651F, #8B5CF6)' }}
+              className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden"
+              style={!logoUrl ? { background: 'linear-gradient(135deg, #FC651F, #8B5CF6)' } : {}}
             >
-              <FiZap size={20} className="text-white" />
+              {logoUrl
+                ? <img src={logoUrl} alt="logo" className="w-full h-full object-contain" />
+                : <FiZap size={20} className="text-white" />
+              }
             </div>
             <span className="font-bold text-white text-xl font-title tracking-tight">
-              Divergenc<span style={{ color: '#FC651F' }}>IA</span>
+              {platformName || 'DivergencIA'}
             </span>
           </Link>
           <h1 className="text-2xl font-bold text-white font-title">Únete al semillero</h1>
