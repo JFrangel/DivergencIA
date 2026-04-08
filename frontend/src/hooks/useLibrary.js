@@ -23,7 +23,7 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
 
     let query = supabase
       .from('archivos')
-      .select('*, subido:usuarios(id, nombre, foto_url, es_fundador, area_investigacion)')
+      .select('*, subido:subido_por(id, nombre, foto_url, es_fundador, area_investigacion)')
       .order('fecha_subida', { ascending: false })
 
     if (projectId) query = query.eq('proyecto_id', projectId)
@@ -87,7 +87,7 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
         visibilidad: metadata.visibilidad || 'miembros',
         ...metadata,
       })
-      .select('*, subido:usuarios(id, nombre, foto_url, es_fundador, area_investigacion)')
+      .select('*, subido:subido_por(id, nombre, foto_url, es_fundador, area_investigacion)')
       .single()
 
     setUploading(false)

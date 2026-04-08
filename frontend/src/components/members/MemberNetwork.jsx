@@ -396,10 +396,16 @@ export default function MemberNetwork({ members = [] }) {
     return { nodes: allNodes, cx, cy, maxR, areaLabels }
   }, [groups, dims, customPositions])
 
+  /* Shared nodo count between two members — used for connection weight */
+  const sharedNodosCount = useCallback((idA, idB) => {
+    const nodosA = new Set((nodosByMember[idA] || []).map(n => n.nombre))
+    const nodosB = (nodosByMember[idB] || []).map(n => n.nombre)
+    return nodosB.filter(n => nodosA.has(n)).length
+  }, [nodosByMember])
+
   /* Build inter-group connections */
   const interGroupConnections = useMemo(() => {
     const conns = []
-    const nodeMap = new Map(nodes.map(n => [n.id, n]))
 
     // Fundadores -> activos with same area (mentor connections)
     const fundadores = nodes.filter(n => n.group === 'fundadores')
@@ -410,32 +416,33 @@ export default function MemberNetwork({ members = [] }) {
     fundadores.forEach(f => {
       activos
         .filter(a => a.area_investigacion && a.area_investigacion === f.area_investigacion)
-        .slice(0, 3) // max 3 connections per founder
+        .slice(0, 3)
         .forEach(a => {
-          conns.push({ from: f, to: a, type: 'mentor' })
+          const shared = sharedNodosCount(f.id, a.id)
+          conns.push({ from: f, to: a, type: 'mentor', weight: 1 + shared * 0.6 })
         })
     })
 
-    // New members -> members in same area
     nuevos.forEach(n => {
       const sameArea = [...fundadores, ...activos].filter(
         m => m.area_investigacion && m.area_investigacion === n.area_investigacion
       )
       sameArea.slice(0, 2).forEach(m => {
-        conns.push({ from: n, to: m, type: 'area' })
+        const shared = sharedNodosCount(n.id, m.id)
+        conns.push({ from: n, to: m, type: 'area', weight: 0.8 + shared * 0.5 })
       })
     })
 
-    // Egresados -> random active members (simulating project connections)
     egresados.forEach(e => {
       const targets = activos.filter(a => a.area_investigacion === e.area_investigacion)
       targets.slice(0, 2).forEach(t => {
-        conns.push({ from: e, to: t, type: 'alumni' })
+        const shared = sharedNodosCount(e.id, t.id)
+        conns.push({ from: e, to: t, type: 'alumni', weight: 0.6 + shared * 0.4 })
       })
     })
 
     return conns
-  }, [nodes])
+  }, [nodes, sharedNodosCount])
 
   /* Filter visible connections */
   const visibleConnections = useMemo(() => {
@@ -687,6 +694,7 @@ export default function MemberNetwork({ members = [] }) {
             : conn.type === 'area' ? (AREA_COLORS[fromNode.area_investigacion] || '#00D1FF')
             : '#6b7280'
 
+          const w = (conn.weight || 1) * (highlighted ? style.width * 1.5 : style.width)
           return (
             <motion.path
               key={`inter-${i}`}
@@ -694,7 +702,7 @@ export default function MemberNetwork({ members = [] }) {
               fill="none"
               stroke={connColor}
               strokeOpacity={hovered ? (highlighted ? style.opacity * 2.5 : style.opacity * 0.3) : style.opacity}
-              strokeWidth={highlighted ? style.width * 1.5 : style.width}
+              strokeWidth={w}
               strokeDasharray={style.dash === 'none' ? undefined : style.dash}
               initial={{ pathLength: 0 }}
               animate={{ pathLength: 1 }}

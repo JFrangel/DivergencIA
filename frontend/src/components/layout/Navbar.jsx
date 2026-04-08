@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiZap, FiMenu, FiX, FiArrowRight, FiCpu, FiFolder, FiUsers, FiGlobe, FiStar, FiMap, FiBookOpen } from 'react-icons/fi'
+import { FiZap, FiMenu, FiX, FiArrowRight, FiCpu, FiFolder, FiUsers, FiGlobe, FiStar, FiMap, FiBookOpen, FiExternalLink } from 'react-icons/fi'
 import Button from '../ui/Button'
 import { usePlatformConfig } from '../../hooks/usePlatformConfig'
 
@@ -79,6 +79,15 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
+            <a
+              href="https://docs.athenia.ai/bienvenida"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm text-white/45 hover:text-white hover:bg-white/[0.06] transition-all"
+            >
+              <FiExternalLink size={12} className="opacity-60" />
+              Docs
+            </a>
           </div>
 
           {/* Auth + mobile toggle */}
@@ -136,6 +145,18 @@ export default function Navbar() {
                   </Link>
                 </motion.div>
               ))}
+              <motion.div initial={{ x: -16, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.1 + NAV_LINKS.length * 0.05 }}>
+                <a
+                  href="https://docs.athenia.ai/bienvenida"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/60 hover:text-white hover:bg-white/[0.06] transition-all"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  <FiExternalLink size={16} />
+                  Docs
+                </a>
+              </motion.div>
               <div className="pt-3 border-t border-white/[0.06] flex gap-2">
                 <Link to="/login" className="flex-1" onClick={() => setMobileOpen(false)}>
                   <Button variant="ghost" size="sm" fullWidth>Iniciar sesión</Button>
