@@ -700,9 +700,10 @@ export default function Landing() {
         <FloatingBadge text="Data Science"     color="#22c55e" icon={FiDatabase}      className="bottom-[28%] right-[5%]" delay={1.9} parallaxX={px4x} parallaxY={px4y} />
 
         {/* Floating live stat cards */}
-        <FloatingStatCard label="Investigadores" value={stats.miembros || 12}  icon={FiUsers}    color="#FC651F" className="top-[42%] left-[3%]"   delay={0.2} />
-        <FloatingStatCard label="Proyectos activos" value={stats.proyectos || 8} icon={FiFolder}  color="#8B5CF6" className="bottom-[18%] left-[3%]"  delay={0.5} />
-        <FloatingStatCard label="Ideas en votación" value={stats.ideas || 24}   icon={FiStar}    color="#00D1FF" className="bottom-[14%] right-[3%]" delay={0.8} />
+        <FloatingStatCard label="Investigadores"   value={stats.miembros  || 12} icon={FiUsers}       color="#FC651F" className="top-[38%] left-[3%]"    delay={0.2} />
+        <FloatingStatCard label="Proyectos activos" value={stats.proyectos || 8}  icon={FiFolder}      color="#8B5CF6" className="bottom-[18%] left-[3%]"  delay={0.5} />
+        <FloatingStatCard label="Ideas en votación" value={stats.ideas     || 24} icon={FiStar}        color="#00D1FF" className="bottom-[14%] right-[3%]"  delay={0.8} />
+        <FloatingStatCard label="Avances publicados" value={stats.avances  || 34} icon={FiTrendingUp}  color="#22c55e" className="top-[55%] right-[3%]"    delay={1.1} />
 
         {/* Achievement toast */}
         <AchievementToast text="Primer proyecto publicado" icon="🏆" color="#F59E0B" delay={3.0} />
@@ -1122,7 +1123,23 @@ export default function Landing() {
                       <div className="p-5 flex flex-col items-center text-center relative">
 
                         {/* Avatar wrapper — overflow visible so crown doesn't clip */}
-                        <div className="relative mb-4 mt-1">
+                        <motion.div
+                          className="relative mb-4 mt-1"
+                          animate={isMobile ? undefined : { y: [0, -5, 0] }}
+                          transition={{ repeat: Infinity, duration: 3 + i * 0.35, ease: 'easeInOut' }}
+                        >
+                          {/* Outer pulsing ring */}
+                          {!isMobile && (
+                            <motion.div
+                              className="absolute rounded-full pointer-events-none"
+                              style={{
+                                inset: -6, border: `1.5px solid ${color}`,
+                                borderRadius: '50%',
+                              }}
+                              animate={{ scale: [1, 1.22, 1], opacity: [0.45, 0, 0.45] }}
+                              transition={{ repeat: Infinity, duration: 2.8 + i * 0.25, ease: 'easeInOut' }}
+                            />
+                          )}
                           <div
                             className="rounded-full overflow-hidden"
                             style={{
@@ -1149,7 +1166,7 @@ export default function Landing() {
                           >
                             👑
                           </div>
-                        </div>
+                        </motion.div>
 
                         {/* Name */}
                         <p className="font-bold text-white text-[13px] leading-snug mb-1" style={{ wordBreak: 'break-word' }}>
