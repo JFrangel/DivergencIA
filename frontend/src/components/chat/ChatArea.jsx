@@ -10,6 +10,7 @@ import { useChat } from '../../hooks/useChat'
 import { useCallContext } from '../../context/CallContext'
 import { useAuth } from '../../context/AuthContext'
 import { useCallHistory } from '../../hooks/useCallHistory'
+import { useActiveCallForChannel } from '../../hooks/useActiveCall'
 import MessageBubble from './MessageBubble'
 import ChatInput from './ChatInput'
 import Spinner from '../ui/Spinner'
@@ -425,6 +426,7 @@ export default function ChatArea({ channel, puedeEscribir }) {
   const navigate = useNavigate()
   const { messages, loading, sending, members, sendMessage, deleteMessage, updateMessage, updateMemberRolCanal, updateChannelPrivacy, deleteChannel, updateChannel } = useChat(channel?.id)
   const { callHook, setCallChannel, startCallInChannel } = useCallContext()
+  const { activeCall } = useActiveCallForChannel(channel?.id)
 
   // Register current channel with the global call context
   useEffect(() => { setCallChannel(channel?.id ?? null) }, [channel?.id, setCallChannel])
@@ -656,6 +658,49 @@ export default function ChatArea({ channel, puedeEscribir }) {
             </button>
           </div>
         </div>
+
+        {/* Active call banner — shown when someone else is in a call in this channel */}
+        <AnimatePresence>
+          {activeCall && callHook.callState === 'idle' && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="shrink-0 overflow-hidden"
+            >
+              <div
+                className="flex items-center gap-3 px-4 py-2 border-b border-[#22c55e]/20"
+                style={{ background: 'rgba(34,197,94,0.06)' }}
+              >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse shrink-0" />
+                  <span className="text-xs font-medium text-[#22c55e]">
+                    📞 Llamada en curso
+                  </span>
+                  {activeCall.participantes?.length > 0 && (
+                    <span className="text-[11px] text-white/40">
+                      · {activeCall.participantes.length} participante{activeCall.participantes.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {activeCall.iniciador?.nombre && (
+                    <span className="text-[11px] text-white/30 truncate hidden sm:inline">
+                      — iniciada por {activeCall.iniciador.nombre}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => startCallInChannel(channel.id, activeCall.tipo || 'audio', channel.nombre)}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all hover:brightness-110"
+                  style={{ background: 'rgba(34,197,94,0.2)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}
+                >
+                  <FiPhone size={11} />
+                  Unirse
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Messages area */}
         <div className="flex-1 overflow-y-auto py-2 scroll-smooth">

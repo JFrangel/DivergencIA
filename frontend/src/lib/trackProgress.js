@@ -78,8 +78,8 @@ export function trackProgress(userId, trackKey, amount = 1, absolute = false) {
       supabase.from('notificaciones').insert({
         usuario_id: userId,
         tipo: 'logro_desbloqueado',
-        titulo: `¡Logro desbloqueado! ${def.badge || '🏆'}`,
-        mensaje: `Obtuviste: ${def.label}${def.tier ? ` (${def.tier})` : ''}`,
+        titulo: `¡Logro desbloqueado! ${def.icon || '🏆'}`,
+        mensaje: `Obtuviste: ${def.name || def.label || 'Logro'}${def.tierLabel ? ` (${def.tierLabel})` : ''}`,
         leida: false,
         fecha: now,
       }).then(() => {}).catch(() => {})

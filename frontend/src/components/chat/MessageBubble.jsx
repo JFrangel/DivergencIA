@@ -6,8 +6,11 @@ import {
   FiTrash2, FiCornerUpLeft, FiDownload, FiPlay, FiPause, FiMoreHorizontal,
   FiFile, FiFileText, FiCode, FiArchive, FiFilm, FiMusic,
   FiX, FiZoomIn, FiZoomOut, FiExternalLink, FiMaximize2,
-  FiCopy, FiEdit2, FiCheck,
+  FiCopy, FiEdit2, FiCheck, FiFlag,
 } from 'react-icons/fi'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
+import { toast } from 'sonner'
 import Avatar from '../ui/Avatar'
 import { timeAgo } from '../../lib/utils'
 
@@ -559,6 +562,95 @@ function MessageContent({ message, navigate }) {
   )
 }
 
+// ─── Report modal ─────────────────────────────────────────────────────────────
+function ReportModal({ message, userId, onClose }) {
+  const [razon, setRazon] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const submit = async () => {
+    if (!razon.trim()) return
+    setLoading(true)
+    const snippet = message.contenido
+      ? message.contenido.slice(0, 300)
+      : `[${message.tipo || 'mensaje'}]`
+    const { error } = await supabase.from('reportes').insert({
+      tipo_contenido: 'mensaje',
+      contenido_id: message.id,
+      contenido_texto: snippet,
+      razon: razon.trim(),
+      reportado_por: userId,
+      estado: 'pendiente',
+    })
+    setLoading(false)
+    if (error) { toast.error('Error al enviar reporte'); return }
+    toast.success('Reporte enviado', { description: 'Los moderadores lo revisarán pronto.' })
+    onClose()
+  }
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.6)' }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        className="rounded-2xl px-5 py-4 flex flex-col gap-3 w-80"
+        style={{ background: '#130a0f', border: '1px solid rgba(255,255,255,0.1)' }}
+        initial={{ scale: 0.9, opacity: 0, y: 8 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 8 }}
+        transition={{ duration: 0.15 }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(245,158,11,0.15)' }}>
+            <FiFlag size={14} className="text-[#F59E0B]" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-white/90">Reportar mensaje</p>
+            <p className="text-[11px] text-white/35 mt-0.5">Los moderadores revisarán el contenido.</p>
+          </div>
+        </div>
+        {message.contenido && (
+          <div className="px-3 py-2 rounded-lg text-[11px] text-white/30 leading-relaxed truncate-2"
+            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            "{message.contenido.slice(0, 120)}{message.contenido.length > 120 ? '…' : ''}"
+          </div>
+        )}
+        <textarea
+          value={razon}
+          onChange={e => setRazon(e.target.value)}
+          placeholder="Describe el motivo del reporte…"
+          rows={3}
+          className="w-full resize-none rounded-lg px-3 py-2 text-sm text-white/80 outline-none placeholder:text-white/20"
+          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+          autoFocus
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={submit}
+            disabled={!razon.trim() || loading}
+            className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-all hover:opacity-90 disabled:opacity-40"
+            style={{ background: '#F59E0B' }}
+          >
+            {loading ? 'Enviando…' : 'Enviar reporte'}
+          </button>
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 rounded-xl text-xs font-medium transition-all"
+            style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
+          >
+            Cancelar
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // ─── Delete confirm modal ──────────────────────────────────────────────────
 function DeleteConfirmModal({ onConfirm, onCancel }) {
   return (
@@ -616,11 +708,13 @@ const MessageBubble = forwardRef(function MessageBubble({
 }, ref) {
   const [hover, setHover] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [reporting, setReporting] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editText, setEditText] = useState('')
   const [copied, setCopied] = useState(false)
   const editRef = useRef(null)
   const navigate = useNavigate()
+  const { user } = useAuth()
   const { autor, created_at } = message
   const areaColor = AREA_COLOR[autor?.area_investigacion] || '#6b7280'
 
@@ -787,6 +881,16 @@ const MessageBubble = forwardRef(function MessageBubble({
                 <FiTrash2 size={13} />
               </button>
             )}
+            {/* Report (not own messages) */}
+            {!isOwn && user && (
+              <button
+                onClick={() => setReporting(true)}
+                className="p-1.5 text-white/30 hover:text-[#F59E0B] hover:bg-white/[0.05] transition-colors"
+                title="Reportar mensaje"
+              >
+                <FiFlag size={13} />
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -797,6 +901,17 @@ const MessageBubble = forwardRef(function MessageBubble({
           <DeleteConfirmModal
             onConfirm={() => { onDelete(message.id); setConfirmDelete(false) }}
             onCancel={() => setConfirmDelete(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Report modal */}
+      <AnimatePresence>
+        {reporting && (
+          <ReportModal
+            message={message}
+            userId={user?.id}
+            onClose={() => setReporting(false)}
           />
         )}
       </AnimatePresence>

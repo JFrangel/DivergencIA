@@ -1,12 +1,12 @@
 import { lazy, Suspense, useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { usePlatformConfig } from '../../hooks/usePlatformConfig'
-import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
+import { motion, useScroll, useTransform, useMotionValue, useSpring, AnimatePresence } from 'framer-motion'
 import {
   FiZap, FiArrowRight, FiUsers, FiFolder, FiStar, FiCheck,
   FiBook, FiTerminal, FiGlobe, FiCpu, FiGitBranch, FiLayers,
   FiAward, FiTrendingUp, FiCode, FiMessageSquare, FiMail,
-  FiChevronRight, FiDatabase, FiActivity,
+  FiChevronRight, FiChevronLeft, FiDatabase, FiActivity,
 } from 'react-icons/fi'
 import { supabase } from '../../lib/supabase'
 import Button from '../../components/ui/Button'
@@ -120,14 +120,14 @@ function Counter({ to, duration = 1.8, suffix = '' }) {
 }
 
 /* ──────── Floating badge ──────── */
-function FloatingBadge({ text, color, icon: Icon, className = '', delay = 0 }) {
+function FloatingBadge({ text, color, icon: Icon, className = '', delay = 0, parallaxX = 0, parallaxY = 0 }) {
   return (
     <motion.div
       className={`absolute hidden lg:flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold backdrop-blur-md ${className}`}
-      style={{ background: `${color}12`, border: `1px solid ${color}25`, color }}
+      style={{ background: `${color}12`, border: `1px solid ${color}25`, color, x: parallaxX, y: parallaxY }}
       initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1, y: [0, -10, 0] }}
-      transition={{ opacity: { delay, duration: 0.5 }, scale: { delay, duration: 0.5 }, y: { repeat: Infinity, duration: 3.5, ease: 'easeInOut', delay } }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ opacity: { delay, duration: 0.5 }, scale: { delay, duration: 0.5 } }}
     >
       {Icon && <Icon size={12} />}
       {text}
@@ -355,29 +355,59 @@ const FEATURE_DETAILS = {
   },
 }
 
-function ExpandableFeatureCard({ f, i, isSelected, onSelect, onClose }) {
+function ExpandableFeatureCard({ f, i, isSelected, onSelect }) {
+  const cardRef = useRef(null)
+
+  const handleMouseMove = (e) => {
+    if (isSelected || !cardRef.current) return
+    const rect = cardRef.current.getBoundingClientRect()
+    const cx = rect.left + rect.width / 2
+    const cy = rect.top + rect.height / 2
+    const dx = (e.clientX - cx) / (rect.width / 2)
+    const dy = (e.clientY - cy) / (rect.height / 2)
+    cardRef.current.style.transform = `perspective(700px) rotateY(${dx * 7}deg) rotateX(${-dy * 5}deg) translateY(-4px) scale(1.015)`
+  }
+
+  const handleMouseLeave = () => {
+    if (cardRef.current) {
+      cardRef.current.style.transform = 'perspective(700px) rotateY(0deg) rotateX(0deg) translateY(0px) scale(1)'
+    }
+  }
+
   return (
     <motion.div
+      ref={cardRef}
       layoutId={`feature-card-${f.num}`}
       className="glass rounded-2xl p-7 group relative overflow-hidden cursor-pointer"
       initial={{ opacity: 0, y: 32 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: i * 0.09, duration: 0.5 }}
-      whileHover={!isSelected ? { y: -6, scale: 1.01 } : {}}
       onClick={() => !isSelected && onSelect()}
-      style={{ border: `1px solid ${f.color}${isSelected ? '35' : '10'}` }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{
+        border: `1px solid ${f.color}${isSelected ? '35' : '10'}`,
+        transformStyle: 'preserve-3d',
+        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+        willChange: 'transform',
+      }}
     >
-      {/* Hover/selected glow */}
+      {/* Hover glow */}
       <div
         className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl"
-        style={{ background: `radial-gradient(ellipse 80% 60% at 50% 0%, ${f.color}08 0%, transparent 70%)` }}
+        style={{ background: `radial-gradient(ellipse 80% 60% at 50% 0%, ${f.color}10 0%, transparent 70%)` }}
       />
+      {/* Shimmer line on hover */}
+      <div className="absolute bottom-0 left-0 right-0 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-b-2xl" style={{ background: `linear-gradient(90deg, transparent, ${f.color}, transparent)` }} />
+
       <p className="text-[11px] font-bold tracking-widest mb-5 font-title" style={{ color: `${f.color}50` }}>{f.num}</p>
       <motion.div
         layoutId={`feature-icon-${f.num}`}
         className="w-12 h-12 rounded-2xl flex items-center justify-center mb-5"
         style={{ background: `${f.color}15`, color: f.color }}
+        whileHover={{ rotate: [0, -8, 8, 0], scale: 1.1 }}
+        transition={{ duration: 0.4 }}
       >
         <f.icon size={22} />
       </motion.div>
@@ -388,11 +418,9 @@ function ExpandableFeatureCard({ f, i, isSelected, onSelect, onClose }) {
           <span key={t} className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: `${f.color}10`, color: `${f.color}80`, border: `1px solid ${f.color}15` }}>{t}</span>
         ))}
       </div>
-      {/* Hint */}
       <motion.p className="text-[10px] text-white/20 mt-4 flex items-center gap-1" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }}>
         <FiChevronRight size={10} /> Clic para expandir
       </motion.p>
-      <div className="absolute bottom-0 left-0 right-0 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-b-2xl" style={{ background: `linear-gradient(90deg, transparent, ${f.color}, transparent)` }} />
     </motion.div>
   )
 }
@@ -579,10 +607,37 @@ export default function Landing() {
   const { platformName, logoUrl } = usePlatformConfig()
   const [stats, setStats] = useState({ miembros: 0, proyectos: 0, ideas: 0, avances: 0 })
   const [selectedFeature, setSelectedFeature] = useState(null)
+  const [founders, setFounders] = useState([])
+  const [gallery, setGallery] = useState([])
+  const [galleryModal, setGalleryModal] = useState(null)
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   const heroRef = useRef(null)
+  const foundersScrollRef = useRef(null)
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] })
   const heroY = useTransform(scrollYProgress, [0, 1], ['0%', '28%'])
   const heroOpacity = useTransform(scrollYProgress, [0, 0.75], [1, 0])
+
+  // Mouse parallax for floating pills
+  const rawMouseX = useMotionValue(0)
+  const rawMouseY = useMotionValue(0)
+  const mouseX = useSpring(rawMouseX, { stiffness: 60, damping: 20 })
+  const mouseY = useSpring(rawMouseY, { stiffness: 60, damping: 20 })
+  // Depth layers — different strength per badge
+  const px1x = useTransform(mouseX, v => v * 0.018)
+  const px1y = useTransform(mouseY, v => v * 0.018)
+  const px2x = useTransform(mouseX, v => v * -0.024)
+  const px2y = useTransform(mouseY, v => v * -0.024)
+  const px3x = useTransform(mouseX, v => v * 0.032)
+  const px3y = useTransform(mouseY, v => v * 0.032)
+  const px4x = useTransform(mouseX, v => v * -0.014)
+  const px4y = useTransform(mouseY, v => v * -0.014)
+
+  const handleHeroMouseMove = (e) => {
+    const rect = heroRef.current?.getBoundingClientRect()
+    if (!rect) return
+    rawMouseX.set(e.clientX - rect.left - rect.width / 2)
+    rawMouseY.set(e.clientY - rect.top - rect.height / 2)
+  }
 
   useEffect(() => {
     Promise.all([
@@ -593,6 +648,29 @@ export default function Landing() {
     ]).then(([{ count: m }, { count: p }, { count: i }, { count: a }]) => {
       setStats({ miembros: m || 0, proyectos: p || 0, ideas: i || 0, avances: a || 0 })
     })
+
+    // Fetch real founders from DB
+    supabase
+      .from('usuarios')
+      .select('id, nombre, foto_url, area_investigacion, carrera, rol')
+      .eq('es_fundador', true)
+      .eq('activo', true)
+      .order('nombre')
+      .then(({ data }) => { if (data?.length) setFounders(data) })
+
+    // Fetch published gallery entries
+    supabase
+      .from('galeria_eventos')
+      .select('id, titulo, descripcion, contenido, imagen_url, tipo, tags, fecha_evento, destacado')
+      .eq('publicado', true)
+      .order('destacado', { ascending: false })
+      .order('fecha_evento', { ascending: false })
+      .limit(12)
+      .then(({ data }) => { if (data?.length) setGallery(data) })
+
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
   }, [])
 
   return (
@@ -601,7 +679,7 @@ export default function Landing() {
       {/* ══════════════════════════════════
            HERO
       ══════════════════════════════════ */}
-      <section ref={heroRef} className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
+      <section ref={heroRef} className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20" onMouseMove={handleHeroMouseMove}>
         <Suspense fallback={null}>
           <ImmersiveBackground intensity={1} />
         </Suspense>
@@ -615,11 +693,11 @@ export default function Landing() {
           style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '60px 60px' }}
         />
 
-        {/* Floating research area pills */}
-        <FloatingBadge text="Machine Learning" color="#FC651F" icon={FiCpu}          className="top-[28%] left-[7%]"   delay={1.0} />
-        <FloatingBadge text="Computer Vision"  color="#00D1FF" icon={FiLayers}       className="top-[22%] right-[7%]"  delay={1.3} />
-        <FloatingBadge text="NLP Research"     color="#8B5CF6" icon={FiMessageSquare} className="bottom-[35%] left-[4%]" delay={1.6} />
-        <FloatingBadge text="Data Science"     color="#22c55e" icon={FiDatabase}     className="bottom-[28%] right-[5%]" delay={1.9} />
+        {/* Floating research area pills — mouse parallax */}
+        <FloatingBadge text="Machine Learning" color="#FC651F" icon={FiCpu}           className="top-[28%] left-[7%]"    delay={1.0} parallaxX={px1x} parallaxY={px1y} />
+        <FloatingBadge text="Computer Vision"  color="#00D1FF" icon={FiLayers}        className="top-[22%] right-[7%]"   delay={1.3} parallaxX={px2x} parallaxY={px2y} />
+        <FloatingBadge text="NLP Research"     color="#8B5CF6" icon={FiMessageSquare} className="bottom-[35%] left-[4%]" delay={1.6} parallaxX={px3x} parallaxY={px3y} />
+        <FloatingBadge text="Data Science"     color="#22c55e" icon={FiDatabase}      className="bottom-[28%] right-[5%]" delay={1.9} parallaxX={px4x} parallaxY={px4y} />
 
         {/* Floating live stat cards */}
         <FloatingStatCard label="Investigadores" value={stats.miembros || 12}  icon={FiUsers}    color="#FC651F" className="top-[42%] left-[3%]"   delay={0.2} />
@@ -933,7 +1011,6 @@ export default function Landing() {
               i={i}
               isSelected={selectedFeature?.title === f.title}
               onSelect={() => setSelectedFeature(f)}
-              onClose={() => setSelectedFeature(null)}
             />
           ))}
         </div>
@@ -951,68 +1028,415 @@ export default function Landing() {
       {/* ══════════════════════════════════
            TEAM
       ══════════════════════════════════ */}
-      <section id="team" className="py-24 px-4 max-w-5xl mx-auto">
-        <SectionHeader
-          badge="Fundadores"
-          badgeVariant="accent"
-          title="Los que empezaron"
-          titleHighlight="todo"
-          subtitle="Investigadores que apostaron por construir una plataforma que el semillero merece."
-        />
+      {(() => {
+        const AREA_COLORS = {
+          'Machine Learning': '#F59E0B', ML: '#F59E0B',
+          NLP: '#8B5CF6', 'NLP': '#8B5CF6',
+          'Computer Vision': '#00D1FF', Vision: '#00D1FF',
+          'Datos & Analytics': '#22c55e', Datos: '#22c55e',
+          General: '#FC651F',
+        }
+        const FALLBACK = [
+          { id: 'f1', nombre: 'Fundador IA',     area_investigacion: 'Machine Learning', carrera: 'Investigación IA', foto_url: null, rol: 'investigador' },
+          { id: 'f2', nombre: 'Líder NLP',        area_investigacion: 'NLP',             carrera: 'Investigación IA', foto_url: null, rol: 'investigador' },
+          { id: 'f3', nombre: 'Vision Engineer',  area_investigacion: 'Computer Vision', carrera: 'Investigación IA', foto_url: null, rol: 'investigador' },
+          { id: 'f4', nombre: 'Data Analyst',     area_investigacion: 'Datos & Analytics', carrera: 'Investigación IA', foto_url: null, rol: 'investigador' },
+        ]
+        const list = founders.length > 0 ? founders : FALLBACK
+        const scroll = (dir) => {
+          if (foundersScrollRef.current) foundersScrollRef.current.scrollBy({ left: dir * 260, behavior: 'smooth' })
+        }
+        return (
+          <section id="team" className="py-24 overflow-hidden">
+            <div className="px-4 max-w-5xl mx-auto">
+              <SectionHeader
+                badge="Fundadores"
+                badgeVariant="accent"
+                title="Los que empezaron"
+                titleHighlight="todo"
+                subtitle="Investigadores que apostaron por construir una plataforma que el semillero merece."
+              />
+            </div>
 
-        <div className="flex flex-wrap justify-center gap-5">
-          {[
-            { nombre: 'Fundador IA', rol: 'Director & ML Lead', area: 'ML', inicial: 'F', color: '#F59E0B', contrib: '10+ proyectos' },
-            { nombre: 'Líder NLP', rol: 'Investigador Senior', area: 'NLP', inicial: 'L', color: '#8B5CF6', contrib: '8 papers' },
-            { nombre: 'Vision Engineer', rol: 'Computer Vision Lead', area: 'Vision', inicial: 'V', color: '#00D1FF', contrib: '5 datasets' },
-            { nombre: 'Data Analyst', rol: 'Analytics & BI', area: 'Datos', inicial: 'D', color: '#22c55e', contrib: '12 avances' },
-          ].map((m, i) => (
-            <motion.div
-              key={m.nombre}
-              className="glass rounded-2xl p-7 text-center w-56 group relative overflow-hidden"
-              initial={{ opacity: 0, scale: 0.8, y: 20 }}
-              whileInView={{ opacity: 1, scale: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.13, type: 'spring', stiffness: 180, damping: 18 }}
-              whileHover={{ y: -10, scale: 1.04 }}
-              style={{ border: `1px solid ${m.color}20` }}
-            >
-              {/* Glow */}
-              <div className="absolute top-0 inset-x-0 h-24 opacity-20 pointer-events-none" style={{ background: `linear-gradient(180deg, ${m.color}30, transparent)` }} />
+            {/* Scroll hint + arrows */}
+            <div className="relative max-w-5xl mx-auto">
+              {list.length > 4 && (
+                <>
+                  <button
+                    onClick={() => scroll(-1)}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                    style={{ background: 'rgba(252,101,31,0.12)', border: '1px solid rgba(252,101,31,0.2)', color: '#FC651F' }}
+                  >
+                    <FiChevronLeft size={18} />
+                  </button>
+                  <button
+                    onClick={() => scroll(1)}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                    style={{ background: 'rgba(252,101,31,0.12)', border: '1px solid rgba(252,101,31,0.2)', color: '#FC651F' }}
+                  >
+                    <FiChevronRight size={18} />
+                  </button>
+                </>
+              )}
 
-              {/* Avatar */}
-              <motion.div
-                className="relative w-[76px] h-[76px] rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl font-bold font-title"
+              {/* Horizontal scroll track */}
+              <div
+                ref={foundersScrollRef}
+                className="flex gap-4 overflow-x-auto pb-4 scroll-smooth"
                 style={{
-                  background: `linear-gradient(135deg, ${m.color}25, ${m.color}08)`,
-                  border: `2px solid ${m.color}35`,
-                  color: m.color,
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                  paddingLeft: 'max(24px, calc((100% - 860px) / 2))',
+                  paddingRight: 24,
                 }}
-                whileHover={{ rotate: [0, -8, 8, 0] }}
-                transition={{ duration: 0.5 }}
               >
-                {m.inicial}
-                {/* Founder dot */}
-                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full border-2 border-[#060304] bg-[#F59E0B] flex items-center justify-center">
-                  <FiZap size={8} className="text-[#060304]" />
-                </span>
-              </motion.div>
+                {list.map((m, i) => {
+                  const color = AREA_COLORS[m.area_investigacion] || '#FC651F'
+                  const inicial = m.nombre?.charAt(0)?.toUpperCase() || '?'
+                  const rolLabel = m.rol === 'directora' ? 'Directora' : m.rol === 'admin' ? 'Administrador' : 'Co-fundador'
+                  const profileTo = m.id?.startsWith('f') ? '/members' : `/members/${m.id}`
+                  return (
+                    <motion.div
+                      key={m.id}
+                      className="flex-shrink-0 group relative rounded-2xl overflow-hidden"
+                      style={{
+                        width: 185,
+                        background: `linear-gradient(160deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)`,
+                        border: `1px solid rgba(255,255,255,0.07)`,
+                        boxShadow: `0 4px 24px rgba(0,0,0,0.3)`,
+                      }}
+                      initial={isMobile ? false : { opacity: 0, y: 20 }}
+                      whileInView={isMobile ? undefined : { opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: '-40px' }}
+                      transition={{ delay: isMobile ? 0 : Math.min(i * 0.07, 0.32), duration: 0.38, ease: 'easeOut' }}
+                      whileHover={isMobile ? undefined : { y: -5, boxShadow: `0 8px 32px ${color}20`, transition: { duration: 0.15 } }}
+                    >
+                      {/* Color accent bar */}
+                      <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg, ${color}, transparent)` }} />
 
-              <p className="font-semibold text-white text-sm">{m.nombre}</p>
-              <p className="text-xs text-white/35 mt-0.5 mb-3">{m.rol}</p>
-              <Badge area={m.area} size="xs" />
+                      {/* Subtle area color glow in background */}
+                      <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                        style={{ background: `radial-gradient(ellipse at 50% 0%, ${color}08 0%, transparent 65%)` }} />
 
-              {/* Stat */}
-              <div className="mt-4 pt-4 border-t border-white/[0.06]">
-                <p className="text-[11px] text-white/25 flex items-center justify-center gap-1">
-                  <FiTrendingUp size={10} />
-                  {m.contrib}
-                </p>
+                      {/* Card body */}
+                      <div className="p-5 flex flex-col items-center text-center relative">
+
+                        {/* Avatar wrapper — overflow visible so crown doesn't clip */}
+                        <div className="relative mb-4 mt-1">
+                          <div
+                            className="rounded-full overflow-hidden"
+                            style={{
+                              width: 76, height: 76,
+                              border: `2px solid ${color}35`,
+                              boxShadow: `0 0 0 4px ${color}08, 0 0 20px ${color}18`,
+                            }}
+                          >
+                            {m.foto_url ? (
+                              <img src={m.foto_url} alt={m.nombre} className="w-full h-full object-cover" />
+                            ) : (
+                              <div
+                                className="w-full h-full flex items-center justify-center text-xl font-black"
+                                style={{ background: `linear-gradient(135deg, ${color}22, ${color}06)`, color }}
+                              >
+                                {inicial}
+                              </div>
+                            )}
+                          </div>
+                          {/* Crown — outside overflow:hidden so it shows */}
+                          <div
+                            className="absolute -top-1.5 -right-1.5 w-[22px] h-[22px] rounded-full flex items-center justify-center text-[10px] shadow-lg"
+                            style={{ background: 'linear-gradient(135deg, #FBBF24, #F59E0B)', border: '2px solid #060304', zIndex: 2 }}
+                          >
+                            👑
+                          </div>
+                        </div>
+
+                        {/* Name */}
+                        <p className="font-bold text-white text-[13px] leading-snug mb-1" style={{ wordBreak: 'break-word' }}>
+                          {m.nombre}
+                        </p>
+                        <p className="text-[10px] text-white/30 leading-tight mb-3">
+                          {m.carrera || 'Ingeniería'}
+                        </p>
+
+                        {/* Area pill */}
+                        {m.area_investigacion && (
+                          <span
+                            className="text-[9px] font-bold uppercase tracking-widest px-2.5 py-[3px] rounded-full"
+                            style={{ background: `${color}14`, color, border: `1px solid ${color}28` }}
+                          >
+                            {m.area_investigacion}
+                          </span>
+                        )}
+
+                        {/* Spacer */}
+                        <div className="flex-1 min-h-[12px]" />
+
+                        {/* Role footer */}
+                        <div className="w-full mt-3 pt-3 flex items-center justify-center gap-1.5"
+                          style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                          <FiZap size={9} style={{ color: `${color}90` }} />
+                          <span className="text-[10px] font-medium" style={{ color: `${color}90` }}>{rolLabel}</span>
+                        </div>
+                      </div>
+
+                      {/* Hover CTA — slides up from bottom (desktop only) */}
+                      {!isMobile && (
+                        <Link
+                          to={profileTo}
+                          className="absolute bottom-0 inset-x-0 flex items-center justify-center gap-1 py-2.5 text-[11px] font-bold tracking-wide translate-y-full group-hover:translate-y-0 transition-transform duration-200 ease-out"
+                          style={{ background: color, color: '#000' }}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          Ver perfil →
+                        </Link>
+                      )}
+                      {/* Mobile: full-card tap area */}
+                      {isMobile && (
+                        <Link to={profileTo} className="absolute inset-0" aria-label={`Ver perfil de ${m.nombre}`} />
+                      )}
+                    </motion.div>
+                  )
+                })}
+
+                {/* "Ver todos" card */}
+                <motion.div
+                  className="flex-shrink-0 rounded-2xl flex flex-col items-center justify-center gap-3 cursor-pointer group"
+                  style={{ width: 160, border: '1px dashed rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)' }}
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
+                  viewport={{ once: true }}
+                  whileHover={{ borderColor: 'rgba(252,101,31,0.3)', transition: { duration: 0.15 } }}
+                >
+                  <Link to="/members" className="flex flex-col items-center gap-3 p-6 w-full h-full justify-center">
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center"
+                      style={{ background: 'rgba(252,101,31,0.1)', border: '1px solid rgba(252,101,31,0.2)' }}
+                    >
+                      <FiUsers size={18} style={{ color: '#FC651F' }} />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[11px] font-semibold text-white/50 group-hover:text-white/80 transition-colors leading-snug">Ver todos los investigadores</p>
+                      <p className="text-[10px] text-white/20 mt-1">{list.length}+ activos</p>
+                    </div>
+                  </Link>
+                </motion.div>
               </div>
-            </motion.div>
-          ))}
-        </div>
-      </section>
+            </div>
+
+            {/* Scroll indicator dots for many founders */}
+            {list.length > 4 && (
+              <div className="flex justify-center gap-1.5 mt-6">
+                <span className="text-[10px] text-white/20">← desliza para ver todos →</span>
+              </div>
+            )}
+          </section>
+        )
+      })()}
+
+      {/* ══════════════════════════════════
+           GALLERY
+      ══════════════════════════════════ */}
+      {gallery.length > 0 && (
+        <section id="gallery" className="py-24 px-4 max-w-6xl mx-auto">
+          <SectionHeader
+            badge="Galería"
+            badgeVariant="secondary"
+            title="Momentos del"
+            titleHighlight="Semillero"
+            subtitle="Eventos, talleres y logros que han marcado nuestra historia."
+          />
+
+          {/* Grid — featured items take full width on first row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {gallery.map((item, i) => {
+              const TIPO_COLORS = { evento: '#FC651F', reunion: '#8B5CF6', logro: '#F59E0B', taller: '#00D1FF', conferencia: '#22c55e', otro: '#6b7280' }
+              const color = TIPO_COLORS[item.tipo] || '#6b7280'
+              const isFeatured = item.destacado && i < 2
+              return (
+                <motion.button
+                  key={item.id}
+                  onClick={() => setGalleryModal(item)}
+                  className={`group text-left rounded-2xl overflow-hidden border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] transition-all duration-300 ${isFeatured ? 'lg:col-span-2' : ''}`}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: i * 0.07 }}
+                  whileHover={{ y: -4, boxShadow: `0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px ${color}20` }}
+                >
+                  {/* Image */}
+                  <div className={`relative overflow-hidden ${isFeatured ? 'h-56' : 'h-44'}`}
+                    style={{ background: `${color}10` }}>
+                    {item.imagen_url ? (
+                      <img
+                        src={item.imagen_url}
+                        alt={item.titulo}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-4xl opacity-20">🎓</span>
+                      </div>
+                    )}
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    {/* Type badge */}
+                    <span className="absolute top-3 left-3 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg"
+                      style={{ background: `${color}25`, color, backdropFilter: 'blur(8px)', border: `1px solid ${color}30` }}>
+                      {item.tipo}
+                    </span>
+                    {item.destacado && (
+                      <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-1 rounded-lg"
+                        style={{ background: 'rgba(245,158,11,0.2)', color: '#F59E0B', backdropFilter: 'blur(8px)' }}>
+                        ⭐ Destacado
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-4">
+                    <h3 className="text-sm font-semibold text-white/90 leading-snug mb-1.5 group-hover:text-white transition-colors">
+                      {item.titulo}
+                    </h3>
+                    {item.descripcion && (
+                      <p className="text-xs text-white/40 leading-relaxed line-clamp-2 mb-3">{item.descripcion}</p>
+                    )}
+                    <div className="flex items-center justify-between">
+                      {item.fecha_evento ? (
+                        <span className="text-[10px] text-white/25 flex items-center gap-1">
+                          📅 {new Date(item.fecha_evento + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                      ) : <span />}
+                      <span className="text-[10px]" style={{ color: `${color}70` }}>
+                        Ver más →
+                      </span>
+                    </div>
+                    {item.tags?.length > 0 && (
+                      <div className="flex gap-1 mt-2 flex-wrap">
+                        {item.tags.slice(0, 3).map(tag => (
+                          <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/[0.05] text-white/25">{tag}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </motion.button>
+              )
+            })}
+          </div>
+
+          {/* Ver galería completa */}
+          <div className="mt-10 text-center">
+            <Link
+              to="/galeria"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 hover:scale-[1.03] active:scale-[0.98]"
+              style={{ background: 'rgba(252,101,31,0.1)', color: '#FC651F', border: '1px solid rgba(252,101,31,0.2)' }}
+            >
+              Ver galería completa →
+            </Link>
+          </div>
+
+          {/* Gallery Modal */}
+          <AnimatePresence>
+            {galleryModal && (
+              <motion.div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setGalleryModal(null)}
+              >
+                <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
+                <motion.div
+                  className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl"
+                  style={{ background: 'rgba(12,5,8,0.98)', border: '1px solid rgba(255,255,255,0.08)' }}
+                  initial={{ scale: 0.9, y: 20 }}
+                  animate={{ scale: 1, y: 0 }}
+                  exit={{ scale: 0.9, y: 20 }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  {galleryModal.imagen_url && (
+                    <div className="h-52 overflow-hidden rounded-t-2xl">
+                      <img src={galleryModal.imagen_url} alt={galleryModal.titulo} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <div className="p-6">
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          {(() => {
+                            const TIPO_COLORS = { evento: '#FC651F', reunion: '#8B5CF6', logro: '#F59E0B', taller: '#00D1FF', conferencia: '#22c55e', otro: '#6b7280' }
+                            const c = TIPO_COLORS[galleryModal.tipo] || '#6b7280'
+                            return (
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg"
+                                style={{ background: `${c}20`, color: c }}>
+                                {galleryModal.tipo}
+                              </span>
+                            )
+                          })()}
+                          {galleryModal.fecha_evento && (
+                            <span className="text-[10px] text-white/30">
+                              📅 {new Date(galleryModal.fecha_evento + 'T12:00:00').toLocaleDateString('es-CO', { dateStyle: 'long' })}
+                            </span>
+                          )}
+                        </div>
+                        <h2 className="text-xl font-bold font-title text-white">{galleryModal.titulo}</h2>
+                        {galleryModal.descripcion && (
+                          <p className="text-sm text-white/50 mt-1">{galleryModal.descripcion}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setGalleryModal(null)}
+                        className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-white/30 hover:text-white hover:bg-white/[0.08] transition-all"
+                      >
+                        <FiChevronRight size={16} style={{ transform: 'rotate(45deg)' }} />
+                      </button>
+                    </div>
+
+                    {galleryModal.contenido && (() => {
+                      const ri = (text) => {
+                        const parts = []
+                        const re = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)/g
+                        let last = 0, m
+                        while ((m = re.exec(text)) !== null) {
+                          if (m.index > last) parts.push(text.slice(last, m.index))
+                          if (m[2] != null) parts.push(<strong key={m.index} className="text-white font-semibold">{m[2]}</strong>)
+                          else if (m[3] != null) parts.push(<em key={m.index} className="text-white/80 italic">{m[3]}</em>)
+                          else if (m[4] != null) parts.push(<code key={m.index} className="text-[#FC651F] bg-white/[0.06] px-1 py-0.5 rounded text-[11px] font-mono">{m[4]}</code>)
+                          last = m.index + m[0].length
+                        }
+                        if (last < text.length) parts.push(text.slice(last))
+                        return parts.length ? parts : text
+                      }
+                      return (
+                        <div className="prose-gallery mt-4 space-y-3">
+                          {galleryModal.contenido.split('\n').map((line, li) => {
+                            if (!line.trim()) return <div key={li} className="h-2" />
+                            if (line.startsWith('# ')) return <h2 key={li} className="text-lg font-bold text-white mt-4">{ri(line.slice(2))}</h2>
+                            if (line.startsWith('## ')) return <h3 key={li} className="text-base font-semibold text-white/80 mt-3">{ri(line.slice(3))}</h3>
+                            if (line.startsWith('### ')) return <h4 key={li} className="text-sm font-semibold text-white/70 mt-2">{ri(line.slice(4))}</h4>
+                            if (line.startsWith('- ') || line.startsWith('* ')) {
+                              return <p key={li} className="text-sm text-white/55 flex items-start gap-2"><span className="text-[#FC651F] mt-0.5 shrink-0">•</span><span>{ri(line.slice(2))}</span></p>
+                            }
+                            return <p key={li} className="text-sm text-white/55 leading-relaxed">{ri(line)}</p>
+                          })}
+                        </div>
+                      )
+                    })()}
+
+                    {galleryModal.tags?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-5 pt-4 border-t border-white/[0.06]">
+                        {galleryModal.tags.map(tag => (
+                          <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.06] text-white/35">{tag}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+      )}
 
       {/* ══════════════════════════════════
            CONTACT FORM
@@ -1190,6 +1614,15 @@ export default function Landing() {
                   </Link>
                 </li>
               ))}
+              <li>
+                <Link
+                  to="/learning"
+                  className="text-sm text-white/35 hover:text-[#FC651F] transition-colors flex items-center gap-1.5 group"
+                >
+                  <FiChevronRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity -ml-1" />
+                  Aprendizaje
+                </Link>
+              </li>
             </ul>
 
             {/* Contact */}

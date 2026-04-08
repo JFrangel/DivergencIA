@@ -387,6 +387,7 @@ export function useCall(canalId) {
       canal_id: canalId,
       iniciador_id: user.id,
       tipo: type,
+      estado: 'activa',
       participantes: [{ userId: user.id, nombre: profile?.nombre || user?.email, joinedAt: new Date().toISOString() }],
       iniciada_en: new Date().toISOString(),
     }).select('id').single()
@@ -406,6 +407,7 @@ export function useCall(canalId) {
     await supabase.from('historial_llamadas').update({
       duracion_s: duracion,
       participantes,
+      estado: 'finalizada',
       finalizada_en: new Date().toISOString(),
     }).eq('id', callHistoryIdRef.current).catch(() => {})
     callHistoryIdRef.current = null

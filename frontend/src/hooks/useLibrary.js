@@ -109,9 +109,29 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
         return u.split('/archivos/')[1]?.split('?')[0] || null
       } catch { return null }
     }
+
+    // Delete version storage files first to avoid FK constraint errors
+    const { data: versions } = await supabase
+      .from('versiones_archivo')
+      .select('url')
+      .eq('archivo_id', id)
+
+    const versionPaths = (versions || []).map(v => extractPath(v.url)).filter(Boolean)
+    if (versionPaths.length > 0) {
+      await supabase.storage.from('archivos').remove(versionPaths).catch(() => {})
+    }
+
+    // Delete version records (FK from versiones_archivo → archivos)
+    await supabase.from('versiones_archivo').delete().eq('archivo_id', id).catch(() => {})
+
+    // Delete main storage file
     const path = extractPath(url)
-    if (path) await supabase.storage.from('archivos').remove([path])
-    await supabase.from('archivos').delete().eq('id', id)
+    if (path) await supabase.storage.from('archivos').remove([path]).catch(() => {})
+
+    // Delete DB record
+    const { error } = await supabase.from('archivos').delete().eq('id', id)
+    if (error) { toast.error('Error al eliminar archivo'); return }
+
     setFiles(f => f.filter(x => x.id !== id))
     toast.success('Archivo eliminado')
   }

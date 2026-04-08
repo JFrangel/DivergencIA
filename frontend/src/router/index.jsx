@@ -12,6 +12,7 @@ const Login        = lazy(() => import('../pages/public/Login'))
 const Register     = lazy(() => import('../pages/public/Register'))
 const JoinRequest  = lazy(() => import('../pages/public/JoinRequest'))
 const AuthCallback = lazy(() => import('../pages/public/AuthCallback'))
+const Galeria      = lazy(() => import('../pages/public/Galeria'))
 
 // Lazy imports — app privada
 const Dashboard     = lazy(() => import('../pages/app/Dashboard'))
@@ -58,6 +59,7 @@ export const router = createBrowserRouter([
     element: <PublicLayout />,
     children: [
       { path: '/',         element: withSuspense(Landing) },
+      { path: '/galeria',  element: withSuspense(Galeria) },
       { path: '/login',    element: withSuspense(Login) },
       { path: '/register', element: withSuspense(Register) },
       { path: '/join',          element: withSuspense(JoinRequest) },

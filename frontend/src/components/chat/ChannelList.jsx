@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiHash, FiMessageSquare, FiUsers, FiZap,
-  FiPlus, FiChevronDown, FiChevronRight,
+  FiPlus, FiChevronDown, FiChevronRight, FiPhone,
 } from 'react-icons/fi'
 import Avatar from '../ui/Avatar'
 import { useAuth } from '../../context/AuthContext'
@@ -43,7 +43,7 @@ function SectionHeader({ label, count, expanded, onToggle, onAdd, addLabel }) {
   )
 }
 
-function ChannelItem({ channel, isActive, onClick, unread, user }) {
+function ChannelItem({ channel, isActive, onClick, unread, user, hasActiveCall }) {
   const tipo = channel.tipo
   const Meta = SECTION_ICONS[tipo] || SECTION_ICONS.global
   const isDM = tipo === 'directo'
@@ -83,6 +83,11 @@ function ChannelItem({ channel, isActive, onClick, unread, user }) {
         </span>
       )}
       <span className="text-xs flex-1 truncate font-medium">{displayName}</span>
+      {hasActiveCall && (
+        <span className="shrink-0 flex items-center" title="Llamada en curso">
+          <FiPhone size={10} className="text-[#22c55e] animate-pulse" />
+        </span>
+      )}
       {unread > 0 && !isActive && (
         <span
           className="min-w-4 h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center text-white shrink-0"
@@ -97,7 +102,7 @@ function ChannelItem({ channel, isActive, onClick, unread, user }) {
 
 export default function ChannelList({
   channels, activeChannel, onSelect, counts = {},
-  onNewDM, onNewGroup, onNewNode,
+  onNewDM, onNewGroup, onNewNode, activeCalls = {},
 }) {
   const { user, isAdmin } = useAuth()
   const [expanded, setExpanded] = useState({ global: true, directo: true, grupo: true, investigacion: true, grupos_nodo: true })
@@ -166,6 +171,7 @@ export default function ChannelList({
                         onClick={onSelect}
                         unread={counts[ch.id] || 0}
                         user={user}
+                        hasActiveCall={!!activeCalls[ch.id]}
                       />
                     ))}
                   </motion.div>

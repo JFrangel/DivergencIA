@@ -1,10 +1,10 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { FiMapPin, FiStar, FiClock, FiUser, FiX } from 'react-icons/fi'
+import { FiMapPin, FiStar, FiClock, FiShield, FiX } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { getPlatformName } from '../../hooks/usePlatformConfig'
+import { usePlatformConfig } from '../../hooks/usePlatformConfig'
 
 /* ── Group configuration ── */
 const GROUP_CONFIG = {
@@ -276,6 +276,7 @@ export default function MemberNetwork({ members = [] }) {
   const containerRef = useRef(null)
   const navigate = useNavigate()
   const { isAdmin } = useAuth()
+  const { platformName, logoUrl } = usePlatformConfig()
   const [dims, setDims] = useState({ w: 800, h: 600 })
   const [hovered, setHovered] = useState(null)
   const [selected, setSelected] = useState(null)
@@ -442,7 +443,8 @@ export default function MemberNetwork({ members = [] }) {
     return interGroupConnections.filter(c => c.type === connectionFilter)
   }, [interGroupConnections, connectionFilter])
 
-  const nodeRadius = Math.max(14, Math.min(22, 800 / (members.length + 10)))
+  const baseNodeRadius = Math.max(14, Math.min(22, 800 / (members.length + 10)))
+  const nodeRadius = baseNodeRadius
 
   /* Admin drag handlers */
   const handleDragStart = useCallback((e, node) => {
@@ -706,12 +708,13 @@ export default function MemberNetwork({ members = [] }) {
           const node = nodes.find(n => n.id === m.id)
           if (!node) return null
           const color = AREA_COLORS[node.area_investigacion] || '#00D1FF'
+          const nr = node.es_fundador ? Math.round(baseNodeRadius * 1.22) : baseNodeRadius
           return (
             <circle
               key={`glow-${m.id}`}
               cx={node.px}
               cy={node.py}
-              r={nodeRadius + 6}
+              r={nr + 6}
               fill="none"
               stroke={color}
               strokeWidth={2}
@@ -719,7 +722,7 @@ export default function MemberNetwork({ members = [] }) {
             >
               <animate
                 attributeName="r"
-                values={`${nodeRadius + 4};${nodeRadius + 14};${nodeRadius + 4}`}
+                values={`${nr + 4};${nr + 14};${nr + 4}`}
                 dur="2s"
                 repeatCount="indefinite"
               />
@@ -736,26 +739,43 @@ export default function MemberNetwork({ members = [] }) {
 
       {/* Center hub node */}
       <motion.div
-        className="absolute z-20 flex items-center justify-center rounded-full font-title font-bold text-white text-xs"
+        className="absolute z-20 flex items-center justify-center rounded-full overflow-hidden"
         style={{
-          width: 56,
-          height: 56,
-          left: cx - 28,
-          top: cy - 28,
-          background: 'linear-gradient(135deg, var(--c-primary), var(--c-accent))',
-          boxShadow: '0 0 30px rgba(252,101,31,0.25), 0 0 60px rgba(252,101,31,0.1)',
-          border: '2px solid rgba(255,255,255,0.15)',
+          width: 72,
+          height: 72,
+          left: cx - 36,
+          top: cy - 36,
+          background: logoUrl ? 'rgba(6,3,4,0.9)' : 'linear-gradient(135deg, var(--c-primary), var(--c-accent))',
+          boxShadow: '0 0 40px rgba(252,101,31,0.35), 0 0 80px rgba(252,101,31,0.12), inset 0 0 0 2px rgba(255,255,255,0.15)',
         }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', bounce: 0.4, delay: 0.1 }}
+        transition={{ type: 'spring', bounce: 0.45, delay: 0.1 }}
+        whileHover={{ scale: 1.1 }}
       >
-        <span className="text-[10px] leading-tight text-center">{getPlatformName()}</span>
+        {logoUrl ? (
+          <img src={logoUrl} alt={platformName} className="w-11 h-11 object-contain" />
+        ) : (
+          <span className="text-[11px] font-bold font-title text-white leading-tight text-center px-1">
+            {platformName || 'DivergencIA'}
+          </span>
+        )}
+        {/* Outer ring pulse */}
+        <motion.div
+          className="absolute inset-0 rounded-full"
+          style={{ border: '2px solid rgba(252,101,31,0.4)' }}
+          animate={{ scale: [1, 1.25, 1], opacity: [0.4, 0, 0.4] }}
+          transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
+        />
       </motion.div>
 
       {/* Member nodes */}
       {nodes.map((n, i) => {
+        const isFounder = n.es_fundador
+        const isAdminUser = n.rol === 'admin' || n.rol === 'directora'
         const color = resolvedColors[n.group] || '#666'
+        // Founders get slightly larger nodes
+        const nr = isFounder ? Math.round(nodeRadius * 1.22) : nodeRadius
         const isHovered = hovered?.id === n.id
         const isSelected = selected?.id === n.id
         const highlighted = isNodeHighlighted(n)
@@ -767,10 +787,10 @@ export default function MemberNetwork({ members = [] }) {
             key={n.id}
             className="absolute z-10"
             style={{
-              left: n.px - nodeRadius,
-              top: n.py - nodeRadius,
-              width: nodeRadius * 2,
-              height: nodeRadius * 2,
+              left: n.px - nr,
+              top: n.py - nr,
+              width: nr * 2,
+              height: nr * 2,
               cursor: isAdmin ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
               opacity: hovered ? (highlighted ? 1 : 0.25) : 1,
               transition: 'opacity 0.2s ease',
@@ -816,8 +836,11 @@ export default function MemberNetwork({ members = [] }) {
                   if (fallback) fallback.style.display = 'flex'
                 }}
                 style={{
-                  border: `2px solid ${color}`,
-                  boxShadow: isHovered || isSelected ? `0 0 20px ${color}80` : isNew ? `0 0 12px rgba(0,209,255,0.4)` : `0 0 8px ${color}20`,
+                  border: `2px solid ${isFounder ? '#F59E0B' : color}`,
+                  boxShadow: isFounder
+                    ? `0 0 16px rgba(245,158,11,0.55), 0 0 8px ${color}30`
+                    : isHovered || isSelected ? `0 0 20px ${color}80`
+                    : isNew ? `0 0 12px rgba(0,209,255,0.4)` : `0 0 8px ${color}20`,
                   transform: isHovered ? 'scale(1.25)' : isSelected ? 'scale(1.15)' : 'scale(1)',
                   transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                 }}
@@ -828,16 +851,39 @@ export default function MemberNetwork({ members = [] }) {
               className="w-full h-full rounded-full items-center justify-center font-title font-semibold text-[10px]"
               style={{
                 display: n.foto_url ? 'none' : 'flex',
-                background: `${color}25`,
-                border: `2px solid ${color}90`,
-                color,
-                boxShadow: isHovered || isSelected ? `0 0 20px ${color}80` : isNew ? `0 0 12px rgba(0,209,255,0.4)` : `0 0 8px ${color}20`,
+                background: isFounder ? 'rgba(245,158,11,0.18)' : `${color}25`,
+                border: `2px solid ${isFounder ? '#F59E0B' : color}90`,
+                color: isFounder ? '#F59E0B' : color,
+                boxShadow: isFounder
+                  ? `0 0 16px rgba(245,158,11,0.55), 0 0 8px ${color}30`
+                  : isHovered || isSelected ? `0 0 20px ${color}80`
+                  : isNew ? `0 0 12px rgba(0,209,255,0.4)` : `0 0 8px ${color}20`,
                 transform: isHovered ? 'scale(1.25)' : isSelected ? 'scale(1.15)' : 'scale(1)',
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease',
               }}
             >
               {getInitials(n.nombre)}
             </div>
+
+            {/* Founder gold star badge */}
+            {isFounder && (
+              <div
+                className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center pointer-events-none z-10"
+                style={{ background: '#F59E0B', boxShadow: '0 0 6px rgba(245,158,11,0.8)' }}
+              >
+                <FiStar size={8} fill="white" stroke="white" />
+              </div>
+            )}
+
+            {/* Admin shield badge */}
+            {!isFounder && isAdminUser && (
+              <div
+                className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center pointer-events-none z-10"
+                style={{ background: '#8B5CF6', boxShadow: '0 0 6px rgba(139,92,246,0.7)' }}
+              >
+                <FiShield size={8} fill="white" stroke="none" />
+              </div>
+            )}
           </motion.div>
         )
       })}

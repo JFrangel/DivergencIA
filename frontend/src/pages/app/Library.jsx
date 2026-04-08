@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FiUpload, FiSearch, FiGrid, FiList, FiChevronDown, FiChevronUp, FiStar, FiClock, FiX, FiTag } from 'react-icons/fi'
 import { useLibrary } from '../../hooks/useLibrary'
@@ -22,13 +22,13 @@ function FileEditModal({ file, open, onClose, onSave }) {
   const [saving, setSaving] = useState(false)
 
   // Reset when file changes
-  useState(() => {
+  useEffect(() => {
     if (file) {
       setNombre(file.nombre || '')
       setDescripcion(file.descripcion || '')
       setTags(file.tags || [])
     }
-  }, [file])
+  }, [file?.id])
 
   const addTag = () => {
     const t = tagInput.trim().toLowerCase()
@@ -309,7 +309,7 @@ export default function Library() {
                   <div key={f.id} onClick={() => setPreviewFile(f)} className="cursor-pointer">
                     <FileCard
                       file={f} index={i}
-                      canDelete={f.subido_por === user?.id}
+                      canDelete={f.subido_por === user?.id || isAdmin}
                       onDelete={remove}
                       canEdit={f.subido_por === user?.id || isAdmin}
                       onEdit={setEditFile}
@@ -335,7 +335,7 @@ export default function Library() {
                 <div key={f.id} onClick={() => setPreviewFile(f)} className="cursor-pointer">
                   <FileCard
                     file={f} index={i}
-                    canDelete={f.subido_por === user?.id}
+                    canDelete={f.subido_por === user?.id || isAdmin}
                     onDelete={remove}
                     canEdit={f.subido_por === user?.id || isAdmin}
                     onEdit={setEditFile}

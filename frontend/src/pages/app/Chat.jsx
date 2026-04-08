@@ -4,6 +4,7 @@ import { AnimatePresence } from 'framer-motion'
 import { useChannels, useUnreadCounts } from '../../hooks/useChat'
 import { useAuth } from '../../context/AuthContext'
 import { useCallContext } from '../../context/CallContext'
+import { useActiveCalls } from '../../hooks/useActiveCall'
 import ChannelList from '../../components/chat/ChannelList'
 import ChatArea from '../../components/chat/ChatArea'
 import NewDMModal from '../../components/chat/NewDMModal'
@@ -16,6 +17,8 @@ export default function Chat() {
   const { channels, loading, openDM, createGroup, createNodeChannel, refetch } = useChannels()
   const [activeChannel, setActiveChannel] = useState(null)
   const { counts, markRead } = useUnreadCounts(channels, activeChannel?.id ?? null)
+  const channelIds = channels.map(c => c.id)
+  const activeCalls = useActiveCalls(channelIds)
   const [showNewDM, setShowNewDM] = useState(false)
   const [showNewGroup, setShowNewGroup] = useState(false)
   const [showNewNode, setShowNewNode] = useState(false)
@@ -112,6 +115,7 @@ export default function Chat() {
             onNewDM={() => setShowNewDM(true)}
             onNewGroup={() => setShowNewGroup(true)}
             onNewNode={() => setShowNewNode(true)}
+            activeCalls={activeCalls}
           />
         )}
       </div>

@@ -240,18 +240,16 @@ export function useNodos() {
     }
 
     // Notify nodo admins + platform admins/directoras
+    // Use direct DB query instead of cached nodo.miembros (may be stale/empty)
     const nodo = nodos.find(n => n.id === nodoId)
-    const nodoAdmins = (nodo?.miembros || []).filter(m => m.rol_nodo === 'admin' || m.rol_nodo === 'owner')
-    const nodoAdminIds = new Set(nodoAdmins.map(a => a.id))
-
-    // Always fetch platform admins/directoras to ensure someone gets notified
-    const { data: platformAdmins } = await supabase
-      .from('usuarios')
-      .select('id')
-      .in('rol', ['admin', 'directora'])
+    const [{ data: nodoAdminRows }, { data: platformAdmins }] = await Promise.all([
+      supabase.from('nodo_miembros').select('usuario_id').eq('nodo_id', nodoId).in('rol', ['admin', 'owner']),
+      supabase.from('usuarios').select('id').in('rol', ['admin', 'directora']),
+    ])
+    const nodoAdminIds = new Set((nodoAdminRows || []).map(r => r.usuario_id))
 
     const allRecipients = [
-      ...nodoAdmins.map(a => a.id),
+      ...(nodoAdminRows || []).map(r => r.usuario_id),
       ...(platformAdmins || []).map(a => a.id).filter(id => !nodoAdminIds.has(id)),
     ]
 
