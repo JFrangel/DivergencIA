@@ -115,7 +115,7 @@ export function useNodos() {
             mensaje: `Se ha creado un nuevo nodo "${nombre}" esperando tu aprobación`,
             leida: false,
           }))
-        ).catch(() => {})
+        )
       }
     }
 
@@ -264,7 +264,7 @@ export function useNodos() {
           leida: false,
           fecha: new Date().toISOString(),
         }))
-      ).catch(() => {})
+      )
     }
 
     toast.success('Solicitud enviada — espera la aprobación del administrador')
@@ -295,7 +295,7 @@ export function useNodos() {
           await supabase.from('canal_miembros').upsert(
             { canal_id: canal.id, usuario_id: usuarioId, puede_escribir: true },
             { onConflict: 'canal_id,usuario_id' }
-          ).catch(() => {})
+          )
         }
       }
     }
@@ -311,7 +311,7 @@ export function useNodos() {
         : `Tu solicitud para unirte a "${nodo?.nombre}" fue rechazada`,
       leida: false,
       fecha: new Date().toISOString(),
-    }).catch(() => {})
+    })
 
     toast.success(estado === 'aprobada' ? 'Solicitud aprobada' : 'Solicitud rechazada')
     await fetchNodos()
@@ -372,7 +372,7 @@ export function useNodos() {
         titulo: '¡Nodo aprobado!',
         mensaje: `Tu nodo "${nodo.nombre}" ha sido aprobado y es ahora visible para todos`,
         leida: false,
-      }).catch(() => {})
+      })
     }
 
     toast.success('Nodo aprobado')
@@ -396,7 +396,7 @@ export function useNodos() {
         titulo: 'Nodo rechazado',
         mensaje: `Tu nodo "${nodo.nombre}" ha sido rechazado. Contacta al administrador para más información.`,
         leida: false,
-      }).catch(() => {})
+      })
     }
 
     toast.success('Nodo rechazado')

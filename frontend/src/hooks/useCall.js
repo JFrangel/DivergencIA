@@ -409,7 +409,7 @@ export function useCall(canalId) {
       participantes,
       estado: 'finalizada',
       finalizada_en: new Date().toISOString(),
-    }).eq('id', callHistoryIdRef.current).catch(() => {})
+    }).eq('id', callHistoryIdRef.current)
     callHistoryIdRef.current = null
     callStartTimeRef.current = null
   }

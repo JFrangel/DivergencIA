@@ -80,6 +80,10 @@ export const COMMANDS = {
     usage: '/clear',
     desc: 'Limpia la terminal',
   },
+  'crear-tema': {
+    usage: '/crear-tema <título>',
+    desc: '[Admin] Crea un tema de aprendizaje completo con IA. Ej: /crear-tema Transformers',
+  },
 }
 
 /**

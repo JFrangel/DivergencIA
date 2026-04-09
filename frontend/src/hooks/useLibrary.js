@@ -11,6 +11,7 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
   const [uploading, setUploading] = useState(false)
 
   const fetch = useCallback(async () => {
+    if (!user) { setLoading(false); return }
     setLoading(true)
 
     // Get current user role to check if admin/directora
@@ -121,8 +122,8 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
       await supabase.storage.from('archivos').remove(versionPaths).catch(() => {})
     }
 
-    // Delete version records (FK from versiones_archivo → archivos)
-    await supabase.from('versiones_archivo').delete().eq('archivo_id', id).catch(() => {})
+    // Delete version records — Supabase builder has no .catch(), just await (returns {data,error})
+    await supabase.from('versiones_archivo').delete().eq('archivo_id', id)
 
     // Delete main storage file
     const path = extractPath(url)
@@ -137,7 +138,7 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
   }
 
   const incrementDescargas = async (id) => {
-    await supabase.rpc('increment_descargas', { archivo_id: id }).catch(() => {})
+    await supabase.rpc('increment_descargas', { archivo_id: id })
   }
 
   const updateFile = async (id, updates) => {

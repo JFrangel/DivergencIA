@@ -133,8 +133,8 @@ function CronologiaView({ roadmap }) {
     async function build() {
       const [{ data: members }, { data: projects }] = await Promise.all([
         supabase.from('usuarios')
-          .select('id,nombre,foto_url,area_investigacion,created_at')
-          .order('created_at', { ascending: true }),
+          .select('id,nombre,foto_url,area_investigacion,fecha_registro')
+          .order('fecha_registro', { ascending: true }),
         supabase.from('proyectos')
           .select('id,titulo,estado,area,created_at')
           .order('created_at', { ascending: true }),

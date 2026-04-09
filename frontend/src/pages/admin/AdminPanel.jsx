@@ -505,7 +505,7 @@ function RequestsPanel() {
         referencia_id: nodoId,
         leida: false,
         fecha: new Date().toISOString(),
-      }).catch(() => {})
+      })
     } else if (estado === 'rechazada' && usuarioId) {
       // Notify the applicant of rejection
       await supabase.from('notificaciones').insert({
@@ -516,7 +516,7 @@ function RequestsPanel() {
         referencia_id: nodoId,
         leida: false,
         fecha: new Date().toISOString(),
-      }).catch(() => {})
+      })
     }
 
     setNodoRequests(prev => prev.filter(r => r.id !== id))

@@ -579,7 +579,7 @@ export function useAchievements(userId) {
               usuario_id: targetId,
               tipo: 'logro_desbloqueado',
               titulo: `¡Logro desbloqueado! ${def.badge || '🏆'}`,
-              mensaje: `Obtuviste: ${def.label}${def.tier ? ` (${def.tier})` : ''}`,
+              mensaje: `Obtuviste: ${def.name || def.label || 'Logro'}${def.tierLabel ? ` (${def.tierLabel})` : ''}`,
               leida: false,
               fecha: now,
             }).then(() => {}).catch(() => {})

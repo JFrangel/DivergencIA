@@ -4,7 +4,7 @@ import { FiSend, FiTrash2, FiUpload, FiZap, FiLoader } from 'react-icons/fi'
 import gsap from 'gsap'
 import TerminalLine, { TerminalCursor } from './TerminalLine'
 import { parseInput, buildHelpLines, COMMANDS } from './CommandParser'
-import { atheniaChat, analyzeChalkboard, connectTopics, generateMuralSuggestions } from '../../lib/gemini'
+import { atheniaChat, analyzeChalkboard, connectTopics, generateMuralSuggestions, autoCategorize, generateTopicSections } from '../../lib/gemini'
 import { useAthenia } from '../../hooks/useAthenia'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -655,6 +655,88 @@ Identifica: (1) qué tema investiga, (2) qué tan estructurado está el pensamie
             { type: 'info',    text: `   Skills: ${skills || 'No especificadas'}` },
           ])
         })
+        break
+      }
+
+      case 'crear-tema': {
+        // Only admin/directora can create topics via ATHENIA
+        if (!user) { addLine('warning', 'Debes iniciar sesión.'); break }
+        // Check admin role
+        const { data: perfil } = await supabase.from('usuarios').select('rol').eq('id', user.id).single()
+        const isAdmin = perfil?.rol === 'admin' || perfil?.rol === 'directora'
+        if (!isAdmin) { addLine('warning', '⚠ Solo administradores y directoras pueden crear temas desde ATHENIA.'); break }
+
+        const temaTitle = args?.trim()
+        if (!temaTitle) {
+          addLines([
+            { type: 'error', text: 'Uso: /crear-tema <título del tema>' },
+            { type: 'info',  text: 'Ej: /crear-tema Transformers y Mecanismos de Atención' },
+            { type: 'info',  text: 'ATHENIA generará: categoría, nivel, secciones completas y recursos.' },
+          ])
+          break
+        }
+
+        addLines([
+          { type: 'system', text: `🧠 Iniciando creación de tema: "${temaTitle}"` },
+          { type: 'info',   text: '  [1/3] Autocategorizando y determinando nivel...' },
+        ])
+        setIsThinking(true)
+        try {
+          // Step 1: Autocategorize
+          const { data: existingTopics } = await supabase
+            .from('temas_aprendizaje')
+            .select('categoria')
+            .eq('activo', true)
+          const existingCats = [...new Set((existingTopics || []).map(t => t.categoria).filter(Boolean))]
+          const catResult = await autoCategorize(temaTitle, '', existingCats)
+
+          addLine('info', `  ✓ Categoría: ${catResult?.categoria || 'General'} | Nivel: ${catResult?.nivel || 'basico'}`)
+          addLine('info', '  [2/3] Generando secciones de contenido con IA...')
+
+          // Step 2: Generate sections
+          const secciones = await generateTopicSections(
+            temaTitle, '', catResult?.categoria || 'General', catResult?.nivel || 'basico'
+          )
+          addLine('info', `  ✓ ${secciones.length} secciones generadas`)
+          addLine('info', '  [3/3] Guardando en la base de datos...')
+
+          // Step 3: Save to DB
+          const { data: topicData, error: insertErr } = await supabase
+            .from('temas_aprendizaje')
+            .insert({
+              titulo: temaTitle,
+              descripcion: `Tema generado por ATHENIA IA.`,
+              categoria: catResult?.categoria || 'General',
+              nivel: catResult?.nivel || 'basico',
+              contenido: secciones.map((s, i) => ({ ...s, orden: i })),
+              recursos: catResult?.recursos || [],
+              skills_relacionadas: catResult?.tags || [],
+              autor_id: user.id,
+              activo: true,
+              orden: 0,
+            })
+            .select('id, titulo')
+            .single()
+
+          if (insertErr) {
+            addLine('error', `Error al guardar: ${insertErr.message}`)
+            break
+          }
+
+          addLines([
+            { type: 'success', text: `✅ Tema creado exitosamente` },
+            { type: 'success', text: `   📘 "${topicData.titulo}"` },
+            { type: 'info',    text: `   Categoría : ${catResult?.categoria || 'General'}` },
+            { type: 'info',    text: `   Nivel      : ${catResult?.nivel || 'basico'}` },
+            { type: 'info',    text: `   Secciones  : ${secciones.length}` },
+            { type: 'info',    text: `   Tags        : ${(catResult?.tags || []).join(', ') || '—'}` },
+            { type: 'prompt',  text: '   → Ve a /learning para revisar y editar el tema.' },
+          ])
+        } catch (e) {
+          addLine('error', `Error generando tema: ${e.message}`)
+        } finally {
+          setIsThinking(false)
+        }
         break
       }
 

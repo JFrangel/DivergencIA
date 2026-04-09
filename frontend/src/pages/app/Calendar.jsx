@@ -407,7 +407,7 @@ export default function Calendar() {
 
         // Add creator as admin member
         if (canal_id) {
-          await supabase.from('canal_miembros').insert({ canal_id, usuario_id: user.id, rol_canal: 'admin', puede_escribir: true }).catch(() => {})
+          await supabase.from('canal_miembros').insert({ canal_id, usuario_id: user.id, rol_canal: 'admin', puede_escribir: true })
         }
       }
 
@@ -473,7 +473,7 @@ export default function Calendar() {
           leida: false,
           fecha: new Date().toISOString()
         }))
-        supabase.from('notificaciones').insert(notifs).catch(() => {})
+        await supabase.from('notificaciones').insert(notifs)
       }
 
       toast.success('Evento creado' + (canal_id ? ' · Canal de reunión creado' : ''))
