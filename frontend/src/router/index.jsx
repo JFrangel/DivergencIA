@@ -39,6 +39,7 @@ const Chat               = lazy(() => import('../pages/app/Chat'))
 const Nodos              = lazy(() => import('../pages/app/Nodos'))
 
 // Lazy imports — admin
+const Timeline   = lazy(() => import('../pages/app/Timeline'))
 const AdminPanel = lazy(() => import('../pages/admin/AdminPanel'))
 
 const PageLoader = () => (
@@ -101,6 +102,7 @@ export const router = createBrowserRouter([
       { path: '/workspace',      element: withSuspense(Workspace) },
       { path: '/notificaciones', element: withSuspense(NotificationCenter) },
       { path: '/chat',           element: withSuspense(Chat) },
+      { path: '/timeline',       element: withSuspense(Timeline) },
     ],
   },
 

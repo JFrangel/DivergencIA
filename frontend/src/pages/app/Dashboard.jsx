@@ -8,6 +8,7 @@ import SystemStatus from '../../components/dashboard/SystemStatus'
 import TasksWidget from '../../components/dashboard/TasksWidget'
 import IdeasWidget from '../../components/dashboard/IdeasWidget'
 import TimelinePulse from '../../components/dashboard/TimelinePulse'
+import TimelineWidget from '../../components/dashboard/TimelineWidget'
 import EventsWidget from '../../components/dashboard/EventsWidget'
 import SolicitudesWidget from '../../components/dashboard/SolicitudesWidget'
 import Card from '../../components/ui/Card'
@@ -54,6 +55,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left col — Activity feed + Projects (2/3) */}
         <motion.div className="lg:col-span-2 space-y-4" {...FU(0.14)}>
+          <TimelineWidget />
           <ActivityFeed />
           <ProjectWidget />
           <IdeasWidget />

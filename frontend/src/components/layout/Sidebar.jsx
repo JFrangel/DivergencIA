@@ -5,7 +5,7 @@ import {
   FiZap, FiGrid, FiFolder, FiStar, FiBook, FiBookOpen, FiLayers,
   FiUsers, FiUser, FiGlobe, FiTerminal, FiShield,
   FiChevronLeft, FiChevronRight, FiBell, FiLogOut, FiSun,
-  FiMap, FiSettings, FiCalendar, FiPlay, FiLayout, FiMessageSquare, FiLock,
+  FiMap, FiSettings, FiCalendar, FiPlay, FiLayout, FiMessageSquare, FiLock, FiActivity,
 } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
 import { useZen } from '../../context/ZenContext'
@@ -32,6 +32,7 @@ const NAV_SECTIONS = [
       { to: '/nodos',    icon: FiZap,            label: 'Nodos' },
       { to: '/chat',     icon: FiMessageSquare,  label: 'Chat' },
       { to: '/universo', icon: FiGlobe,          label: 'Universo' },
+      { to: '/timeline', icon: FiActivity,        label: 'Timeline' },
       { to: '/roadmap',  icon: FiMap,            label: 'Roadmap' },
       { to: '/calendar', icon: FiCalendar,       label: 'Calendario' },
     ],
