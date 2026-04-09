@@ -347,6 +347,7 @@ export function useChat(canalId) {
   }, [user, profile, canalId, channelInfo])
 
   const deleteMessage = useCallback(async (id) => {
+    setMessages(prev => prev.filter(m => m.id !== id))
     await supabase.from('mensajes').delete().eq('id', id)
   }, [])
 

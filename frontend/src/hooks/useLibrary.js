@@ -128,9 +128,9 @@ export function useLibrary({ projectId, tag, tipo } = {}) {
     const path = extractPath(url)
     if (path) await supabase.storage.from('archivos').remove([path]).catch(() => {})
 
-    // Delete DB record
-    const { error } = await supabase.from('archivos').delete().eq('id', id)
-    if (error) { toast.error('Error al eliminar archivo'); return }
+    // Delete DB record — use .select() to confirm row was actually deleted (RLS returns 0 rows silently)
+    const { data: deleted, error } = await supabase.from('archivos').delete().eq('id', id).select('id')
+    if (error || !deleted?.length) { toast.error('Error al eliminar archivo'); return }
 
     setFiles(f => f.filter(x => x.id !== id))
     toast.success('Archivo eliminado')
