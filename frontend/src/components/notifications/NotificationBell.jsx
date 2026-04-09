@@ -34,6 +34,7 @@ const TYPE_ICONS = {
   tareas:               FiCheckSquare,
   logros:               FiAward,
   solicitudes:          FiUsers,
+  changelog:            FiZap,
 }
 
 function getTypeColor(tipo) {
@@ -95,6 +96,10 @@ export default function NotificationBell() {
   const handleNotifClick = (n) => {
     if (!n.leida) markAsRead(n.id)
     setOpen(false)
+    if (n.tipo === 'changelog') {
+      window.dispatchEvent(new CustomEvent('changelog:open', { detail: { id: n.referencia_id } }))
+      return
+    }
     navigate(getNotificationRoute(n))
   }
 
