@@ -412,6 +412,25 @@ Devuelve SOLO el título como texto plano, sin comillas ni formato extra.`
   return result.response.text().trim().replace(/^["']|["']$/g, '')
 }
 
+// ─── Comparación entre versiones del changelog ───────────────────────────
+export async function generateChangelogComparison(prevVersion, prevContent, newVersion, newContent) {
+  const client = getClient()
+  if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL })
+  const result = await model.generateContent(
+    `Eres un analista de notas de versión. Compara estas dos versiones y escribe un resumen en español (4-6 oraciones) destacando los cambios más relevantes para los usuarios del semillero. Sé directo y útil, sin tecnicismos innecesarios.
+
+Versión anterior (v${prevVersion}):
+${prevContent}
+
+Nueva versión (v${newVersion}):
+${newContent}
+
+Escribe una comparación clara y concisa en prosa, sin listas ni markdown.`
+  )
+  return result.response.text().trim()
+}
+
 // ─── Conexión semántica entre temas ───────────────────────────────────────
 export async function connectTopics(topicA, topicB, context = '') {
   const client = getClient()

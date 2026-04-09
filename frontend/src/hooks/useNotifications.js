@@ -31,6 +31,7 @@ export const NOTIFICATION_TYPES = {
   tareas:               { label: 'Tarea',                   color: '#FC651F', icon: 'task'       },
   logros:               { label: 'Logro',                   color: '#F59E0B', icon: 'achievement'},
   solicitudes:          { label: 'Solicitud',               color: '#8B5CF6', icon: 'request'    },
+  changelog:            { label: 'Nueva versión',           color: '#FC651F', icon: 'changelog'  },
 }
 
 /** Get the route a notification should navigate to based on its type */
@@ -70,6 +71,8 @@ export function getNotificationRoute(notification) {
     case 'mensaje_nuevo':
     case 'mensaje_directo':
       return referencia_id ? `/chat?canal=${referencia_id}` : '/chat'
+    case 'changelog':
+      return '__changelog__'  // handled specially in NotificationCenter
     default:
       return '/notificaciones'
   }

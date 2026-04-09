@@ -5,7 +5,7 @@ import {
   FiBell, FiCheckCircle, FiTrash2, FiClock,
   FiMessageSquare, FiThumbsUp, FiActivity, FiCheckSquare, FiAward,
   FiUsers, FiStar, FiCalendar, FiFolder, FiRadio, FiHeart,
-  FiBookOpen, FiInbox, FiEye, FiEyeOff,
+  FiBookOpen, FiInbox, FiEye, FiEyeOff, FiZap,
 } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
 import { useNotifications, NOTIFICATION_TYPES, getNotificationRoute } from '../../hooks/useNotifications'
@@ -37,6 +37,7 @@ const TYPE_ICONS = {
   nodo_solicitud:       FiUsers,
   nodo_aprobado:        FiCheckCircle,
   nodo_rechazado:       FiTrash2,
+  changelog:            FiZap,
 }
 
 function getTypeColor(tipo) {
@@ -91,6 +92,10 @@ export default function NotificationCenter() {
 
   const handleNotifClick = (n) => {
     if (!n.leida) markAsRead(n.id)
+    if (n.tipo === 'changelog') {
+      window.dispatchEvent(new CustomEvent('changelog:open', { detail: { id: n.referencia_id } }))
+      return
+    }
     navigate(getNotificationRoute(n))
   }
 

@@ -311,7 +311,17 @@ function ChangelogManager() {
     const { error } = await supabase.from('novedades_version').update({ publicado: nuevo }).eq('id', novedad.id)
     if (error) { toast.error('Error'); return }
     setNovedades(prev => prev.map(n => n.id === novedad.id ? { ...n, publicado: nuevo } : n))
-    toast.success(nuevo ? 'Publicado ✓' : 'Despublicado')
+    // Notify all active members when publishing
+    if (nuevo) {
+      await supabase.rpc('notify_all_changelog', {
+        p_novedad_id: novedad.id,
+        p_version: novedad.version,
+        p_titulo: novedad.titulo,
+      })
+      toast.success('Publicado y notificaciones enviadas ✓')
+    } else {
+      toast.success('Despublicado')
+    }
   }
 
   const handleDelete = async (id) => {
