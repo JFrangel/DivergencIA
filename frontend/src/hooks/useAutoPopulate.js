@@ -2,32 +2,46 @@ import { supabase } from '../lib/supabase'
 
 export function useAutoPopulate() {
   // Auto-suggest project metrics based on project type/area
-  const suggestMetrics = (area) => {
+  // tasks: array of task objects with `estado` field
+  const suggestMetrics = (area, tasks = []) => {
+    const totalTasks = tasks.length
+    const doneTasks = tasks.filter(t => t.estado === 'completada').length
+    const progress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0
+
     const METRIC_TEMPLATES = {
       ML: [
         { nombre: 'Accuracy', valor: 0, tipo: 'porcentaje' },
         { nombre: 'Loss', valor: 0, tipo: 'decimal' },
         { nombre: 'F1 Score', valor: 0, tipo: 'decimal' },
         { nombre: 'Epochs', valor: 0, tipo: 'numero' },
+        { nombre: 'Progreso general', valor: progress, tipo: 'porcentaje' },
+        { nombre: 'Tareas completadas', valor: doneTasks, tipo: 'numero' },
       ],
       NLP: [
         { nombre: 'BLEU Score', valor: 0, tipo: 'decimal' },
         { nombre: 'Perplexity', valor: 0, tipo: 'decimal' },
         { nombre: 'WER', valor: 0, tipo: 'porcentaje' },
+        { nombre: 'Progreso general', valor: progress, tipo: 'porcentaje' },
+        { nombre: 'Tareas completadas', valor: doneTasks, tipo: 'numero' },
       ],
       Vision: [
         { nombre: 'mAP', valor: 0, tipo: 'decimal' },
         { nombre: 'IoU', valor: 0, tipo: 'decimal' },
         { nombre: 'FPS', valor: 0, tipo: 'numero' },
+        { nombre: 'Progreso general', valor: progress, tipo: 'porcentaje' },
+        { nombre: 'Tareas completadas', valor: doneTasks, tipo: 'numero' },
       ],
       Datos: [
         { nombre: 'Registros procesados', valor: 0, tipo: 'numero' },
         { nombre: 'Completitud', valor: 0, tipo: 'porcentaje' },
         { nombre: 'Calidad datos', valor: 0, tipo: 'porcentaje' },
+        { nombre: 'Progreso general', valor: progress, tipo: 'porcentaje' },
+        { nombre: 'Tareas completadas', valor: doneTasks, tipo: 'numero' },
       ],
       General: [
-        { nombre: 'Progreso', valor: 0, tipo: 'porcentaje' },
-        { nombre: 'Tareas completadas', valor: 0, tipo: 'numero' },
+        { nombre: 'Progreso', valor: progress, tipo: 'porcentaje' },
+        { nombre: 'Tareas completadas', valor: doneTasks, tipo: 'numero' },
+        { nombre: 'Total de tareas', valor: totalTasks, tipo: 'numero' },
       ],
     }
     return METRIC_TEMPLATES[area] || METRIC_TEMPLATES.General

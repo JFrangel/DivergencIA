@@ -2,19 +2,23 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import nodemailer from 'npm:nodemailer@6'
 
 // ── Provider detection ────────────────────────────────────────────────────────
-// Priority: Gmail SMTP (free) → Resend (requires paid plan or verified domain)
 const GMAIL_USER     = Deno.env.get('GMAIL_USER')
 const GMAIL_PASS     = Deno.env.get('GMAIL_APP_PASSWORD')
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const FROM_EMAIL     = Deno.env.get('FROM_EMAIL') || 'DivergencIA <onboarding@resend.dev>'
 const USE_GMAIL      = !!(GMAIL_USER && GMAIL_PASS)
 
-// Gmail SMTP transporter (nodemailer, free — up to ~500 emails/day)
+console.log(`[send-email] Provider: ${USE_GMAIL ? `Gmail (${GMAIL_USER})` : 'Resend'}`)
+
+// Gmail SMTP transporter — explicit port 587 + STARTTLS (more compatible than 465)
 let gmailTransporter: ReturnType<typeof nodemailer.createTransport> | null = null
 if (USE_GMAIL) {
   gmailTransporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,       // STARTTLS on port 587
     auth: { user: GMAIL_USER, pass: GMAIL_PASS },
+    tls: { rejectUnauthorized: false },
   })
 }
 
@@ -28,7 +32,7 @@ const CORS = {
 async function sendGmail(to: string, subject: string, html: string): Promise<void> {
   if (!gmailTransporter) throw new Error('Gmail transporter not configured')
   await gmailTransporter.sendMail({
-    from: GMAIL_USER ? `DivergencIA <${GMAIL_USER}>` : FROM_EMAIL,
+    from: `DivergencIA <${GMAIL_USER}>`,
     to,
     subject,
     html,
@@ -74,6 +78,16 @@ serve(async (req: Request) => {
   try {
     const body = await req.json()
 
+    // ── Debug / ping mode ─────────────────────────────────────────────────────
+    if (body.ping) {
+      return json({
+        provider: USE_GMAIL ? 'gmail' : RESEND_API_KEY ? 'resend' : 'none',
+        gmail_user_set: !!GMAIL_USER,
+        gmail_pass_set: !!GMAIL_PASS,
+        resend_key_set: !!RESEND_API_KEY,
+      })
+    }
+
     // ── Batch mode ────────────────────────────────────────────────────────────
     if (body.batch) {
       const batch = body.batch as Array<{ to: string; subject: string; html: string }>
@@ -84,14 +98,13 @@ serve(async (req: Request) => {
       if (valid.length === 0) return json({ error: 'No valid items in batch' }, 400)
 
       if (USE_GMAIL) {
-        // Gmail: send sequentially to avoid hitting rate limits
         const results = []
         for (const item of valid) {
           try {
             await sendGmail(item.to, item.subject, item.html)
             results.push({ to: item.to, ok: true })
           } catch (e) {
-            console.error(`Gmail batch error for ${item.to}:`, e.message)
+            console.error(`Gmail batch error for ${item.to}:`, e)
             results.push({ to: item.to, ok: false, error: e.message })
           }
         }
@@ -120,11 +133,12 @@ serve(async (req: Request) => {
     }
 
   } catch (err) {
-    const hint = USE_GMAIL
-      ? 'Gmail SMTP failed. Check GMAIL_USER and GMAIL_APP_PASSWORD secrets. Make sure 2-Step Verification is enabled and you\'re using an App Password (not your regular Gmail password).'
+    const isGmail = USE_GMAIL
+    console.error('[send-email] ERROR:', err?.message, err?.stack)
+    const hint = isGmail
+      ? `Gmail SMTP failed with: "${err?.message}". Verify: (1) GMAIL_USER secret is set, (2) GMAIL_APP_PASSWORD is a 16-char App Password (not your regular password), (3) 2-Step Verification is enabled on the Gmail account.`
       : 'Using Resend. In sandbox mode, delivery only works to your Resend-registered email. Set GMAIL_USER + GMAIL_APP_PASSWORD to use Gmail SMTP for free instead.'
-    console.error('send-email error:', err.message)
-    return new Response(JSON.stringify({ error: err.message, hint }), {
+    return new Response(JSON.stringify({ error: err?.message, hint }), {
       status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
     })
   }

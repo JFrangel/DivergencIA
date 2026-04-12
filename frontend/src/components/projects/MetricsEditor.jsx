@@ -14,7 +14,7 @@ const METRIC_TYPES = [
   { value: 'custom', label: 'Personalizada', icon: FiBarChart2, color: '#F59E0B', suffix: '' },
 ]
 
-export default function MetricsEditor({ metrics = [], onChange, area }) {
+export default function MetricsEditor({ metrics = [], onChange, area, tasks = [] }) {
   const [showAdd, setShowAdd] = useState(false)
   const [newMetric, setNewMetric] = useState({ tipo: 'accuracy', nombre: '', valor: '', meta: '' })
   const { suggestMetrics } = useAutoPopulate()
@@ -41,7 +41,7 @@ export default function MetricsEditor({ metrics = [], onChange, area }) {
 
   const handleSuggestMetrics = () => {
     const areaKey = area || 'General'
-    const suggestions = suggestMetrics(areaKey)
+    const suggestions = suggestMetrics(areaKey, tasks)
     // Map suggestions to the metric format used in this component, merging with existing
     const existingNames = new Set(metrics.map(m => m.nombre.toLowerCase()))
     const newMetrics = suggestions

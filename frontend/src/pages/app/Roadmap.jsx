@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiMap, FiTarget, FiCheckCircle, FiLoader, FiCircle, FiLock,
   FiEdit2, FiCheck, FiChevronDown, FiChevronUp, FiPlus, FiX,
-  FiList, FiClock, FiCalendar, FiTrendingUp, FiFlag, FiUsers,
+  FiList, FiClock, FiCalendar, FiTrendingUp, FiFlag, FiUsers, FiActivity,
 } from 'react-icons/fi'
+import { useTimeline } from '../../hooks/useTimeline'
 import { toast } from 'sonner'
 import { supabase } from '../../lib/supabase'
 import { useRoadmap } from '../../hooks/useRoadmap'
@@ -369,12 +370,117 @@ const PHASE_TO_ESTADOS = {
   bloqueado:   ['pausa'],
 }
 
+/* ── Activity View ───────────────────────────────────────────────── */
+const TIPO_COLORS = {
+  proyecto_creado: '#FC651F',
+  tarea_completada: '#22c55e',
+  idea_creada: '#8B5CF6',
+  miembro_unido: '#00D1FF',
+  mensaje_enviado: '#F59E0B',
+  archivo_subido: '#EC4899',
+}
+
+function ActivityView() {
+  const { items, loading, loadingMore, hasMore, fetchMore } = useTimeline()
+
+  if (loading) {
+    return (
+      <Card>
+        <div className="flex items-center justify-center py-12">
+          <Spinner />
+        </div>
+      </Card>
+    )
+  }
+
+  if (!items.length) {
+    return (
+      <Card>
+        <div className="text-center py-12">
+          <FiActivity size={24} className="mx-auto text-white/10 mb-3" />
+          <p className="text-white/30 text-sm">Sin actividad registrada</p>
+        </div>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <h3 className="text-sm font-semibold text-white/60 mb-4 flex items-center gap-2">
+        <FiActivity size={14} className="text-[#FC651F]" />
+        Actividad del semillero
+      </h3>
+      <div className="space-y-1">
+        {items.map((item, i) => {
+          const color = TIPO_COLORS[item.tipo] || '#6b7280'
+          const date = new Date(item.created_at)
+          const dateStr = date.toLocaleDateString('es', { day: '2-digit', month: 'short' })
+          const timeStr = date.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+          return (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.03 }}
+              className="flex items-start gap-3 py-2.5 border-b border-white/[0.04] last:border-0"
+            >
+              {/* Timeline dot */}
+              <div className="flex flex-col items-center mt-1 shrink-0">
+                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+              </div>
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white/70 leading-snug">
+                  {item.titulo}
+                </p>
+                {item.descripcion && (
+                  <p className="text-xs text-white/30 mt-0.5 line-clamp-1">{item.descripcion}</p>
+                )}
+                <div className="flex items-center gap-2 mt-1">
+                  {item.usuario && (
+                    <span className="text-[10px] text-white/25">{item.usuario.nombre}</span>
+                  )}
+                  {item.proyecto && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: `${color}15`, color }}>
+                      {item.proyecto.titulo}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {/* Date */}
+              <div className="text-right shrink-0">
+                <p className="text-[10px] text-white/25">{dateStr}</p>
+                <p className="text-[10px] text-white/15">{timeStr}</p>
+              </div>
+            </motion.div>
+          )
+        })}
+      </div>
+      {hasMore && (
+        <div className="mt-4 text-center">
+          <button
+            onClick={fetchMore}
+            disabled={loadingMore}
+            className="text-xs text-white/30 hover:text-white/60 transition-colors disabled:opacity-50"
+          >
+            {loadingMore ? 'Cargando...' : 'Cargar más actividad'}
+          </button>
+        </div>
+      )}
+    </Card>
+  )
+}
+
 /* ── Main Roadmap page ───────────────────────────────────────────── */
 export default function Roadmap() {
   const { roadmap, loading, updatePhase, toggleMilestone, updatePhaseEstado, createPhase } = useRoadmap()
   const { isAdmin } = useAuth()
 
-  const [view, setView] = useState('kanban')
+  const [searchParams] = useSearchParams()
+  const [view, setView] = useState(() => {
+    const v = searchParams.get('view')
+    return ['kanban', 'timeline', 'actividad'].includes(v) ? v : 'kanban'
+  })
   const [editingPhase, setEditingPhase] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [newHitoInput, setNewHitoInput] = useState('')
@@ -502,6 +608,14 @@ export default function Roadmap() {
               >
                 <FiClock size={12} /> Cronología
               </button>
+              <button
+                onClick={() => setView('actividad')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  view === 'actividad' ? 'bg-[var(--c-primary)] text-white' : 'text-white/40 hover:text-white'
+                }`}
+              >
+                <FiActivity size={12} /> Actividad
+              </button>
             </div>
             {isAdmin && (
               <button
@@ -596,6 +710,21 @@ export default function Roadmap() {
             transition={{ duration: 0.3 }}
           >
             <CronologiaView roadmap={roadmap} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Activity view */}
+      <AnimatePresence mode="wait">
+        {view === 'actividad' && (
+          <motion.div
+            key="actividad"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+          >
+            <ActivityView />
           </motion.div>
         )}
       </AnimatePresence>

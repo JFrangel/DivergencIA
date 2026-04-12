@@ -349,16 +349,26 @@ export default function DiagramEditor({ projectId } = {}) {
   )
 
   const addNode = useCallback((type) => {
-    const center = reactFlowInstance
-      ? reactFlowInstance.project({
-          x: (reactFlowWrapper.current?.clientWidth || 600) / 2,
-          y: (reactFlowWrapper.current?.clientHeight || 400) / 2,
-        })
-      : { x: 250 + Math.random() * 200, y: 150 + Math.random() * 200 }
+    let position = { x: 100 + Math.random() * 300, y: 100 + Math.random() * 200 }
+
+    if (reactFlowInstance) {
+      try {
+        const { x: vpX, y: vpY, zoom } = reactFlowInstance.getViewport()
+        const w = reactFlowWrapper.current?.clientWidth || 600
+        const h = reactFlowWrapper.current?.clientHeight || 400
+        position = {
+          x: (-vpX + w / 2) / zoom - 90,
+          y: (-vpY + h / 2) / zoom - 50,
+        }
+      } catch {
+        // fallback to random position
+      }
+    }
+
     const id = getId()
     setNodes((nds) => [...nds, {
       id, type,
-      position: { x: center.x - 90, y: center.y - 50 },
+      position,
       draggable: true,
       data: { ...(NODE_DEFAULTS[type] || { label: 'Nodo' }), onChange: makeOnChange(id) },
     }])

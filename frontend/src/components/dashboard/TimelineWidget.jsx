@@ -35,7 +35,7 @@ export default function TimelineWidget() {
           )}
         </div>
         <Link
-          to="/timeline"
+          to="/roadmap?view=actividad"
           className="flex items-center gap-1 text-[11px] text-white/30 hover:text-[var(--c-primary)] transition-colors"
         >
           Ver todo <FiArrowRight size={10} />

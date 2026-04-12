@@ -13,7 +13,7 @@ import { timeAgo } from '../../lib/utils'
 // Estados que requieren aprobación del admin/director para editar
 const PROTECTED_ESTADOS = ['aprobada', 'en_desarrollo', 'completada']
 
-export default function IdeaCard({ idea, myVote, onVote, onChangeEstado, canChangeEstado, onEdit, onDelete, currentUserId, index = 0 }) {
+export default function IdeaCard({ idea, myVote, onVote, onChangeEstado, canChangeEstado, onEdit, onDelete, currentUserId, index = 0, childIdeas = [], onCreateChild, parentIdea = null }) {
   const { titulo, descripcion, estado, area_relacionada, votos_favor, votos_contra, fecha_publicacion, autor } = idea
   const [showComments, setShowComments] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
@@ -166,6 +166,9 @@ export default function IdeaCard({ idea, myVote, onVote, onChangeEstado, canChan
         onVote={onVote}
         canChangeEstado={canChangeEstado}
         onChangeEstado={onChangeEstado}
+        childIdeas={childIdeas}
+        onCreateChild={onCreateChild}
+        parentIdea={parentIdea}
       />
 
       {/* Delete confirmation */}

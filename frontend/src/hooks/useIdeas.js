@@ -293,6 +293,30 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
     return { success: true }
   }
 
+  const createChildIdea = async (parentId, payload) => {
+    const parent = ideas.find(i => i.id === parentId)
+    const { data, error } = await supabase
+      .from('ideas')
+      .insert({
+        ...payload,
+        parent_id: parentId,
+        autor_id: user?.id,
+        usuario_id: user?.id,
+        estado: payload.estado || 'votacion',
+        area_relacionada: payload.area_relacionada || parent?.area_relacionada,
+      })
+      .select('*, autor:usuarios!ideas_autor_id_fkey(id, nombre, foto_url, area_investigacion)')
+      .single()
+    if (error) { toast.error('Error al crear idea derivada'); return { error } }
+    setIdeas(prev => [data, ...prev])
+    toast.success('Idea derivada creada')
+    return { data }
+  }
+
+  const getChildIdeas = useCallback((parentId) => {
+    return ideas.filter(i => i.parent_id === parentId)
+  }, [ideas])
+
   return {
     ideas: filtered,
     allIdeas: ideas,
@@ -309,5 +333,7 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
     isVotingExpired,
     getVoteDetails,
     getRelatedIdeas,
+    createChildIdea,
+    getChildIdeas,
   }
 }

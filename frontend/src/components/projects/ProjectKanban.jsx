@@ -111,12 +111,14 @@ function KanbanColumn({ column, tasks, onAddTask, onClickTask }) {
             {tasks.length}
           </span>
         </div>
-        <button
-          onClick={() => onAddTask(column.id)}
-          className="text-white/20 hover:text-white/60 transition-colors"
-        >
-          <FiPlus size={14} />
-        </button>
+        {onAddTask && (
+          <button
+            onClick={() => onAddTask(column.id)}
+            className="text-white/20 hover:text-white/60 transition-colors"
+          >
+            <FiPlus size={14} />
+          </button>
+        )}
       </div>
 
       {/* Cards — droppable zone */}

@@ -235,6 +235,8 @@ export default function ProjectDetail() {
   const progress = totalTareas ? Math.round((done / totalTareas) * 100) : 0
   const isOwner = project.creador_id === user?.id
   const canManageTeam = isOwner || isAdmin
+  // Tasks can be created/edited by any active project member or admin/directora
+  const canManageTasks = isMember || isAdmin
 
   const respondProjectRequest = async (solId, estado, usuarioId) => {
     await supabase.from('solicitudes_proyecto')
@@ -479,31 +481,33 @@ export default function ProjectDetail() {
         <div>
           <div className="flex justify-between items-center mb-4">
             <p className="text-sm text-white/40">{totalTareas} tareas · {done} completadas</p>
-            <Button variant="outline" size="sm" className="gap-1.5"
-              onClick={async () => {
-                const { data } = await createTask({ titulo: 'Nueva tarea', estado: 'pendiente', prioridad: 'media' })
-                if (data) {
-                  const event = new CustomEvent('kanban:edit-task', { detail: data })
-                  window.dispatchEvent(event)
-                }
-              }}>
-              <FiPlus size={13} /> Tarea
-            </Button>
+            {canManageTasks && (
+              <Button variant="outline" size="sm" className="gap-1.5"
+                onClick={async () => {
+                  const { data } = await createTask({ titulo: 'Nueva tarea', estado: 'pendiente', prioridad: 'media' })
+                  if (data) {
+                    const event = new CustomEvent('kanban:edit-task', { detail: data })
+                    window.dispatchEvent(event)
+                  }
+                }}>
+                <FiPlus size={13} /> Tarea
+              </Button>
+            )}
           </div>
           <ProjectKanban
             tasks={tasks}
             setTasks={setTasks}
-            onUpdateTask={updateTask}
-            onDeleteTask={removeTask}
+            onUpdateTask={canManageTasks ? updateTask : null}
+            onDeleteTask={canManageTasks ? removeTask : null}
             members={project.miembros?.filter(m => m.activo) || []}
-            onAddTask={async (estado) => {
+            canManage={canManageTasks}
+            onAddTask={canManageTasks ? async (estado) => {
               const { data } = await createTask({ titulo: 'Nueva tarea', estado, prioridad: 'media' })
               if (data) {
-                // Open edit modal immediately for the new task
                 const event = new CustomEvent('kanban:edit-task', { detail: data })
                 window.dispatchEvent(event)
               }
-            }}
+            } : null}
           />
         </div>
       )}
@@ -669,7 +673,15 @@ export default function ProjectDetail() {
 
       {tab === 'metrics' && (
         <Card>
-          <MetricsEditor metrics={metrics} onChange={setMetrics} area={project.area} />
+          <MetricsEditor
+            metrics={metrics}
+            tasks={tasks}
+            area={project.area}
+            onChange={async (newMetrics) => {
+              setMetrics(newMetrics)
+              await updateProject({ metricas: newMetrics })
+            }}
+          />
         </Card>
       )}
 

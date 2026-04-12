@@ -678,15 +678,30 @@ Identifica: (1) qué tema investiga, (2) qué tan estructurado está el pensamie
 
         addLines([
           { type: 'system', text: `🧠 Iniciando creación de tema: "${temaTitle}"` },
-          { type: 'info',   text: '  [1/3] Autocategorizando y determinando nivel...' },
+          { type: 'info',   text: '  [1/3] Verificando duplicados y autocategorizando...' },
         ])
         setIsThinking(true)
         try {
-          // Step 1: Autocategorize
+          // Step 1: Check for similar existing topics
           const { data: existingTopics } = await supabase
             .from('temas_aprendizaje')
-            .select('categoria')
+            .select('id, titulo, categoria')
             .eq('activo', true)
+
+          const similar = (existingTopics || []).filter(t =>
+            t.titulo.toLowerCase().includes(temaTitle.toLowerCase()) ||
+            temaTitle.toLowerCase().includes(t.titulo.toLowerCase())
+          )
+          if (similar.length > 0) {
+            addLines([
+              { type: 'warning', text: `⚠ Ya existe un tema similar: "${similar[0].titulo}"` },
+              { type: 'info',    text: `  Usa /editar-tema "${similar[0].titulo}" para modificarlo.` },
+              { type: 'info',    text: `  O usa /crear-tema con un título más específico para crear uno nuevo.` },
+            ])
+            setIsThinking(false)
+            break
+          }
+
           const existingCats = [...new Set((existingTopics || []).map(t => t.categoria).filter(Boolean))]
           const catResult = await autoCategorize(temaTitle, '', existingCats)
 
@@ -734,6 +749,80 @@ Identifica: (1) qué tema investiga, (2) qué tan estructurado está el pensamie
           ])
         } catch (e) {
           addLine('error', `Error generando tema: ${e.message}`)
+        } finally {
+          setIsThinking(false)
+        }
+        break
+      }
+
+      case 'editar-tema': {
+        if (!user) { addLine('warning', 'Debes iniciar sesión.'); break }
+        const { data: perfil2 } = await supabase.from('usuarios').select('rol').eq('id', user.id).single()
+        const isAdmin2 = perfil2?.rol === 'admin' || perfil2?.rol === 'directora'
+        if (!isAdmin2) { addLine('warning', '⚠ Solo administradores y directoras pueden editar temas desde ATHENIA.'); break }
+
+        const searchTitle = args?.trim()
+        if (!searchTitle) {
+          addLines([
+            { type: 'error', text: 'Uso: /editar-tema <título del tema>' },
+            { type: 'info',  text: 'Ej: /editar-tema Transformers' },
+          ])
+          break
+        }
+
+        addLine('info', `🔍 Buscando tema: "${searchTitle}"...`)
+        setIsThinking(true)
+        try {
+          const { data: foundTopics } = await supabase
+            .from('temas_aprendizaje')
+            .select('id, titulo, categoria, nivel, descripcion, skills_relacionadas')
+            .ilike('titulo', `%${searchTitle}%`)
+            .eq('activo', true)
+            .limit(5)
+
+          if (!foundTopics?.length) {
+            addLines([
+              { type: 'warning', text: `No se encontró ningún tema con "${searchTitle}"` },
+              { type: 'info',    text: 'Verifica el título o usa /crear-tema para crear uno nuevo.' },
+            ])
+            setIsThinking(false)
+            break
+          }
+
+          const topic = foundTopics[0]
+          addLines([
+            { type: 'info',   text: `✓ Tema encontrado: "${topic.titulo}"` },
+            { type: 'info',   text: `  Categoría: ${topic.categoria} | Nivel: ${topic.nivel}` },
+            { type: 'system', text: '  Regenerando contenido con IA...' },
+          ])
+
+          // Re-generate sections
+          const newSecciones = await generateTopicSections(
+            topic.titulo, topic.descripcion || '', topic.categoria, topic.nivel
+          )
+          addLine('info', `  ✓ ${newSecciones.length} secciones generadas`)
+
+          // Update in DB
+          const { error: updateErr } = await supabase
+            .from('temas_aprendizaje')
+            .update({
+              contenido: newSecciones.map((s, i) => ({ ...s, orden: i })),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', topic.id)
+
+          if (updateErr) {
+            addLine('error', `Error al actualizar: ${updateErr.message}`)
+            break
+          }
+
+          addLines([
+            { type: 'success', text: `✅ Tema actualizado: "${topic.titulo}"` },
+            { type: 'info',    text: `   ${newSecciones.length} secciones regeneradas con contenido fresco.` },
+            { type: 'prompt',  text: '   → Ve a /learning para revisar los cambios.' },
+          ])
+        } catch (e) {
+          addLine('error', `Error editando tema: ${e.message}`)
         } finally {
           setIsThinking(false)
         }

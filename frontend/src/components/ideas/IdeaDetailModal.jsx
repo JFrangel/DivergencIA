@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiX, FiUser, FiCalendar, FiTag, FiMessageCircle,
-  FiThumbsUp, FiThumbsDown, FiLink, FiShare2,
+  FiThumbsUp, FiThumbsDown, FiLink, FiShare2, FiGitBranch, FiPlus, FiCornerDownRight,
 } from 'react-icons/fi'
 import Avatar from '../ui/Avatar'
 import Badge from '../ui/Badge'
@@ -19,7 +20,11 @@ const ESTADOS = [
   { id: 'modificacion',  label: 'Modificación',   color: '#F59E0B' },
 ]
 
-export default function IdeaDetailModal({ idea, open, onClose, myVote, onVote, canChangeEstado, onChangeEstado }) {
+export default function IdeaDetailModal({ idea, open, onClose, myVote, onVote, canChangeEstado, onChangeEstado, childIdeas = [], onCreateChild, parentIdea = null }) {
+  const [showChildForm, setShowChildForm] = useState(false)
+  const [childForm, setChildForm] = useState({ titulo: '', descripcion: '' })
+  const [savingChild, setSavingChild] = useState(false)
+
   if (!idea) return null
 
   const {
@@ -27,6 +32,15 @@ export default function IdeaDetailModal({ idea, open, onClose, myVote, onVote, c
     votos_favor, votos_contra, fecha_publicacion, created_at, autor,
     tags,
   } = idea
+
+  const handleCreateChild = async () => {
+    if (!childForm.titulo.trim()) return
+    setSavingChild(true)
+    await onCreateChild?.(id, { titulo: childForm.titulo, descripcion: childForm.descripcion })
+    setChildForm({ titulo: '', descripcion: '' })
+    setShowChildForm(false)
+    setSavingChild(false)
+  }
 
   const publishDate = fecha_publicacion || created_at
 
@@ -179,6 +193,95 @@ export default function IdeaDetailModal({ idea, open, onClose, myVote, onVote, c
                   </span>
                 </div>
               )}
+
+              {/* Parent idea breadcrumb */}
+              {parentIdea && (
+                <div className="flex items-center gap-2 text-xs text-white/30 bg-white/[0.02] border border-white/[0.05] rounded-xl px-3 py-2">
+                  <FiCornerDownRight size={12} />
+                  <span>Derivada de:</span>
+                  <span className="text-[var(--c-secondary)] font-medium">{parentIdea.titulo}</span>
+                </div>
+              )}
+
+              {/* Child ideas */}
+              <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FiGitBranch size={13} className="text-[#8B5CF6]" />
+                    <span className="text-[11px] text-white/30 font-medium uppercase tracking-wider">
+                      Ideas derivadas {childIdeas.length > 0 && `(${childIdeas.length})`}
+                    </span>
+                  </div>
+                  {onCreateChild && (
+                    <button
+                      onClick={() => setShowChildForm(v => !v)}
+                      className="text-[10px] text-[#8B5CF6] hover:text-[#8B5CF6]/80 flex items-center gap-1 transition-colors"
+                    >
+                      <FiPlus size={10} /> Derivar idea
+                    </button>
+                  )}
+                </div>
+
+                {/* Child create form */}
+                <AnimatePresence>
+                  {showChildForm && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="space-y-2 pt-1">
+                        <input
+                          className="w-full px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-white/20 outline-none"
+                          placeholder="Título de la idea derivada"
+                          value={childForm.titulo}
+                          onChange={e => setChildForm(f => ({ ...f, titulo: e.target.value }))}
+                        />
+                        <textarea
+                          rows={2}
+                          className="w-full px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-white/20 outline-none resize-none"
+                          placeholder="Descripción (opcional)"
+                          value={childForm.descripcion}
+                          onChange={e => setChildForm(f => ({ ...f, descripcion: e.target.value }))}
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            onClick={() => setShowChildForm(false)}
+                            className="text-xs text-white/30 hover:text-white/60 px-3 py-1.5 rounded-lg transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={handleCreateChild}
+                            disabled={savingChild || !childForm.titulo.trim()}
+                            className="text-xs bg-[#8B5CF6]/20 text-[#8B5CF6] hover:bg-[#8B5CF6]/30 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {savingChild ? 'Creando...' : 'Crear derivada'}
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Child list */}
+                {childIdeas.length === 0 && !showChildForm && (
+                  <p className="text-xs text-white/15">Sin ideas derivadas aún.</p>
+                )}
+                {childIdeas.map(child => (
+                  <div key={child.id} className="flex items-start gap-2 py-1.5 border-t border-white/[0.04]">
+                    <FiCornerDownRight size={11} className="text-[#8B5CF6]/40 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white/60">{child.titulo}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge estado={child.estado} size="xs" />
+                        <span className="text-[10px] text-white/20">{child.votos_favor || 0} votos</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
               {/* Discussion / Comments */}
               <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">

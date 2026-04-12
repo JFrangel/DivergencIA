@@ -59,6 +59,107 @@ function SectionTypePicker({ value, onChange }) {
   )
 }
 
+// ─── Quiz Builder ─────────────────────────────────────────────────────────────
+const emptyQuestion = () => ({ pregunta: '', opciones: ['', '', '', ''], respuesta_correcta: 0, explicacion: '' })
+
+function QuizBuilder({ value, onChange }) {
+  // Parse stored value: could be JSON array, JSON object, or raw string
+  const parseQuestions = (v) => {
+    if (!v) return [emptyQuestion()]
+    if (Array.isArray(v)) return v
+    if (typeof v === 'string') {
+      try {
+        const parsed = JSON.parse(v)
+        return Array.isArray(parsed) ? parsed : [parsed]
+      } catch { return [emptyQuestion()] }
+    }
+    return [v]
+  }
+
+  const [questions, setQuestions] = useState(() => parseQuestions(value))
+
+  const push = (newQs) => {
+    setQuestions(newQs)
+    onChange(JSON.stringify(newQs))
+  }
+
+  const updateQ = (qi, field, val) => {
+    const next = questions.map((q, i) => i === qi ? { ...q, [field]: val } : q)
+    push(next)
+  }
+
+  const updateOption = (qi, oi, val) => {
+    const next = questions.map((q, i) => {
+      if (i !== qi) return q
+      const opciones = q.opciones.map((o, j) => j === oi ? val : o)
+      return { ...q, opciones }
+    })
+    push(next)
+  }
+
+  const addQuestion = () => push([...questions, emptyQuestion()])
+  const removeQuestion = (qi) => push(questions.filter((_, i) => i !== qi))
+
+  return (
+    <div className="space-y-3">
+      {questions.map((q, qi) => (
+        <div key={qi} className="rounded-lg bg-white/[0.03] border border-[#F59E0B]/15 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-[#F59E0B]/60 font-semibold uppercase tracking-wider">Pregunta {qi + 1}</span>
+            {questions.length > 1 && (
+              <button type="button" onClick={() => removeQuestion(qi)} className="text-white/20 hover:text-[#EF4444] transition-colors">
+                <FiTrash2 size={11} />
+              </button>
+            )}
+          </div>
+          <input
+            className="w-full px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.07] text-sm text-white placeholder-white/20 outline-none"
+            placeholder="Escribe la pregunta..."
+            value={q.pregunta}
+            onChange={e => updateQ(qi, 'pregunta', e.target.value)}
+          />
+          <div className="grid grid-cols-2 gap-1.5">
+            {(q.opciones || ['', '', '', '']).map((opt, oi) => (
+              <div key={oi} className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => updateQ(qi, 'respuesta_correcta', oi)}
+                  className="w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all"
+                  style={{
+                    borderColor: q.respuesta_correcta === oi ? '#22c55e' : 'rgba(255,255,255,0.15)',
+                    background: q.respuesta_correcta === oi ? '#22c55e20' : 'transparent',
+                  }}
+                >
+                  {q.respuesta_correcta === oi && <FiCheck size={8} style={{ color: '#22c55e' }} />}
+                </button>
+                <input
+                  className="flex-1 min-w-0 px-2 py-1 rounded-lg bg-white/[0.03] border border-white/[0.06] text-xs text-white placeholder-white/15 outline-none"
+                  placeholder={`Opción ${String.fromCharCode(65 + oi)}`}
+                  value={opt}
+                  onChange={e => updateOption(qi, oi, e.target.value)}
+                />
+              </div>
+            ))}
+          </div>
+          <input
+            className="w-full px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-xs text-white/60 placeholder-white/15 outline-none"
+            placeholder="Explicación (opcional)"
+            value={q.explicacion || ''}
+            onChange={e => updateQ(qi, 'explicacion', e.target.value)}
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addQuestion}
+        className="text-xs text-[#F59E0B]/60 hover:text-[#F59E0B] flex items-center gap-1 transition-colors"
+      >
+        <FiPlus size={11} /> Agregar pregunta
+      </button>
+    </div>
+  )
+}
+
 // ─── Single section card ──────────────────────────────────────────────────────
 function SectionCard({ sec, idx, total, onUpdate, onRemove, onMove, topicTitulo = '' }) {
   const [collapsed, setCollapsed] = useState(false)
@@ -172,15 +273,10 @@ function SectionCard({ sec, idx, total, onUpdate, onRemove, onMove, topicTitulo 
 
               {/* Content */}
               {sec.tipo === 'quiz' ? (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] text-white/30">JSON: {`{"pregunta":"...","opciones":["A","B","C","D"],"respuesta_correcta":0,"explicacion":"..."}`}</p>
-                  <Textarea
-                    value={typeof sec.contenido === 'string' ? sec.contenido : JSON.stringify(sec.contenido, null, 2)}
-                    onChange={e => onUpdate('contenido', e.target.value)}
-                    rows={5}
-                    placeholder='{"pregunta": "...", "opciones": [...], "respuesta_correcta": 0}'
-                  />
-                </div>
+                <QuizBuilder
+                  value={sec.contenido}
+                  onChange={v => onUpdate('contenido', v)}
+                />
               ) : (
                 <Textarea
                   value={sec.contenido || ''}

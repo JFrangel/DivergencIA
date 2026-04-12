@@ -84,6 +84,10 @@ export const COMMANDS = {
     usage: '/crear-tema <título>',
     desc: '[Admin] Crea un tema de aprendizaje completo con IA. Ej: /crear-tema Transformers',
   },
+  'editar-tema': {
+    usage: '/editar-tema <título>',
+    desc: '[Admin] Regenera el contenido de un tema existente con IA. Ej: /editar-tema Transformers',
+  },
 }
 
 /**
