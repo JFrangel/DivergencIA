@@ -222,67 +222,116 @@ Asistente de inteligencia artificial integrado con Google Gemini, con dos modos 
 - **Emails**: Resend → gratis (3,000 emails/mes)
 - **NO necesita servidor propio** ✅
 
-### Opción 2: Servidor dedicado (Si universidad requiere hosting local)
+### Opción 2: Servidor dedicado (Si universidad requiere hosting 100% local)
 
-**Configuración mínima recomendada:**
+**Solo es necesario si alojan PostgreSQL internamente** (todos los otros módulos no necesitan servidor dedicado).
 
 | Recurso | Cantidad | Propósito |
 |---------|----------|----------|
-| **CPU** | 4 cores | Node.js frontend + modelos ligeros locales |
-| **RAM** | 8 GB | Aplicación React + caché de sesiones |
-| **SSD** | 50 GB | Sistema operativo + aplicación + logs |
-| **OS** | Ubuntu 22.04 LTS | Linux estable para servidor |
+| **CPU** | 4 cores | PostgreSQL + caché |
+| **RAM** | 8 GB | PostgreSQL + sesiones |
+| **SSD** | 50 GB | PostgreSQL + SO + logs |
+| **SSD extra** | **50-100 GB** | **Archivos de biblioteca** (versiones de proyectos) |
+| **OS** | Ubuntu 22.04 LTS | Linux estable |
 
 **Stack en servidor local:**
 ```
-- Nginx (reverse proxy + SSL)
-- Node.js 20 LTS (servir React build)
-- Docker (opcional, contenedores para aplicaciones)
-- PostgreSQL 15 (si no usan Supabase externo)
+- PostgreSQL 15 (base de datos)
+- Nginx (reverse proxy SSL)
+- Docker (opcional, para aislar PostgreSQL)
 ```
 
-**Recursos por módulo de la plataforma:**
+**Lo que SÍ corre aquí**: Solo PostgreSQL + files storage locales.
 
-| Módulo | CPU | RAM | Almacenamiento | Ubicación |
-|--------|-----|-----|-----------------|-----------|
-| Dashboard + UI | ← ligero → | ← ligero → | 100 MB | Vercel / Nginx |
-| Proyectos + Kanban | ← ligero → | ← ligero → | 500 MB | Vercel / Nginx |
-| Ideas + votación | ← ligero → | ← ligero → | 200 MB | Vercel / Nginx |
-| Aprendizaje + temas | ← ligero → | ← ligero → | 2 GB | Vercel / Nginx + Storage |
-| Chat en tiempo real | ← moderado → | ← moderado → | 500 MB | Supabase Realtime |
-| Videollamadas WebRTC | ← ligero (P2P) → | ← ligero → | ← ninguno → | Navegadores + TURN server |
-| ATHENIA IA | ← ninguno (cloud) → | ← ninguno → | ← ninguno → | Google Gemini API |
-| Biblioteca de archivos | ← ligero → | ← ligero → | **10-100 GB** | Storage (Supabase / local) |
-| Murales colaborativos | ← ligero → | ← ligero → | 1 GB | Supabase Realtime |
-| Base de datos | **requiere servidor** | ← significativo → | ← variable → | PostgreSQL 15+ |
+**Lo que NO necesita servidor extra** (corre en cloud/cliente):
+- Frontend React → Vercel CDN (gratis)
+- Gemini IA (ATHENIA) → Google API (cloud)
+- Realtime (chat, murales) → Supabase Realtime (cloud)
+- Email (notificaciones) → Resend (cloud)
+- Archivos → Supabase Storage (S3-compatible, si no los alojas localmente)
 
-### Opción 3: Servidor robusto (Si universidad crece o aloja más proyectos)
+**Análisis por módulo — dónde corre realmente cada feature:**
 
-**Configuración escalable:**
+| Módulo | Procesamiento | Servidor dedicado | Notas |
+|--------|---------------|-------------------|-------|
+| **Dashboard** | Cliente (React) + Supabase queries | ❌ No | Estadísticas, feed, widgets — todo UI. Solo lee de BD. |
+| **Proyectos** | Cliente (React + ReactFlow) | ❌ No | Kanban, diagramas, métricas calculadas en navegador. BD para persistencia. |
+| **Ideas** | BD (Supabase) | ❌ No | Votación, derivación (padre-hijo) — puro SQL SELECT/INSERT/UPDATE. |
+| **Aprendizaje** | Cliente (React) + **Gemini API** (cloud) | ❌ No | Quiz/flashcards generados por IA cloud. Contenido markdown/videos son solo URLs. |
+| **Nodos/Chat** | Supabase Realtime (WebSocket) | ❌ No | Canales, mensajes — en tiempo real vía Realtime. Ancho banda bajo. |
+| **Videollamadas** | P2P (WebRTC) + señalización Realtime | ⚠️ Opcional | Navegadores conectan directo (P2P). Supabase solo señaliza. TURN server solo si NAT estricto. |
+| **ATHENIA IA** | **Google Gemini API** (cloud) | ❌ No | Procesamiento de lenguaje natural, generación de contenido — 100% cloud. |
+| **Murales** | Supabase Realtime + JSON BD | ❌ No | Colaborativo en tiempo real. Supabase Realtime (WebSocket) + Postgres (datos). |
+| **Roadmap/Timeline** | Cliente (React) + Supabase queries | ❌ No | Visualización, estadísticas, feed — interfaz cliente. |
+| **Calendario** | Supabase queries | ❌ No | Solo almacena eventos en BD. |
+| **Biblioteca** | ⚠️ **Supabase Storage O servidor local** | ⚠️ Sí, si es local | **Aquí está el cuello de botella**: historial de versiones + archivos. 10-100 GB. |
+| **Red de Miembros** | Cliente (Three.js 3D) | ❌ No | Grafo 3D renderizado en navegador. Supabase solo datos de usuarios/relaciones. |
+| **Notificaciones** | Supabase Realtime + Resend (cloud) | ❌ No | Push en tiempo real vía Realtime. Emails vía Resend (servicio externo). |
+| **Admin Panel** | Cliente (React) + Supabase queries | ❌ No | UI de gestión. Queries directas a BD. |
+| **Autenticación** | Supabase Auth (cloud) | ❌ No | Magic link vía Resend. 100% gestionado por Supabase. |
+| **Base de datos** | PostgreSQL | ✅ **SÍ** (si es local) | Si alojan Supabase internamente: ~8 GB RAM, 50+ GB SSD. Si usan Supabase cloud: gratis. |
+
+### Opción 3: Servidor robusto (Si universidad crece o necesita mucho almacenamiento de archivos)
+
+**Solo aumentar si**:
+- Más de 200 usuarios simultáneos
+- Proyectos con miles de archivos/versiones (biblioteca muy grande)
+- Requieren redundancia/replicación de BD
 
 | Recurso | Cantidad | Propósito |
 |---------|----------|----------|
-| **CPU** | 8+ cores | Más usuarios simultáneos, procesamiento local |
-| **RAM** | 16-32 GB | Base de datos + caché + sesiones concurrentes |
-| **SSD** | 200+ GB | BD grande + archivos del semillero |
-| **Backup** | 200 GB | Redundancia de datos |
+| **CPU** | 8 cores | PostgreSQL con más conexiones |
+| **RAM** | 16 GB | PostgreSQL + caché Redis |
+| **SSD (datos)** | 200+ GB | PostgreSQL grande + archivo locales |
+| **SSD (backup)** | 200+ GB | Replicación + backups |
 
 **Stack adicional:**
 ```
-- Redis (caché de sesiones + Realtime opcional)
-- PostgreSQL 15+ con replicación
-- Prometheus + Grafana (monitoreo)
-- Nginx + Load Balancer (múltiples instancias)
+- PostgreSQL 15+ con replicación (Streaming Replication)
+- Redis 7+ (caché + sessions)
+- Prometheus + Grafana (monitoreo BD)
+- Nginx + Load Balancer (si alojan múltiples instancias)
 ```
 
-### Recomendación final para la dirección del semillero
+---
 
-✅ **Usar Vercel + Supabase** (opciones 1) — la plataforma está optimizada para esta arquitectura serverless
-- Cero costo inicial
-- Escalabilidad automática
-- Mantenimiento mínimo
-- Si en el futuro necesitan hosting local → migrar a opción 2/3 es sencillo
+### 📋 Recomendación final para la dirección del semillero
 
-⚠️ **Si la universidad requiere hosting 100% local:**
-- Mínimo opción 2 (4 cores, 8 GB RAM) — suficiente para el semillero
-- Opción 3 recomendada si planean más de 200 usuarios o proyectos grandes con modelos IA locales
+#### ✅ **Opción 1 — RECOMENDADA: Vercel + Supabase (cloud)**
+
+Ideal para el semillero actual y futuro:
+- **Costo**: ~$0/mes (gratis en semillero <50 usuarios)
+- **Escalabilidad**: Automática, sin intervención
+- **Mantenimiento**: Cero — todo gestionado
+- **Latencia**: CDN global (Vercel) + Postgres optimizado (Supabase)
+
+**Por qué funciona para TODAS las 15 funcionalidades**:
+- Dashboard, Proyectos, Ideas, Aprendizaje, Nodos, Chat, Murales, Timeline, Calendario, Admin, Auth → corren en **cliente (Vercel) + Supabase BD** (no necesitan servidor)
+- ATHENIA (IA) → **Google Gemini API** (cloud, sin servidor)
+- Biblioteca → **Supabase Storage** (S3-compatible, escala automáticamente)
+- Videollamadas → **WebRTC P2P** (directo entre navegadores, sin servidor)
+
+**Acción**: Ya está configurado. Solo falta environment vars en Vercel.
+
+#### ⚠️ **Opción 2 — Si universidad EXIGE hosting 100% local**
+
+Mínimo:
+- **CPU**: 4 cores
+- **RAM**: 8 GB
+- **SSD**: 50 GB (SO + PostgreSQL) + **50-100 GB extra** (archivos biblioteca)
+- **SO**: Ubuntu 22.04 LTS
+
+**Solo corre aquí**: PostgreSQL 15 + archivos locales.
+
+**Sigue siendo CLOUD**: Gemini, Supabase Realtime (usan servicios externos vía internet).
+
+**Costo**: $5-20/mes (VPS básico tipo DigitalOcean/Linode).
+
+#### ❌ **NO recomendado: Alojar TODO en servidor (incluido Gemini, email, chat realtime)**
+
+- Mucho más caro (servidor robusto + mantenimiento)
+- Gemini requeriría APIlocal → modelos LLM locales (muy pesado: 10+ GB RAM)
+- Chat realtime necesitaría Redis + infraestructura compleja
+- Biblioteca se volvería cuello de botella (cientos de GB, backups lentos)
+
+**Conclusión**: Con esta arquitectura (React 18 + Vite + Supabase + Gemini), **no necesitan servidor dedicado para 80% de features**. La nube maneja mejor la carga.
