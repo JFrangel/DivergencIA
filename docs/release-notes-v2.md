@@ -208,3 +208,81 @@ Asistente de inteligencia artificial integrado con Google Gemini, con dos modos 
 | Configurar `VITE_SITE_URL=https://athenia.vercel.app` | Vercel → Environment Variables |
 | Verificar dominio de envío en Resend | resend.com/domains → agregar secreto `FROM_EMAIL` en Supabase |
 | Aplicar `011_usuarios_privacy_columns.sql` si no está | Supabase Dashboard → SQL Editor |
+
+---
+
+## Recomendaciones de infraestructura
+
+### Opción 1: Servicios externos gestionados (Recomendado - Costo: ~$0/mes)
+
+**Para semillero activo (<50 usuarios):**
+- **Frontend**: Vercel (Hobby plan) → gratis, CDN global, CI/CD automático
+- **Base de datos + Auth + WebSockets**: Supabase (Free tier) → gratis, postgres, realtime
+- **IA**: Google Gemini API → pay-per-use (~$0.04 / 1M tokens)
+- **Emails**: Resend → gratis (3,000 emails/mes)
+- **NO necesita servidor propio** ✅
+
+### Opción 2: Servidor dedicado (Si universidad requiere hosting local)
+
+**Configuración mínima recomendada:**
+
+| Recurso | Cantidad | Propósito |
+|---------|----------|----------|
+| **CPU** | 4 cores | Node.js frontend + modelos ligeros locales |
+| **RAM** | 8 GB | Aplicación React + caché de sesiones |
+| **SSD** | 50 GB | Sistema operativo + aplicación + logs |
+| **OS** | Ubuntu 22.04 LTS | Linux estable para servidor |
+
+**Stack en servidor local:**
+```
+- Nginx (reverse proxy + SSL)
+- Node.js 20 LTS (servir React build)
+- Docker (opcional, contenedores para aplicaciones)
+- PostgreSQL 15 (si no usan Supabase externo)
+```
+
+**Recursos por módulo de la plataforma:**
+
+| Módulo | CPU | RAM | Almacenamiento | Ubicación |
+|--------|-----|-----|-----------------|-----------|
+| Dashboard + UI | ← ligero → | ← ligero → | 100 MB | Vercel / Nginx |
+| Proyectos + Kanban | ← ligero → | ← ligero → | 500 MB | Vercel / Nginx |
+| Ideas + votación | ← ligero → | ← ligero → | 200 MB | Vercel / Nginx |
+| Aprendizaje + temas | ← ligero → | ← ligero → | 2 GB | Vercel / Nginx + Storage |
+| Chat en tiempo real | ← moderado → | ← moderado → | 500 MB | Supabase Realtime |
+| Videollamadas WebRTC | ← ligero (P2P) → | ← ligero → | ← ninguno → | Navegadores + TURN server |
+| ATHENIA IA | ← ninguno (cloud) → | ← ninguno → | ← ninguno → | Google Gemini API |
+| Biblioteca de archivos | ← ligero → | ← ligero → | **10-100 GB** | Storage (Supabase / local) |
+| Murales colaborativos | ← ligero → | ← ligero → | 1 GB | Supabase Realtime |
+| Base de datos | **requiere servidor** | ← significativo → | ← variable → | PostgreSQL 15+ |
+
+### Opción 3: Servidor robusto (Si universidad crece o aloja más proyectos)
+
+**Configuración escalable:**
+
+| Recurso | Cantidad | Propósito |
+|---------|----------|----------|
+| **CPU** | 8+ cores | Más usuarios simultáneos, procesamiento local |
+| **RAM** | 16-32 GB | Base de datos + caché + sesiones concurrentes |
+| **SSD** | 200+ GB | BD grande + archivos del semillero |
+| **Backup** | 200 GB | Redundancia de datos |
+
+**Stack adicional:**
+```
+- Redis (caché de sesiones + Realtime opcional)
+- PostgreSQL 15+ con replicación
+- Prometheus + Grafana (monitoreo)
+- Nginx + Load Balancer (múltiples instancias)
+```
+
+### Recomendación final para la dirección del semillero
+
+✅ **Usar Vercel + Supabase** (opciones 1) — la plataforma está optimizada para esta arquitectura serverless
+- Cero costo inicial
+- Escalabilidad automática
+- Mantenimiento mínimo
+- Si en el futuro necesitan hosting local → migrar a opción 2/3 es sencillo
+
+⚠️ **Si la universidad requiere hosting 100% local:**
+- Mínimo opción 2 (4 cores, 8 GB RAM) — suficiente para el semillero
+- Opción 3 recomendada si planean más de 200 usuarios o proyectos grandes con modelos IA locales
