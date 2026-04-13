@@ -553,6 +553,15 @@ function mdToHtml(md) {
     // Code blocks first (```lang\n...\n```)
     .replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) =>
       `<pre class="md-code-block"><code>${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`)
+    // Tables (must come before paragraphs)
+    .replace(/\|(.+)\n\|[-\s|:]+\n((?:\|.+\n?)*)/g, (match, headerRow, bodyRows) => {
+      const headers = headerRow.split('|').map(h => h.trim()).filter(Boolean)
+      const rows = bodyRows.trim().split('\n').filter(l => l.trim())
+      const bodyHtml = rows.map(row =>
+        `<tr>${row.split('|').map(cell => `<td class="md-table-cell">${cell.trim()}</td>`).filter((_, i) => i > 0 && i <= headers.length).join('')}</tr>`
+      ).join('')
+      return `<table class="md-table"><thead><tr>${headers.map(h => `<th class="md-table-header">${h}</th>`).join('')}</tr></thead><tbody>${bodyHtml}</tbody></table>`
+    })
     // Headings
     .replace(/^#{6}\s+(.+)$/gm, '<h6 class="md-h6">$1</h6>')
     .replace(/^#{5}\s+(.+)$/gm, '<h5 class="md-h5">$1</h5>')
@@ -585,7 +594,7 @@ function mdToHtml(md) {
     .replace(/^\d+\.\s+(.+)$/gm, '<li class="md-oli">$1</li>')
     .replace(/(<li class="md-oli">.*<\/li>\n?)+/g, m => `<ol class="md-ol">${m}</ol>`)
     // Paragraphs
-    .replace(/^(?!<[hbuoilp]|<blockquote|<pre|<hr)(.+)$/gm, '<p class="md-p">$1</p>')
+    .replace(/^(?!<[hbuoilp]|<blockquote|<pre|<hr|<table)(.+)$/gm, '<p class="md-p">$1</p>')
     // Clean up blank lines
     .replace(/\n{3,}/g, '\n\n')
 }
@@ -661,6 +670,10 @@ function MarkdownPreview({ url, canEdit, onSaveContent }) {
         .md-ul,.md-ol{padding-left:1.5em;margin:.4em 0}
         .md-li,.md-oli{margin:.2em 0;list-style:disc}.md-oli{list-style:decimal}
         .md-img{max-width:100%;border-radius:8px;margin:.5em 0}
+        .md-table{border-collapse:collapse;width:100%;margin:1em 0;font-size:.9em;border:1px solid rgba(255,255,255,.1)}
+        .md-table-header{background:rgba(252,101,31,.15);color:#FC651F;padding:8px 12px;text-align:left;font-weight:600;border:1px solid rgba(255,255,255,.1)}
+        .md-table-cell{padding:8px 12px;border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.75)}
+        .md-table tbody tr:nth-child(even){background:rgba(255,255,255,.02)}
       `}</style>
     </div>
   )
