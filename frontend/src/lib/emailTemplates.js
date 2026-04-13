@@ -20,7 +20,7 @@ const B = {
   t2:        'rgba(255,255,255,0.60)',
   t3:        'rgba(255,255,255,0.35)',
   t4:        'rgba(255,255,255,0.18)',
-  url:       'https://divergencia.app',
+  url:       import.meta.env.VITE_SITE_URL || 'https://divergencia.app',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

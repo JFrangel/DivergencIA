@@ -329,7 +329,9 @@ function CronologiaView({ roadmap }) {
         </div>
       ))}
     </Card>
-    <ActivityFeed />
+    <div className="mt-6">
+      <ActivityFeed />
+    </div>
   </>
   )
 }

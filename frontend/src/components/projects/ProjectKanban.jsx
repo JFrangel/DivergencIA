@@ -147,6 +147,9 @@ function KanbanColumn({ column, tasks, onAddTask, onClickTask }) {
 export default function ProjectKanban({ tasks, setTasks, onUpdateTask, onAddTask, onDeleteTask, members = [] }) {
   const [activeId, setActiveId] = useState(null)
   const [editingTask, setEditingTask] = useState(null)
+  // Track the original estado at drag start — handleDragOver mutates tasks state
+  // optimistically, so by handleDragEnd draggedTask.estado is already the new value
+  const dragStartEstado = useRef({})
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -169,7 +172,10 @@ export default function ProjectKanban({ tasks, setTasks, onUpdateTask, onAddTask
 
     if (!newEstado) return
 
-    if (newEstado !== draggedTask.estado) {
+    const originalEstado = dragStartEstado.current[active.id]
+    delete dragStartEstado.current[active.id]
+
+    if (newEstado !== originalEstado) {
       // Column change — update local state and persist to Supabase
       setTasks(t => t.map(x => x.id === active.id ? { ...x, estado: newEstado } : x))
       await onUpdateTask?.(active.id, { estado: newEstado })
@@ -211,7 +217,11 @@ export default function ProjectKanban({ tasks, setTasks, onUpdateTask, onAddTask
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      onDragStart={({ active }) => setActiveId(active.id)}
+      onDragStart={({ active }) => {
+        setActiveId(active.id)
+        const t = tasks.find(x => x.id === active.id)
+        if (t) dragStartEstado.current[active.id] = t.estado
+      }}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >

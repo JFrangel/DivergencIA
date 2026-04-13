@@ -330,7 +330,10 @@ export default function DiagramEditor({ projectId } = {}) {
     if (data.tipo && data.tipo !== 'uml') setDiagramType(data.tipo)
     setShowDiagramList(false)
     toast.success(`"${data.titulo}" cargado`)
-  }, [setNodes, setEdges, restoreNodes])
+    setTimeout(() => {
+      try { reactFlowInstance?.fitView({ padding: 0.3, duration: 400 }) } catch {}
+    }, 80)
+  }, [setNodes, setEdges, restoreNodes, reactFlowInstance])
 
   const newDiagram = () => {
     setCurrentDiagramId(null)
@@ -384,14 +387,11 @@ export default function DiagramEditor({ projectId } = {}) {
       data: { ...(NODE_DEFAULTS[type] || { label: 'Nodo' }), onChange: makeOnChange(id) },
     }])
 
-    // Scroll viewport to show the new node
+    // Fit view to show all nodes including the new one
     if (reactFlowInstance) {
       setTimeout(() => {
-        reactFlowInstance.setCenter(position.x, position.y, {
-          zoom: Math.max(reactFlowInstance.getViewport().zoom, 0.8),
-          duration: 300,
-        })
-      }, 30)
+        try { reactFlowInstance.fitView({ padding: 0.4, duration: 300 }) } catch {}
+      }, 80)
     }
   }, [reactFlowInstance, setNodes, makeOnChange])
 
