@@ -353,15 +353,26 @@ export default function DiagramEditor({ projectId } = {}) {
 
     if (reactFlowInstance) {
       try {
-        const { x: vpX, y: vpY, zoom } = reactFlowInstance.getViewport()
-        const w = reactFlowWrapper.current?.clientWidth || 600
-        const h = reactFlowWrapper.current?.clientHeight || 400
-        position = {
-          x: (-vpX + w / 2) / zoom - 90,
-          y: (-vpY + h / 2) / zoom - 50,
+        const wrapper = reactFlowWrapper.current
+        if (wrapper && wrapper.clientWidth > 0 && wrapper.clientHeight > 0) {
+          // Use screenToFlowPosition (ReactFlow v11.11+) for accurate conversion
+          if (typeof reactFlowInstance.screenToFlowPosition === 'function') {
+            const rect = wrapper.getBoundingClientRect()
+            position = reactFlowInstance.screenToFlowPosition({
+              x: rect.left + rect.width / 2,
+              y: rect.top + rect.height / 2,
+            })
+          } else {
+            // Fallback for older versions
+            const { x: vpX, y: vpY, zoom } = reactFlowInstance.getViewport()
+            position = {
+              x: (-vpX + wrapper.clientWidth / 2) / zoom - 90,
+              y: (-vpY + wrapper.clientHeight / 2) / zoom - 50,
+            }
+          }
         }
       } catch {
-        // fallback to random position
+        // keep fallback position
       }
     }
 
@@ -372,6 +383,16 @@ export default function DiagramEditor({ projectId } = {}) {
       draggable: true,
       data: { ...(NODE_DEFAULTS[type] || { label: 'Nodo' }), onChange: makeOnChange(id) },
     }])
+
+    // Scroll viewport to show the new node
+    if (reactFlowInstance) {
+      setTimeout(() => {
+        reactFlowInstance.setCenter(position.x, position.y, {
+          zoom: Math.max(reactFlowInstance.getViewport().zoom, 0.8),
+          duration: 300,
+        })
+      }, 30)
+    }
   }, [reactFlowInstance, setNodes, makeOnChange])
 
   const exportJSON = useCallback(() => {

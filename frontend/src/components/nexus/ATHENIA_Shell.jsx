@@ -852,6 +852,57 @@ Identifica: (1) qué tema investiga, (2) qué tan estructurado está el pensamie
       return
     }
 
+    // ── Intent detection: route natural language to commands ──────────────────
+    const lower = trimmed.toLowerCase()
+
+    // Admin commands: crear-tema / editar-tema
+    const crearTemaMatch =
+      lower.match(/(?:crea|crear|genera|generar|nuevo tema sobre|nueva tema sobre|haz un tema de|haz un tema sobre|agrega un tema|añade un tema)\s+(?:un tema|el tema|tema)?\s*(?:de|sobre|acerca de|en)?\s*["']?(.+?)["']?\s*$/) ||
+      lower.match(/^(?:crea|crear|genera)\s+["']?(.+?)["']?\s*$/)
+    const editarTemaMatch =
+      lower.match(/(?:edita|editar|modifica|modificar|actualiza|actualizar|regenera|regenerar)\s+(?:el tema|un tema|tema)\s+["']?(.+?)["']?\s*$/) ||
+      lower.match(/(?:edita|modifica)\s+["']?(.+?)["']?\s*$/)
+
+    if (crearTemaMatch) {
+      const temaArg = crearTemaMatch[1]?.trim()
+      if (temaArg && temaArg.length > 1) {
+        addLine('user', trimmed)
+        await executeCommand('crear-tema', temaArg)
+        return
+      }
+    }
+    if (editarTemaMatch) {
+      const temaArg = editarTemaMatch[1]?.trim()
+      if (temaArg && temaArg.length > 1) {
+        addLine('user', trimmed)
+        await executeCommand('editar-tema', temaArg)
+        return
+      }
+    }
+
+    // Query shortcuts
+    const INTENTS = [
+      { pattern: /(?:muestra|ver|lista|dame|quiero ver)\s+(?:los\s+)?miembros?(?:\s+de\s+(.+))?/, cmd: 'members' },
+      { pattern: /(?:muestra|ver|lista|dame)\s+(?:los\s+)?proyectos?(?:\s+en\s+(.+))?/, cmd: 'projects' },
+      { pattern: /(?:muestra|ver|lista|dame)\s+(?:las\s+)?ideas?(?:\s+(.+))?/, cmd: 'ideas' },
+      { pattern: /(?:mis|ver mis|muestra mis)\s+tareas?/, cmd: 'tasks', args: 'mias' },
+      { pattern: /(?:ver|muestra|estado del?\s+)?(?:sistema|status|estado general)/, cmd: 'status' },
+      { pattern: /(?:ver|muestra|abre|ir al?\s+)?roadmap/, cmd: 'roadmap' },
+      { pattern: /(?:mis|ver mis)\s+logros?/, cmd: 'logros' },
+      { pattern: /(?:estadísticas?|stats?|métricas?)(?:\s+(mias?|globales?))?/, cmd: 'stats' },
+      { pattern: /(?:sugi(?:ere|erir)|recomienda|papers?|datasets?)(?:\s+(?:sobre|de)\s+(.+))?/, cmd: 'suggest' },
+      { pattern: /limpiar?\s+(?:la\s+)?terminal/, cmd: 'clear' },
+    ]
+
+    for (const intent of INTENTS) {
+      const m = lower.match(intent.pattern)
+      if (m) {
+        addLine('user', trimmed)
+        await executeCommand(intent.cmd, intent.args || m[1] || '')
+        return
+      }
+    }
+
     // Natural language message → Gemini
     addLine('user', trimmed)
     await saveMessage(trimmed, 'user')

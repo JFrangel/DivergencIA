@@ -32,7 +32,6 @@ const NAV_SECTIONS = [
       { to: '/nodos',    icon: FiZap,            label: 'Nodos' },
       { to: '/chat',     icon: FiMessageSquare,  label: 'Chat' },
       { to: '/universo', icon: FiGlobe,          label: 'Universo' },
-      { to: '/timeline', icon: FiActivity,        label: 'Timeline' },
       { to: '/roadmap',  icon: FiMap,            label: 'Roadmap' },
       { to: '/calendar', icon: FiCalendar,       label: 'Calendario' },
     ],

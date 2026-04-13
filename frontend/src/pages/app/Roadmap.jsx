@@ -213,6 +213,7 @@ function CronologiaView({ roadmap }) {
   const sortedYears = Object.entries(byYear).sort(([a], [b]) => Number(a) - Number(b))
 
   return (
+    <>
     <Card className="!p-6 !pt-4">
       {sortedYears.map(([year, yearEvents], yi) => (
         <div key={year}>
@@ -328,6 +329,8 @@ function CronologiaView({ roadmap }) {
         </div>
       ))}
     </Card>
+    <ActivityFeed />
+  </>
   )
 }
 
@@ -380,7 +383,7 @@ const TIPO_COLORS = {
   archivo_subido: '#EC4899',
 }
 
-function ActivityView() {
+function ActivityFeed() {
   const { items, loading, loadingMore, hasMore, fetchMore } = useTimeline()
 
   if (loading) {
@@ -479,7 +482,7 @@ export default function Roadmap() {
   const [searchParams] = useSearchParams()
   const [view, setView] = useState(() => {
     const v = searchParams.get('view')
-    return ['kanban', 'timeline', 'actividad'].includes(v) ? v : 'kanban'
+    return ['kanban', 'timeline'].includes(v) ? v : 'kanban'
   })
   const [editingPhase, setEditingPhase] = useState(null)
   const [editForm, setEditForm] = useState({})
@@ -608,14 +611,6 @@ export default function Roadmap() {
               >
                 <FiClock size={12} /> Cronología
               </button>
-              <button
-                onClick={() => setView('actividad')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  view === 'actividad' ? 'bg-[var(--c-primary)] text-white' : 'text-white/40 hover:text-white'
-                }`}
-              >
-                <FiActivity size={12} /> Actividad
-              </button>
             </div>
             {isAdmin && (
               <button
@@ -710,21 +705,6 @@ export default function Roadmap() {
             transition={{ duration: 0.3 }}
           >
             <CronologiaView roadmap={roadmap} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Activity view */}
-      <AnimatePresence mode="wait">
-        {view === 'actividad' && (
-          <motion.div
-            key="actividad"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.3 }}
-          >
-            <ActivityView />
           </motion.div>
         )}
       </AnimatePresence>

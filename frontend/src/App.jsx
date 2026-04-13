@@ -1,5 +1,6 @@
 import { RouterProvider } from 'react-router-dom'
 import { Toaster } from 'sonner'
+import { MotionConfig } from 'framer-motion'
 import { AuthProvider } from './context/AuthContext'
 import { ZenProvider } from './context/ZenContext'
 import { NotifProvider } from './context/NotifContext'
@@ -7,8 +8,12 @@ import { ThemeProvider } from './context/ThemeContext'
 import { CallProvider } from './context/CallContext'
 import { router } from './router'
 
+// reduce_motion defaults ON — user must explicitly set 'false' to disable
+const reduceMotion = localStorage.getItem('reduce_motion') !== 'false'
+
 export default function App() {
   return (
+    <MotionConfig reducedMotion={reduceMotion ? 'always' : 'never'}>
     <AuthProvider>
       <ThemeProvider>
       <NotifProvider>
@@ -33,5 +38,6 @@ export default function App() {
       </NotifProvider>
       </ThemeProvider>
     </AuthProvider>
+    </MotionConfig>
   )
 }
