@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiPlus, FiTrash2, FiArrowUp, FiArrowDown, FiZap, FiCheck, FiX,
   FiType, FiCode, FiAward, FiImage, FiVideo, FiChevronDown, FiChevronUp,
-  FiExternalLink, FiSearch, FiPaperclip,
+  FiExternalLink, FiSearch, FiPaperclip, FiLayers,
 } from 'react-icons/fi'
 import Modal from '../ui/Modal'
 import Input from '../ui/Input'
@@ -15,11 +15,12 @@ import { autoCategorize, generateTopicSections, suggestSectionImages, suggestSec
 
 // ─── Section type metadata ────────────────────────────────────────────────────
 const SECTION_TYPES = {
-  texto:  { label: 'Texto',       icon: FiType,  color: '#00D1FF', bg: 'rgba(0,209,255,0.08)'   },
-  codigo: { label: 'Código',      icon: FiCode,  color: '#22c55e', bg: 'rgba(34,197,94,0.08)'   },
-  quiz:   { label: 'Quiz',        icon: FiAward, color: '#F59E0B', bg: 'rgba(245,158,11,0.08)'  },
-  imagen: { label: 'Imagen',      icon: FiImage, color: '#8B5CF6', bg: 'rgba(139,92,246,0.08)'  },
-  video:  { label: 'Video',       icon: FiVideo, color: '#FC651F', bg: 'rgba(252,101,31,0.08)'  },
+  texto:    { label: 'Texto',    icon: FiType,   color: '#00D1FF', bg: 'rgba(0,209,255,0.08)'  },
+  codigo:   { label: 'Código',   icon: FiCode,   color: '#22c55e', bg: 'rgba(34,197,94,0.08)'  },
+  quiz:     { label: 'Quiz',     icon: FiAward,  color: '#F59E0B', bg: 'rgba(245,158,11,0.08)' },
+  tarjetas: { label: 'Tarjetas', icon: FiLayers, color: '#00D1FF', bg: 'rgba(0,209,255,0.06)'  },
+  imagen:   { label: 'Imagen',   icon: FiImage,  color: '#8B5CF6', bg: 'rgba(139,92,246,0.08)' },
+  video:    { label: 'Video',    icon: FiVideo,  color: '#FC651F', bg: 'rgba(252,101,31,0.08)' },
 }
 
 const NIVEL_OPTIONS = [
@@ -160,6 +161,117 @@ function QuizBuilder({ value, onChange }) {
   )
 }
 
+// ─── Flashcard Builder ────────────────────────────────────────────────────────
+const emptyCard = () => ({ pregunta: '', respuesta: '' })
+
+function FlashcardBuilder({ value, onChange }) {
+  const parseCards = (v) => {
+    if (!v) return [emptyCard()]
+    if (Array.isArray(v)) return v
+    if (typeof v === 'string') {
+      try {
+        const parsed = JSON.parse(v)
+        return Array.isArray(parsed) ? parsed : [parsed]
+      } catch { return [emptyCard()] }
+    }
+    return [v]
+  }
+  const [cards, setCards] = useState(() => parseCards(value))
+  const push = (c) => { setCards(c); onChange(JSON.stringify(c)) }
+  const update = (i, field, val) => push(cards.map((c, j) => j === i ? { ...c, [field]: val } : c))
+  return (
+    <div className="space-y-2.5">
+      {cards.map((card, i) => (
+        <div key={i} className="rounded-lg bg-white/[0.03] border border-[#00D1FF]/15 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-[#00D1FF]/60 font-semibold uppercase tracking-wider">Tarjeta {i + 1}</span>
+            {cards.length > 1 && (
+              <button type="button" onClick={() => push(cards.filter((_, j) => j !== i))} className="text-white/20 hover:text-[#EF4444] transition-colors">
+                <FiTrash2 size={11} />
+              </button>
+            )}
+          </div>
+          <input
+            className="w-full px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.07] text-sm text-white placeholder-white/20 outline-none focus:border-[#00D1FF]/30"
+            placeholder="Frente — pregunta o concepto..."
+            value={card.pregunta || ''}
+            onChange={e => update(i, 'pregunta', e.target.value)}
+          />
+          <input
+            className="w-full px-2.5 py-1.5 rounded-lg bg-[#00D1FF]/[0.03] border border-[#00D1FF]/10 text-sm text-white/80 placeholder-white/20 outline-none focus:border-[#00D1FF]/30"
+            placeholder="Reverso — respuesta o definición..."
+            value={card.respuesta || ''}
+            onChange={e => update(i, 'respuesta', e.target.value)}
+          />
+        </div>
+      ))}
+      <button type="button" onClick={() => push([...cards, emptyCard()])} className="text-xs text-[#00D1FF]/60 hover:text-[#00D1FF] flex items-center gap-1 transition-colors">
+        <FiPlus size={11} /> Agregar tarjeta
+      </button>
+    </div>
+  )
+}
+
+// ─── Image URL input with live preview ───────────────────────────────────────
+function ImageUrlInput({ value, onChange }) {
+  const isUrl = value && /^https?:\/\//i.test(value)
+  return (
+    <div className="space-y-2">
+      <input
+        className="w-full px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.07] text-sm text-white placeholder-white/20 outline-none focus:border-[#8B5CF6]/40"
+        placeholder="Pega la URL de la imagen (https://...)  — ej. Wikimedia Commons"
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+      />
+      {isUrl && (
+        <div className="rounded-lg overflow-hidden border border-white/[0.06] bg-black/20">
+          <img
+            src={value}
+            alt="Vista previa"
+            className="w-full max-h-48 object-contain"
+            onError={e => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'flex') }}
+          />
+          <div className="hidden items-center justify-center p-3 text-xs text-white/30">
+            No se puede cargar la imagen
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Video URL input with live embed preview ──────────────────────────────────
+function VideoUrlInput({ value, onChange }) {
+  const ytId = value?.match(/(?:v=|youtu\.be\/)([\w-]+)/)?.[1]
+  const isDirectVideo = value && /^https?:\/\//i.test(value) && !ytId
+  return (
+    <div className="space-y-2">
+      <input
+        className="w-full px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.07] text-sm text-white placeholder-white/20 outline-none focus:border-[#FC651F]/40"
+        placeholder="URL de YouTube (https://youtube.com/watch?v=...) o video directo"
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+      />
+      {ytId && (
+        <div className="aspect-video rounded-lg overflow-hidden border border-white/[0.06]">
+          <iframe
+            src={`https://www.youtube.com/embed/${ytId}`}
+            className="w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            title="Video preview"
+          />
+        </div>
+      )}
+      {isDirectVideo && (
+        <video controls className="w-full max-h-48 rounded-lg border border-white/[0.06]">
+          <source src={value} />
+        </video>
+      )}
+    </div>
+  )
+}
+
 // ─── Single section card ──────────────────────────────────────────────────────
 function SectionCard({ sec, idx, total, onUpdate, onRemove, onMove, topicTitulo = '' }) {
   const [collapsed, setCollapsed] = useState(false)
@@ -273,21 +385,19 @@ function SectionCard({ sec, idx, total, onUpdate, onRemove, onMove, topicTitulo 
 
               {/* Content */}
               {sec.tipo === 'quiz' ? (
-                <QuizBuilder
-                  value={sec.contenido}
-                  onChange={v => onUpdate('contenido', v)}
-                />
+                <QuizBuilder value={sec.contenido} onChange={v => onUpdate('contenido', v)} />
+              ) : sec.tipo === 'tarjetas' ? (
+                <FlashcardBuilder value={sec.contenido} onChange={v => onUpdate('contenido', v)} />
+              ) : sec.tipo === 'imagen' ? (
+                <ImageUrlInput value={sec.contenido || ''} onChange={v => onUpdate('contenido', v)} />
+              ) : sec.tipo === 'video' ? (
+                <VideoUrlInput value={sec.contenido || ''} onChange={v => onUpdate('contenido', v)} />
               ) : (
                 <Textarea
                   value={sec.contenido || ''}
                   onChange={e => onUpdate('contenido', e.target.value)}
-                  rows={sec.tipo === 'codigo' ? 8 : sec.tipo === 'texto' ? 5 : 2}
-                  placeholder={
-                    sec.tipo === 'codigo'  ? '// Escribe o pega código aquí...' :
-                    sec.tipo === 'imagen'  ? 'URL de la imagen (https://...)' :
-                    sec.tipo === 'video'   ? 'URL del video de YouTube (https://...)' :
-                    'Escribe el contenido aquí...'
-                  }
+                  rows={sec.tipo === 'codigo' ? 8 : 5}
+                  placeholder={sec.tipo === 'codigo' ? '// Escribe o pega código aquí...' : 'Escribe el contenido aquí...'}
                 />
               )}
 

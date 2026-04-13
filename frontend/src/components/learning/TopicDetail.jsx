@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiChevronLeft, FiChevronRight, FiExternalLink, FiX, FiCheck,
   FiCheckCircle, FiCircle, FiAward, FiEdit2, FiTrash2, FiPlus,
-  FiArrowUp, FiArrowDown, FiSettings, FiZap, FiRotateCcw, FiBookOpen,
+  FiArrowUp, FiArrowDown, FiSettings, FiZap, FiRotateCcw, FiBookOpen, FiImage,
 } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
 import { generateFlashcards, generateDynamicQuiz, generateIllustrativeCard } from '../../lib/gemini'
@@ -313,9 +313,53 @@ function QuizSection({ contenido, onQuizAnswer }) {
 }
 
 function ImageSection({ contenido }) {
+  const [error, setError] = useState(false)
+  const isUrl = contenido && /^https?:\/\//i.test(contenido)
+  if (!contenido || error || !isUrl) {
+    return (
+      <div className="rounded-lg p-6 flex flex-col items-center gap-2" style={{ background: 'rgba(139,92,246,0.05)', border: '1px dashed rgba(139,92,246,0.2)' }}>
+        <FiImage size={20} style={{ color: 'rgba(139,92,246,0.4)' }} />
+        <p className="text-xs text-white/30">Imagen no disponible</p>
+        {contenido && !isUrl && <p className="text-[10px] text-white/20 italic text-center max-w-xs">{contenido}</p>}
+      </div>
+    )
+  }
   return (
     <div className="rounded-lg overflow-hidden">
-      <img src={contenido} alt="Contenido visual" className="w-full max-h-96 object-contain rounded-lg" />
+      <img src={contenido} alt="Contenido visual" className="w-full max-h-96 object-contain rounded-lg" onError={() => setError(true)} />
+    </div>
+  )
+}
+
+function FlashcardsSection({ contenido }) {
+  let cards = []
+  try {
+    const parsed = typeof contenido === 'string' ? JSON.parse(contenido) : contenido
+    cards = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : [])
+  } catch { return <p className="text-white/50 text-sm">Tarjetas mal formateadas</p> }
+  if (!cards.length) return <p className="text-white/40 text-sm">Sin tarjetas</p>
+  const [index, setIndex] = useState(0)
+  const currentCard = cards[index]
+  return (
+    <div className="space-y-3">
+      <FlashcardItem key={index} card={currentCard} index={index} total={cards.length} />
+      {cards.length > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={() => setIndex(i => Math.max(i - 1, 0))}
+            disabled={index === 0}
+            className="px-3 py-1.5 rounded-lg text-xs disabled:opacity-30 text-white/50 hover:text-white transition-all"
+            style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+          >← Anterior</button>
+          <span className="text-xs text-white/30">{index + 1} / {cards.length}</span>
+          <button
+            onClick={() => setIndex(i => Math.min(i + 1, cards.length - 1))}
+            disabled={index === cards.length - 1}
+            className="px-3 py-1.5 rounded-lg text-xs disabled:opacity-30 text-white/50 hover:text-white transition-all"
+            style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+          >Siguiente →</button>
+        </div>
+      )}
     </div>
   )
 }
@@ -338,8 +382,8 @@ function VideoSection({ contenido }) {
   return <video controls className="w-full rounded-lg max-h-96"><source src={contenido} /></video>
 }
 
-const SECTION_RENDERERS = { texto: TextSection, codigo: CodeSection, quiz: QuizSection, imagen: ImageSection, video: VideoSection }
-const SECTION_TYPE_LABELS = { texto: 'Lectura', codigo: 'Codigo', quiz: 'Quiz', imagen: 'Visual', video: 'Video' }
+const SECTION_RENDERERS = { texto: TextSection, codigo: CodeSection, quiz: QuizSection, imagen: ImageSection, video: VideoSection, tarjetas: FlashcardsSection }
+const SECTION_TYPE_LABELS = { texto: 'Lectura', codigo: 'Codigo', quiz: 'Quiz', imagen: 'Visual', video: 'Video', tarjetas: 'Tarjetas' }
 
 /* ─── Flashcards Panel ────────────────────────────────────────────────── */
 

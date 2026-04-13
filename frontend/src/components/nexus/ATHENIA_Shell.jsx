@@ -688,15 +688,32 @@ Identifica: (1) qué tema investiga, (2) qué tan estructurado está el pensamie
             .select('id, titulo, categoria')
             .eq('activo', true)
 
-          const similar = (existingTopics || []).filter(t =>
-            t.titulo.toLowerCase().includes(temaTitle.toLowerCase()) ||
-            temaTitle.toLowerCase().includes(t.titulo.toLowerCase())
-          )
+          const STOP_WORDS = new Set(['los','las','una','del','con','para','sobre','entre','que','los','sus','por','sin','mas','muy','pero'])
+          const extractKeywords = (str) =>
+            str.toLowerCase().split(/[\s,./]+/).filter(w => w.length >= 2 && !STOP_WORDS.has(w))
+
+          const requestKws = extractKeywords(temaTitle)
+
+          const similar = (existingTopics || []).filter(t => {
+            const tl = t.titulo.toLowerCase()
+            // Original: exact substring match in either direction
+            if (tl.includes(temaTitle.toLowerCase()) || temaTitle.toLowerCase().includes(tl)) return true
+            // Keyword overlap: keywords from existing topic that appear in the request title
+            const topicKws = extractKeywords(t.titulo)
+            if (topicKws.length === 0) return false
+            const matches = topicKws.filter(k => requestKws.includes(k) || temaTitle.toLowerCase().includes(k))
+            // Require at least ceil(topicKws.length / 2) keyword overlaps
+            return matches.length >= Math.ceil(topicKws.length / 2)
+          })
+
           if (similar.length > 0) {
             addLines([
-              { type: 'warning', text: `⚠ Ya existe un tema similar: "${similar[0].titulo}"` },
-              { type: 'info',    text: `  Usa /editar-tema "${similar[0].titulo}" para modificarlo.` },
-              { type: 'info',    text: `  O usa /crear-tema con un título más específico para crear uno nuevo.` },
+              { type: 'warning', text: `⚠ Encontré ${similar.length} tema(s) existente(s) relacionado(s):` },
+              ...similar.slice(0, 3).map(t => ({ type: 'info', text: `  • "${t.titulo}" (${t.categoria || 'General'})` })),
+              { type: 'info', text: '' },
+              { type: 'info', text: `  ¿Querías agregar contenido a uno de esos temas?` },
+              { type: 'info', text: `  Usa /editar-tema "${similar[0].titulo}" para modificarlo.` },
+              { type: 'info', text: `  O describe el título exacto del tema nuevo para crear uno diferente.` },
             ])
             setIsThinking(false)
             break
