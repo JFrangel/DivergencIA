@@ -244,26 +244,45 @@ function CodeSection({ contenido }) {
 function QuizSection({ contenido, onQuizAnswer }) {
   const [selected, setSelected] = useState(null)
   const [revealed, setRevealed] = useState(false)
+  const [qIndex, setQIndex] = useState(0)
 
   let quiz
   try {
-    quiz = typeof contenido === 'string' ? JSON.parse(contenido) : contenido
+    const parsed = typeof contenido === 'string' ? JSON.parse(contenido) : contenido
+    // Support both array of questions and single question object
+    quiz = Array.isArray(parsed) ? parsed[qIndex] || parsed[0] : parsed
   } catch {
     return <p className="text-white/50 text-sm">Quiz mal formateado</p>
   }
 
-  const { pregunta, opciones = [], respuesta_correcta } = quiz
+  let allQuestions = null
+  try {
+    const parsed = typeof contenido === 'string' ? JSON.parse(contenido) : contenido
+    if (Array.isArray(parsed) && parsed.length > 1) allQuestions = parsed
+  } catch { /* ignore */ }
+
+  const { pregunta, opciones = [], respuesta_correcta } = quiz || {}
 
   const handleVerify = () => {
     setRevealed(true)
     if (onQuizAnswer) onQuizAnswer(selected === respuesta_correcta ? 1 : 0, 1)
   }
 
+  const goToQuestion = (i) => {
+    setQIndex(i)
+    setSelected(null)
+    setRevealed(false)
+  }
+
+  if (!pregunta) return <p className="text-white/50 text-sm">Quiz mal formateado</p>
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 mb-1">
         <FiAward size={16} className="text-[var(--c-secondary)]" />
-        <p className="text-white font-medium text-sm">Quiz</p>
+        <p className="text-white font-medium text-sm">
+          Quiz{allQuestions ? ` — Pregunta ${qIndex + 1} de ${allQuestions.length}` : ''}
+        </p>
       </div>
       <p className="text-white/90 font-medium text-sm">{pregunta}</p>
       <div className="space-y-2">
@@ -310,6 +329,23 @@ function QuizSection({ contenido, onQuizAnswer }) {
           }
         </motion.div>
       )}
+      {allQuestions && allQuestions.length > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-1">
+          <button onClick={() => goToQuestion(Math.max(qIndex - 1, 0))} disabled={qIndex === 0}
+            className="px-3 py-1.5 rounded-lg text-xs disabled:opacity-30 text-white/50 hover:text-white transition-all"
+            style={{ border: '1px solid rgba(255,255,255,0.1)' }}>← Anterior</button>
+          <div className="flex gap-1">
+            {allQuestions.map((_, i) => (
+              <button key={i} onClick={() => goToQuestion(i)}
+                className="w-1.5 h-1.5 rounded-full transition-all"
+                style={{ background: i === qIndex ? 'var(--c-secondary)' : 'rgba(255,255,255,0.15)' }} />
+            ))}
+          </div>
+          <button onClick={() => goToQuestion(Math.min(qIndex + 1, allQuestions.length - 1))} disabled={qIndex === allQuestions.length - 1}
+            className="px-3 py-1.5 rounded-lg text-xs disabled:opacity-30 text-white/50 hover:text-white transition-all"
+            style={{ border: '1px solid rgba(255,255,255,0.1)' }}>Siguiente →</button>
+        </div>
+      )}
     </div>
   )
 }
@@ -334,14 +370,16 @@ function ImageSection({ contenido }) {
 }
 
 function FlashcardsSection({ contenido }) {
+  const [index, setIndex] = useState(0)
   let cards = []
+  let parseError = false
   try {
     const parsed = typeof contenido === 'string' ? JSON.parse(contenido) : contenido
     cards = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : [])
-  } catch { return <p className="text-white/50 text-sm">Tarjetas mal formateadas</p> }
+  } catch { parseError = true }
+  if (parseError) return <p className="text-white/50 text-sm">Tarjetas mal formateadas</p>
   if (!cards.length) return <p className="text-white/40 text-sm">Sin tarjetas</p>
-  const [index, setIndex] = useState(0)
-  const currentCard = cards[index]
+  const currentCard = cards[Math.min(index, cards.length - 1)]
   return (
     <div className="space-y-3">
       <FlashcardItem key={index} card={currentCard} index={index} total={cards.length} />
@@ -385,12 +423,12 @@ function VideoSection({ contenido }) {
 }
 
 function PresentacionSection({ contenido }) {
+  const [slide, setSlide] = useState(0)
   if (!contenido) return null
 
   // Multi-image slides: multiple URLs separated by newlines
   const lines = contenido.split('\n').map(l => l.trim()).filter(l => /^https?:\/\//i.test(l))
   if (lines.length > 1) {
-    const [slide, setSlide] = useState(0)
     return (
       <div className="space-y-3">
         <div className="rounded-xl overflow-hidden border border-white/[0.08] bg-black/20 relative" style={{ aspectRatio: '16/9' }}>
