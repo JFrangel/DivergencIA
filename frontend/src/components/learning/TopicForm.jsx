@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiPlus, FiTrash2, FiArrowUp, FiArrowDown, FiZap, FiCheck, FiX,
   FiType, FiCode, FiAward, FiImage, FiVideo, FiChevronDown, FiChevronUp,
-  FiExternalLink, FiSearch, FiPaperclip, FiLayers,
+  FiExternalLink, FiSearch, FiPaperclip, FiLayers, FiLayout,
 } from 'react-icons/fi'
 import Modal from '../ui/Modal'
 import Input from '../ui/Input'
@@ -15,12 +15,13 @@ import { autoCategorize, generateTopicSections, suggestSectionImages, suggestSec
 
 // ─── Section type metadata ────────────────────────────────────────────────────
 const SECTION_TYPES = {
-  texto:    { label: 'Texto',    icon: FiType,   color: '#00D1FF', bg: 'rgba(0,209,255,0.08)'  },
-  codigo:   { label: 'Código',   icon: FiCode,   color: '#22c55e', bg: 'rgba(34,197,94,0.08)'  },
-  quiz:     { label: 'Quiz',     icon: FiAward,  color: '#F59E0B', bg: 'rgba(245,158,11,0.08)' },
-  tarjetas: { label: 'Tarjetas', icon: FiLayers, color: '#00D1FF', bg: 'rgba(0,209,255,0.06)'  },
-  imagen:   { label: 'Imagen',   icon: FiImage,  color: '#8B5CF6', bg: 'rgba(139,92,246,0.08)' },
-  video:    { label: 'Video',    icon: FiVideo,  color: '#FC651F', bg: 'rgba(252,101,31,0.08)' },
+  texto:        { label: 'Texto',        icon: FiType,   color: '#00D1FF', bg: 'rgba(0,209,255,0.08)'   },
+  codigo:       { label: 'Código',       icon: FiCode,   color: '#22c55e', bg: 'rgba(34,197,94,0.08)'   },
+  quiz:         { label: 'Quiz',         icon: FiAward,  color: '#F59E0B', bg: 'rgba(245,158,11,0.08)'  },
+  tarjetas:     { label: 'Tarjetas',     icon: FiLayers, color: '#00D1FF', bg: 'rgba(0,209,255,0.06)'   },
+  imagen:       { label: 'Imagen',       icon: FiImage,  color: '#8B5CF6', bg: 'rgba(139,92,246,0.08)'  },
+  video:        { label: 'Video',        icon: FiVideo,  color: '#FC651F', bg: 'rgba(252,101,31,0.08)'  },
+  presentacion: { label: 'Slides',       icon: FiLayout, color: '#EC4899', bg: 'rgba(236,72,153,0.08)'  },
 }
 
 const NIVEL_OPTIONS = [
@@ -272,6 +273,36 @@ function VideoUrlInput({ value, onChange }) {
   )
 }
 
+// ─── Presentation URL input with type detection ───────────────────────────────
+function PresentacionInput({ value, onChange }) {
+  const lines = (value || '').split('\n').map(l => l.trim()).filter(Boolean)
+  const isMultiImage = lines.length > 1 && lines.every(l => /^https?:\/\//i.test(l))
+  const isGoogleSlides = (value || '').includes('docs.google.com/presentation')
+  return (
+    <div className="space-y-2">
+      <Textarea
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        rows={4}
+        placeholder={'Opción A — URL de Google Slides, Canva, Miro, Prezi...\n\nOpción B — Pega varias URLs de imágenes (una por línea) para un carrusel de diapositivas.'}
+      />
+      {value?.trim() && (
+        <p className="text-[10px] text-[#EC4899]/60">
+          {isMultiImage
+            ? `📸 Carrusel de ${lines.length} diapositivas (imágenes)`
+            : isGoogleSlides
+              ? '📊 Google Slides — se incrustará automáticamente'
+              : (value || '').includes('canva.com')
+                ? '🎨 Canva embed'
+                : (value || '').includes('miro.com')
+                  ? '🗂 Miro board'
+                  : '🖼 Iframe genérico'}
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ─── Single section card ──────────────────────────────────────────────────────
 function SectionCard({ sec, idx, total, onUpdate, onRemove, onMove, topicTitulo = '' }) {
   const [collapsed, setCollapsed] = useState(false)
@@ -392,6 +423,8 @@ function SectionCard({ sec, idx, total, onUpdate, onRemove, onMove, topicTitulo 
                 <ImageUrlInput value={sec.contenido || ''} onChange={v => onUpdate('contenido', v)} />
               ) : sec.tipo === 'video' ? (
                 <VideoUrlInput value={sec.contenido || ''} onChange={v => onUpdate('contenido', v)} />
+              ) : sec.tipo === 'presentacion' ? (
+                <PresentacionInput value={sec.contenido || ''} onChange={v => onUpdate('contenido', v)} />
               ) : (
                 <Textarea
                   value={sec.contenido || ''}

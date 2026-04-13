@@ -35,11 +35,13 @@ const NIVEL_OPTIONS = [
 ]
 
 const SECTION_TYPE_OPTIONS = [
-  { value: 'texto', label: 'Texto' },
-  { value: 'codigo', label: 'Codigo' },
-  { value: 'quiz', label: 'Quiz' },
-  { value: 'imagen', label: 'Imagen (URL)' },
-  { value: 'video', label: 'Video (URL)' },
+  { value: 'texto',        label: 'Texto'         },
+  { value: 'codigo',       label: 'Codigo'        },
+  { value: 'quiz',         label: 'Quiz'          },
+  { value: 'tarjetas',     label: 'Tarjetas'      },
+  { value: 'imagen',       label: 'Imagen'        },
+  { value: 'video',        label: 'Video'         },
+  { value: 'presentacion', label: 'Presentacion'  },
 ]
 
 /* ─── Markdown renderer ────────────────────────────────────────────────── */
@@ -382,8 +384,66 @@ function VideoSection({ contenido }) {
   return <video controls className="w-full rounded-lg max-h-96"><source src={contenido} /></video>
 }
 
-const SECTION_RENDERERS = { texto: TextSection, codigo: CodeSection, quiz: QuizSection, imagen: ImageSection, video: VideoSection, tarjetas: FlashcardsSection }
-const SECTION_TYPE_LABELS = { texto: 'Lectura', codigo: 'Codigo', quiz: 'Quiz', imagen: 'Visual', video: 'Video', tarjetas: 'Tarjetas' }
+function PresentacionSection({ contenido }) {
+  if (!contenido) return null
+
+  // Multi-image slides: multiple URLs separated by newlines
+  const lines = contenido.split('\n').map(l => l.trim()).filter(l => /^https?:\/\//i.test(l))
+  if (lines.length > 1) {
+    const [slide, setSlide] = useState(0)
+    return (
+      <div className="space-y-3">
+        <div className="rounded-xl overflow-hidden border border-white/[0.08] bg-black/20 relative" style={{ aspectRatio: '16/9' }}>
+          <img src={lines[slide]} alt={`Diapositiva ${slide + 1}`} className="w-full h-full object-contain" onError={e => { e.target.style.display='none' }} />
+          <div className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/40 bg-black/60">
+            {slide + 1} / {lines.length}
+          </div>
+        </div>
+        <div className="flex items-center justify-center gap-3">
+          <button onClick={() => setSlide(s => Math.max(s - 1, 0))} disabled={slide === 0}
+            className="px-3 py-1.5 rounded-lg text-xs disabled:opacity-30 text-white/50 hover:text-white transition-all"
+            style={{ border: '1px solid rgba(255,255,255,0.1)' }}>← Anterior</button>
+          <div className="flex gap-1">
+            {lines.map((_, i) => (
+              <button key={i} onClick={() => setSlide(i)}
+                className="w-1.5 h-1.5 rounded-full transition-all"
+                style={{ background: i === slide ? 'var(--c-primary)' : 'rgba(255,255,255,0.15)' }} />
+            ))}
+          </div>
+          <button onClick={() => setSlide(s => Math.min(s + 1, lines.length - 1))} disabled={slide === lines.length - 1}
+            className="px-3 py-1.5 rounded-lg text-xs disabled:opacity-30 text-white/50 hover:text-white transition-all"
+            style={{ border: '1px solid rgba(255,255,255,0.1)' }}>Siguiente →</button>
+        </div>
+      </div>
+    )
+  }
+
+  // Single URL — detect type
+  const url = contenido.trim()
+  if (!url) return null
+
+  // Google Slides: convert to embed URL
+  const gsMatch = url.match(/docs\.google\.com\/presentation\/d\/([a-zA-Z0-9_-]+)/)
+  if (gsMatch) {
+    const embedUrl = `https://docs.google.com/presentation/d/${gsMatch[1]}/embed?start=false&loop=false&rm=minimal`
+    return (
+      <div className="rounded-xl overflow-hidden border border-white/[0.08]" style={{ aspectRatio: '16/9' }}>
+        <iframe src={embedUrl} className="w-full h-full" allowFullScreen title="Google Slides" />
+      </div>
+    )
+  }
+
+  // Canva, Miro, Prezi, Slides.com, OneDrive, generic iframe
+  return (
+    <div className="rounded-xl overflow-hidden border border-white/[0.08]" style={{ aspectRatio: '16/9' }}>
+      <iframe src={url} className="w-full h-full" allowFullScreen title="Presentacion"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen" />
+    </div>
+  )
+}
+
+const SECTION_RENDERERS = { texto: TextSection, codigo: CodeSection, quiz: QuizSection, imagen: ImageSection, video: VideoSection, tarjetas: FlashcardsSection, presentacion: PresentacionSection }
+const SECTION_TYPE_LABELS = { texto: 'Lectura', codigo: 'Codigo', quiz: 'Quiz', imagen: 'Visual', video: 'Video', tarjetas: 'Tarjetas', presentacion: 'Slides' }
 
 /* ─── Flashcards Panel ────────────────────────────────────────────────── */
 
@@ -872,10 +932,89 @@ function AIDynamicQuizPanel({ topic }) {
 
 /* ─── Section Edit Modal ──────────────────────────────────────────────── */
 
-function SectionEditModal({ open, onClose, section, onSave, loading }) {
+// ── Lightweight inline builders for SectionEditModal ──────────────────────────
+function EditQuizBuilder({ value, onChange }) {
+  const parse = (v) => {
+    if (!v) return [{ pregunta: '', opciones: ['', '', '', ''], respuesta_correcta: 0, explicacion: '' }]
+    try {
+      const p = typeof v === 'string' ? JSON.parse(v) : v
+      return Array.isArray(p) ? p : [p]
+    } catch { return [{ pregunta: '', opciones: ['', '', '', ''], respuesta_correcta: 0, explicacion: '' }] }
+  }
+  const [questions, setQuestions] = useState(() => parse(value))
+  const push = (q) => { setQuestions(q); onChange(JSON.stringify(q)) }
+  const upd = (qi, f, v) => push(questions.map((q, i) => i === qi ? { ...q, [f]: v } : q))
+  const updOpt = (qi, oi, v) => push(questions.map((q, i) => {
+    if (i !== qi) return q
+    const opciones = q.opciones.map((o, j) => j === oi ? v : o)
+    return { ...q, opciones }
+  }))
+  return (
+    <div className="space-y-3">
+      {questions.map((q, qi) => (
+        <div key={qi} className="rounded-lg bg-white/[0.03] border border-[#F59E0B]/15 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-[#F59E0B]/60 font-semibold uppercase tracking-wider">Pregunta {qi + 1}</span>
+            {questions.length > 1 && <button type="button" onClick={() => push(questions.filter((_, i) => i !== qi))} className="text-white/20 hover:text-[#EF4444] transition-colors"><FiTrash2 size={11} /></button>}
+          </div>
+          <input className="w-full px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.07] text-sm text-white placeholder-white/20 outline-none" placeholder="Escribe la pregunta..." value={q.pregunta} onChange={e => upd(qi, 'pregunta', e.target.value)} />
+          <div className="grid grid-cols-2 gap-1.5">
+            {(q.opciones || ['','','','']).map((opt, oi) => (
+              <div key={oi} className="flex items-center gap-1.5">
+                <button type="button" onClick={() => upd(qi, 'respuesta_correcta', oi)}
+                  className="w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all"
+                  style={{ borderColor: q.respuesta_correcta === oi ? '#22c55e' : 'rgba(255,255,255,0.15)', background: q.respuesta_correcta === oi ? '#22c55e20' : 'transparent' }}>
+                  {q.respuesta_correcta === oi && <FiCheck size={8} style={{ color: '#22c55e' }} />}
+                </button>
+                <input className="flex-1 min-w-0 px-2 py-1 rounded-lg bg-white/[0.03] border border-white/[0.06] text-xs text-white placeholder-white/15 outline-none" placeholder={`Opción ${String.fromCharCode(65+oi)}`} value={opt} onChange={e => updOpt(qi, oi, e.target.value)} />
+              </div>
+            ))}
+          </div>
+          <input className="w-full px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-xs text-white/60 placeholder-white/15 outline-none" placeholder="Explicación (opcional)" value={q.explicacion || ''} onChange={e => upd(qi, 'explicacion', e.target.value)} />
+        </div>
+      ))}
+      <button type="button" onClick={() => push([...questions, { pregunta: '', opciones: ['','','',''], respuesta_correcta: 0, explicacion: '' }])} className="text-xs text-[#F59E0B]/60 hover:text-[#F59E0B] flex items-center gap-1 transition-colors">
+        <FiPlus size={11} /> Agregar pregunta
+      </button>
+    </div>
+  )
+}
+
+function EditFlashcardBuilder({ value, onChange }) {
+  const parse = (v) => {
+    if (!v) return [{ pregunta: '', respuesta: '' }]
+    try {
+      const p = typeof v === 'string' ? JSON.parse(v) : v
+      return Array.isArray(p) ? p : [p]
+    } catch { return [{ pregunta: '', respuesta: '' }] }
+  }
+  const [cards, setCards] = useState(() => parse(value))
+  const push = (c) => { setCards(c); onChange(JSON.stringify(c)) }
+  const upd = (i, f, v) => push(cards.map((c, j) => j === i ? { ...c, [f]: v } : c))
+  return (
+    <div className="space-y-2.5">
+      {cards.map((card, i) => (
+        <div key={i} className="rounded-lg bg-white/[0.03] border border-[#00D1FF]/15 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-[#00D1FF]/60 font-semibold uppercase tracking-wider">Tarjeta {i + 1}</span>
+            {cards.length > 1 && <button type="button" onClick={() => push(cards.filter((_, j) => j !== i))} className="text-white/20 hover:text-[#EF4444] transition-colors"><FiTrash2 size={11} /></button>}
+          </div>
+          <input className="w-full px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.07] text-sm text-white placeholder-white/20 outline-none" placeholder="Frente — pregunta o concepto..." value={card.pregunta || ''} onChange={e => upd(i, 'pregunta', e.target.value)} />
+          <input className="w-full px-2.5 py-1.5 rounded-lg bg-[#00D1FF]/[0.03] border border-[#00D1FF]/10 text-sm text-white/80 placeholder-white/20 outline-none" placeholder="Reverso — respuesta o definición..." value={card.respuesta || ''} onChange={e => upd(i, 'respuesta', e.target.value)} />
+        </div>
+      ))}
+      <button type="button" onClick={() => push([...cards, { pregunta: '', respuesta: '' }])} className="text-xs text-[#00D1FF]/60 hover:text-[#00D1FF] flex items-center gap-1 transition-colors">
+        <FiPlus size={11} /> Agregar tarjeta
+      </button>
+    </div>
+  )
+}
+
+function SectionEditModal({ open, onClose, section, onSave, loading, topicTitulo = '' }) {
   const [titulo, setTitulo] = useState('')
   const [tipo, setTipo] = useState('texto')
   const [contenido, setContenido] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
 
   useEffect(() => {
     if (section) {
@@ -883,15 +1022,37 @@ function SectionEditModal({ open, onClose, section, onSave, loading }) {
       setTipo(section.tipo || 'texto')
       setContenido(
         typeof section.contenido === 'object'
-          ? JSON.stringify(section.contenido, null, 2)
+          ? JSON.stringify(section.contenido)
           : section.contenido || ''
       )
     }
   }, [section])
 
+  const handleTypeChange = (newTipo) => {
+    setTipo(newTipo)
+    setContenido('')
+  }
+
+  const handleAiGenerate = async () => {
+    if (!topicTitulo) return
+    setAiLoading(true)
+    try {
+      if (tipo === 'quiz') {
+        const questions = await generateDynamicQuiz(topicTitulo, 3)
+        if (questions?.length) setContenido(JSON.stringify(questions))
+      } else if (tipo === 'tarjetas') {
+        const cards = await generateFlashcards(topicTitulo, 5)
+        if (cards?.length) setContenido(JSON.stringify(cards))
+      }
+    } catch (e) { console.error(e) }
+    finally { setAiLoading(false) }
+  }
+
+  const isUrl = (v) => /^https?:\/\//i.test(v?.trim() || '')
+
   return (
     <Modal
-      open={open} onClose={onClose} title="Editar Seccion" size="lg"
+      open={open} onClose={onClose} title="Editar Sección" size="lg"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>
@@ -900,18 +1061,87 @@ function SectionEditModal({ open, onClose, section, onSave, loading }) {
       }
     >
       <div className="space-y-4">
-        <Input label="Titulo de la seccion" value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Titulo opcional..." />
-        <Select label="Tipo de contenido" value={tipo} onChange={e => setTipo(e.target.value)} options={SECTION_TYPE_OPTIONS} />
+        <Input label="Título de la sección" value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Título opcional..." />
+        <Select label="Tipo de contenido" value={tipo} onChange={e => handleTypeChange(e.target.value)} options={SECTION_TYPE_OPTIONS} />
+
+        {/* AI generate button for quiz / tarjetas */}
+        {(tipo === 'quiz' || tipo === 'tarjetas') && (
+          <button
+            type="button"
+            onClick={handleAiGenerate}
+            disabled={aiLoading || !topicTitulo}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-40 w-full justify-center"
+            style={{ background: 'rgba(252,101,31,0.08)', color: 'var(--c-primary)', border: '1px dashed rgba(252,101,31,0.3)' }}
+          >
+            <FiZap size={11} className={aiLoading ? 'animate-pulse' : ''} />
+            {aiLoading ? 'Generando con IA...' : `Generar ${tipo === 'quiz' ? 'preguntas' : 'tarjetas'} con IA`}
+          </button>
+        )}
+
+        {/* Visual builder by type */}
         {tipo === 'quiz' ? (
+          <EditQuizBuilder value={contenido} onChange={setContenido} />
+        ) : tipo === 'tarjetas' ? (
+          <EditFlashcardBuilder value={contenido} onChange={setContenido} />
+        ) : tipo === 'imagen' ? (
           <div className="space-y-2">
-            <p className="text-xs text-white/40">Formato JSON: {`{"pregunta":"...","opciones":["A","B","C","D"],"respuesta_correcta":0}`}</p>
-            <Textarea label="Contenido (JSON)" value={contenido} onChange={e => setContenido(e.target.value)} rows={6} />
+            <input
+              className="w-full px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.07] text-sm text-white placeholder-white/20 outline-none"
+              placeholder="URL de la imagen (https://...)"
+              value={contenido}
+              onChange={e => setContenido(e.target.value)}
+            />
+            {isUrl(contenido) && (
+              <img src={contenido} alt="Preview" className="w-full max-h-48 object-contain rounded-lg border border-white/[0.06]"
+                onError={e => { e.target.style.display = 'none' }} />
+            )}
+          </div>
+        ) : tipo === 'video' ? (
+          <div className="space-y-2">
+            <input
+              className="w-full px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.07] text-sm text-white placeholder-white/20 outline-none"
+              placeholder="URL de YouTube (https://youtube.com/watch?v=...)"
+              value={contenido}
+              onChange={e => setContenido(e.target.value)}
+            />
+            {contenido?.match(/(?:v=|youtu\.be\/)([\w-]+)/) && (
+              <div className="aspect-video rounded-lg overflow-hidden border border-white/[0.06]">
+                <iframe
+                  src={`https://www.youtube.com/embed/${contenido.match(/(?:v=|youtu\.be\/)([\w-]+)/)[1]}`}
+                  className="w-full h-full" allowFullScreen title="Video preview"
+                />
+              </div>
+            )}
+          </div>
+        ) : tipo === 'presentacion' ? (
+          <div className="space-y-2">
+            <Textarea
+              value={contenido}
+              onChange={e => setContenido(e.target.value)}
+              rows={4}
+              placeholder={'URL de Google Slides, Canva, Miro, Prezi...\n\nO pega varias URLs de imágenes (una por línea) para hacer un carrusel de diapositivas.'}
+            />
+            {contenido?.trim() && isUrl(contenido.split('\n')[0]) && (
+              <p className="text-[10px] text-white/30">
+                {contenido.split('\n').filter(l => /^https?:\/\//i.test(l.trim())).length > 1
+                  ? `📸 Carrusel de ${contenido.split('\n').filter(l => /^https?:\/\//i.test(l.trim())).length} diapositivas`
+                  : contenido.includes('docs.google.com/presentation')
+                    ? '📊 Google Slides detectado — se mostrará como presentación'
+                    : contenido.includes('canva.com')
+                      ? '🎨 Canva detectado'
+                      : contenido.includes('miro.com')
+                        ? '🗂 Miro detectado'
+                        : '🖼 Se mostrará en un iframe'}
+              </p>
+            )}
           </div>
         ) : (
           <Textarea
-            label="Contenido" value={contenido} onChange={e => setContenido(e.target.value)}
+            label="Contenido"
+            value={contenido}
+            onChange={e => setContenido(e.target.value)}
             rows={tipo === 'codigo' ? 10 : 6}
-            placeholder={tipo === 'codigo' ? 'Codigo...' : tipo === 'imagen' ? 'URL de la imagen' : tipo === 'video' ? 'URL del video' : 'Escribe el contenido...'}
+            placeholder={tipo === 'codigo' ? '// Código aquí...' : 'Escribe el contenido...'}
           />
         )}
       </div>
@@ -1347,6 +1577,7 @@ export default function TopicDetail({
             section={editingSection !== null ? sections[editingSection] : { tipo: 'texto', contenido: '', titulo: '' }}
             onSave={handleSaveSection}
             loading={saving}
+            topicTitulo={topic?.titulo || ''}
           />
           <TopicMetaEditModal open={showMetaEdit} onClose={() => setShowMetaEdit(false)} topic={topic} onSave={handleSaveTopicMeta} loading={saving} />
           <DeleteConfirmModal

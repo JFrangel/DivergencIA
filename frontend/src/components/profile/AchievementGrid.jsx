@@ -1,7 +1,8 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FiAward, FiLock, FiCheckCircle, FiSearch, FiChevronDown, FiChevronUp, FiFilter } from 'react-icons/fi'
 import { useAchievements, CATEGORIES, TIERS } from '../../hooks/useAchievements'
+import useSounds from '../../hooks/useSounds'
 import Card from '../ui/Card'
 
 const PAGE_SIZE = 24
@@ -176,7 +177,15 @@ function UnlockToast({ achievement, onDismiss }) {
 /* ──────── Main Grid ──────── */
 export default function AchievementGrid({ userId }) {
   const { achievements, newlyUnlocked, dismissNewUnlock, categories } = useAchievements(userId)
+  const { playSound } = useSounds()
   const [expanded, setExpanded] = useState(false)
+
+  // Play achievement sound when a new logro is unlocked
+  useEffect(() => {
+    if (!newlyUnlocked) return
+    const highTiers = ['platino', 'diamante', 'legendario']
+    playSound(highTiers.includes(newlyUnlocked.tier) ? 'levelUp' : 'achievement')
+  }, [newlyUnlocked, playSound])
   const [activeCategory, setActiveCategory] = useState('all')
   const [activeTier, setActiveTier] = useState('all')
   const [search, setSearch] = useState('')
