@@ -672,17 +672,42 @@ export default function ProjectDetail() {
       )}
 
       {tab === 'metrics' && (
-        <Card>
-          <MetricsEditor
-            metrics={metrics}
-            tasks={tasks}
-            area={project.area}
-            onChange={async (newMetrics) => {
-              setMetrics(newMetrics)
-              await updateProject({ metricas: newMetrics })
-            }}
-          />
-        </Card>
+        <div className="space-y-4">
+          {/* Auto-calculated metrics */}
+          <Card>
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold text-white/40 uppercase tracking-wider">Métricas automáticas</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: 'Tareas totales', value: totalTareas, color: '#00D1FF' },
+                  { label: 'Completadas', value: done, color: '#22c55e' },
+                  { label: 'Progreso', value: `${progress}%`, color: '#8B5CF6' },
+                  { label: 'Avances', value: advances.length, color: '#FC651F' },
+                ].map(m => (
+                  <div key={m.label} className="text-center p-3 rounded-lg bg-white/[0.02] border border-white/[0.08]">
+                    <div className="text-2xl font-bold" style={{ color: m.color }}>
+                      {m.value}
+                    </div>
+                    <div className="text-[10px] text-white/40 mt-1">{m.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          {/* Custom metrics */}
+          <Card>
+            <MetricsEditor
+              metrics={metrics}
+              tasks={tasks}
+              area={project.area}
+              onChange={async (newMetrics) => {
+                setMetrics(newMetrics)
+                await updateProject({ metricas: newMetrics })
+              }}
+            />
+          </Card>
+        </div>
       )}
 
       {tab === 'biblioteca' && (
