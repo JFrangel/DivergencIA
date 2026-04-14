@@ -5,7 +5,8 @@ import nodemailer from 'npm:nodemailer@6'
 const GMAIL_USER     = Deno.env.get('GMAIL_USER')
 const GMAIL_PASS     = Deno.env.get('GMAIL_APP_PASSWORD')
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-const FROM_EMAIL     = Deno.env.get('FROM_EMAIL') || 'DivergencIA <onboarding@resend.dev>'
+const PLATFORM_NAME  = Deno.env.get('PLATFORM_NAME') || 'DivergencIA'
+const FROM_EMAIL     = Deno.env.get('FROM_EMAIL') || `${PLATFORM_NAME} <onboarding@resend.dev>`
 const USE_GMAIL      = !!(GMAIL_USER && GMAIL_PASS)
 
 console.log(`[send-email] Provider: ${USE_GMAIL ? `Gmail (${GMAIL_USER})` : 'Resend'}`)
@@ -32,7 +33,7 @@ const CORS = {
 async function sendGmail(to: string, subject: string, html: string): Promise<void> {
   if (!gmailTransporter) throw new Error('Gmail transporter not configured')
   await gmailTransporter.sendMail({
-    from: `DivergencIA <${GMAIL_USER}>`,
+    from: FROM_EMAIL || `${PLATFORM_NAME} <${GMAIL_USER}>`,
     to,
     subject,
     html,

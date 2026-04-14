@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiMessageCircle, FiClock, FiChevronDown, FiMaximize2, FiEdit2, FiAlertTriangle, FiTrash2 } from 'react-icons/fi'
+import { FiMessageCircle, FiClock, FiChevronDown, FiMaximize2, FiEdit2, FiAlertTriangle, FiTrash2, FiGitBranch } from 'react-icons/fi'
 import Card from '../ui/Card'
 import Badge from '../ui/Badge'
 import Avatar from '../ui/Avatar'
@@ -115,6 +115,17 @@ export default function IdeaCard({ idea, myVote, onVote, onChangeEstado, canChan
               createdAt={fecha_publicacion}
               onExpire={() => setVotingExpired(true)}
             />
+          )}
+
+          {/* Child ideas indicator */}
+          {childIdeas.length > 0 && (
+            <button
+              onClick={() => setShowDetail(true)}
+              className="flex items-center gap-1.5 text-[10px] text-[#8B5CF6]/50 hover:text-[#8B5CF6] transition-colors self-start"
+            >
+              <FiGitBranch size={10} />
+              {childIdeas.length} idea{childIdeas.length !== 1 ? 's' : ''} derivada{childIdeas.length !== 1 ? 's' : ''}
+            </button>
           )}
 
           {/* Footer */}

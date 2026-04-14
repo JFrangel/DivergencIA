@@ -569,8 +569,8 @@ export default function ProjectDetail() {
             </h3>
             {canManageTeam && (
               <Button size="sm" onClick={async () => {
-                const { data } = await supabase.from('ideas').select('id, titulo, estado').is('proyecto_origen_id', null).limit(50)
-                setAllIdeas(data || [])
+                const { data } = await supabase.from('ideas').select('id, titulo, estado, proyecto_origen_id').limit(100)
+                setAllIdeas((data || []).filter(i => i.proyecto_origen_id !== id))
                 setIdeaSearch('')
                 setShowIdeaPicker(true)
               }}>
@@ -638,31 +638,48 @@ export default function ProjectDetail() {
                     </div>
                   </div>
                   <div className="overflow-y-auto flex-1 p-3 space-y-1.5">
-                    {allIdeas.filter(i => i.titulo?.toLowerCase().includes(ideaSearch.toLowerCase())).length === 0 ? (
-                      <div className="text-center py-8 text-white/25 text-sm">Sin ideas disponibles</div>
-                    ) : allIdeas.filter(i => i.titulo?.toLowerCase().includes(ideaSearch.toLowerCase())).map(idea => (
-                      <button key={idea.id} disabled={linkingIdea === idea.id}
-                        onClick={async () => {
-                          setLinkingIdea(idea.id)
-                          await supabase.from('ideas').update({ proyecto_origen_id: id }).eq('id', idea.id)
-                          setLinkedIdeas(prev => [...prev, { ...idea }])
-                          setAllIdeas(prev => prev.filter(i => i.id !== idea.id))
-                          setLinkingIdea(null)
-                          setShowIdeaPicker(false)
-                        }}
-                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.05] transition-colors text-left group">
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(245,158,11,0.12)' }}>
-                          <FiLightbulb size={13} className="text-[#F59E0B]" />
+                    {(() => {
+                      const filtered = allIdeas.filter(i => i.titulo?.toLowerCase().includes(ideaSearch.toLowerCase()))
+                      if (filtered.length === 0) return (
+                        <div className="text-center py-8 space-y-2">
+                          <FiLightbulb size={22} className="mx-auto text-white/15" />
+                          <p className="text-white/25 text-sm">
+                            {ideaSearch ? 'Sin resultados para esa búsqueda' : 'No hay ideas disponibles para vincular'}
+                          </p>
+                          {!ideaSearch && (
+                            <p className="text-white/15 text-xs">Crea ideas desde la sección <strong className="text-white/25">Ideas</strong> y luego vincúlalas aquí.</p>
+                          )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white/75 font-medium truncate">{idea.titulo}</p>
-                          <p className="text-[10px] text-white/25">{idea.estado}</p>
-                        </div>
-                        <span className="text-[11px] text-white/30 group-hover:text-[#F59E0B] transition-colors shrink-0">
-                          {linkingIdea === idea.id ? 'Vinculando...' : 'Vincular →'}
-                        </span>
-                      </button>
-                    ))}
+                      )
+                      return filtered.map(idea => {
+                        const alreadyLinked = !!idea.proyecto_origen_id
+                        return (
+                          <button key={idea.id} disabled={linkingIdea === idea.id}
+                            onClick={async () => {
+                              setLinkingIdea(idea.id)
+                              await supabase.from('ideas').update({ proyecto_origen_id: id }).eq('id', idea.id)
+                              setLinkedIdeas(prev => [...prev, { ...idea }])
+                              setAllIdeas(prev => prev.filter(i => i.id !== idea.id))
+                              setLinkingIdea(null)
+                              setShowIdeaPicker(false)
+                            }}
+                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.05] transition-colors text-left group">
+                            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(245,158,11,0.12)' }}>
+                              <FiLightbulb size={13} className="text-[#F59E0B]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-white/75 font-medium truncate">{idea.titulo}</p>
+                              <p className="text-[10px] text-white/25">
+                                {idea.estado}{alreadyLinked ? ' · en otro proyecto' : ''}
+                              </p>
+                            </div>
+                            <span className="text-[11px] text-white/30 group-hover:text-[#F59E0B] transition-colors shrink-0">
+                              {linkingIdea === idea.id ? 'Vinculando...' : alreadyLinked ? 'Mover →' : 'Vincular →'}
+                            </span>
+                          </button>
+                        )
+                      })
+                    })()}
                   </div>
                 </motion.div>
               </motion.div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { getPlatformName } from './usePlatformConfig'
 
 const AREA_COLOR = {
   ML: '#FC651F',
@@ -171,7 +172,7 @@ export function useGraph() {
       id: 'hub',
       type: 'hub',
       position: { x: 0, y: 0 },
-      data: { label: 'DivergencIA' },
+      data: { label: getPlatformName() },
     })
 
     // Filter members by area

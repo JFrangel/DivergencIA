@@ -7,6 +7,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+const PLATFORM_NAME = Deno.env.get('PLATFORM_NAME') || 'DivergencIA'
+const BASE_URL = Deno.env.get('SITE_URL') || 'https://divergencia.app'
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
@@ -18,8 +20,6 @@ interface WebhookPayload {
 }
 
 // ── Email templates (dark, branded) ─────────────────────────────────────────
-
-const BASE_URL = 'https://divergencia.app'
 
 function emailLayout(bodyHtml: string, preheader = '') {
   return `<!DOCTYPE html>
@@ -42,7 +42,7 @@ function emailLayout(bodyHtml: string, preheader = '') {
             </td>
             <td style="vertical-align:middle;">
               <div style="font-size:24px;font-weight:900;color:rgba(255,255,255,0.92);letter-spacing:1px;">
-                Divergenc<span style="color:#FC651F;">IA</span>
+                ${PLATFORM_NAME}
               </div>
               <div style="font-size:9px;color:rgba(255,255,255,0.2);letter-spacing:3.5px;text-transform:uppercase;margin-top:3px;">
                 Semillero de Investigaci&#243;n en IA
@@ -56,7 +56,7 @@ function emailLayout(bodyHtml: string, preheader = '') {
         </td></tr>
         <tr><td style="padding:24px 0 0;text-align:center;">
           <p style="color:rgba(255,255,255,0.15);font-size:11px;margin:0;">
-            <strong style="color:rgba(255,255,255,0.3);">DivergencIA</strong> &mdash; Donde la inteligencia artificial converge con la investigaci&#243;n
+            <strong style="color:rgba(255,255,255,0.3);">${PLATFORM_NAME}</strong> &mdash; Donde la inteligencia artificial converge con la investigaci&#243;n
           </p>
           <p style="color:rgba(255,255,255,0.1);font-size:10px;margin:6px 0 0;">
             Email autom&#225;tico &middot; No respondas a esta direcci&#243;n
@@ -71,7 +71,7 @@ function emailLayout(bodyHtml: string, preheader = '') {
 
 function templateBienvenida(nombre: string) {
   return {
-    subject: `¡Bienvenido/a a DivergencIA, ${nombre}! 🎉`,
+    subject: `¡Bienvenido/a a ${PLATFORM_NAME}, ${nombre}! 🎉`,
     html: emailLayout(`
       <div style="height:4px;background:linear-gradient(90deg,#FC651F,#8B5CF6);"></div>
       <div style="background:linear-gradient(135deg,rgba(252,101,31,0.1),rgba(139,92,246,0.1));
@@ -80,12 +80,12 @@ function templateBienvenida(nombre: string) {
         <h1 style="margin:0 0 8px;font-size:24px;font-weight:900;color:rgba(255,255,255,0.92);">
           ¡Hola, ${nombre}! Ya eres parte del semillero.
         </h1>
-        <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.4);">Tu solicitud fue aprobada — bienvenido/a a la familia DivergencIA</p>
+        <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.4);">Tu solicitud fue aprobada — bienvenido/a a la familia ${PLATFORM_NAME}</p>
       </div>
       <div style="padding:32px;">
         <p style="color:rgba(255,255,255,0.6);font-size:14px;line-height:1.8;margin:0 0 20px;">
           Estamos <strong style="color:rgba(255,255,255,0.9);">súper contentos</strong> de tenerte acá.
-          DivergencIA es donde investigadores curiosos se reúnen a explorar la IA, colaborar y construir
+          ${PLATFORM_NAME} es donde investigadores curiosos se reúnen a explorar la IA, colaborar y construir
           cosas que importan. ✨
         </p>
         <div style="background:rgba(252,101,31,0.06);border:1px solid rgba(252,101,31,0.15);border-radius:12px;padding:16px 20px;margin:0 0 10px;">
@@ -108,7 +108,7 @@ function templateBienvenida(nombre: string) {
              style="display:inline-block;background:linear-gradient(135deg,#FC651F,#8B5CF6);color:#fff;
                     text-decoration:none;padding:14px 40px;border-radius:50px;font-size:14px;font-weight:800;
                     letter-spacing:0.5px;box-shadow:0 8px 24px rgba(252,101,31,0.3);">
-            Entrar a DivergencIA →
+            Entrar a ${PLATFORM_NAME} →
           </a>
         </div>
       </div>
