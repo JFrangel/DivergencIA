@@ -55,7 +55,9 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
 
   useEffect(() => {
     const { stale } = getCached(cacheKey)
-    fetch(stale === false)
+    // Trigger server-side close of expired votaciones (fire-and-forget)
+    // before fetching so we get updated estados immediately
+    supabase.rpc('close_expired_idea_votaciones').then(() => fetch(stale === false))
   }, [fetch, cacheKey])
 
   // Client-side filtering for search
