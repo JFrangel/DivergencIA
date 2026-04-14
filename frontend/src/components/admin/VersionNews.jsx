@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { FiTrendingUp, FiZap, FiBug, FiEye, FiMessageSquare, FiPlus, FiX } from 'react-icons/fi'
+import { FiTrendingUp, FiZap, FiAlertCircle, FiEye, FiMessageSquare, FiPlus, FiX } from 'react-icons/fi'
 import Card from '../ui/Card'
 import Button from '../ui/Button'
 import { toast } from 'sonner'
@@ -55,7 +55,7 @@ const CHANGELOG_ENTRIES = [
 
 const TYPE_ICONS = {
   feature: { icon: FiZap, bg: '#00D1FF', label: 'Característica' },
-  fix: { icon: FiBug, bg: '#22c55e', label: 'Corrección' },
+  fix: { icon: FiAlertCircle, bg: '#22c55e', label: 'Corrección' },
   improvement: { icon: FiTrendingUp, bg: '#F59E0B', label: 'Mejora' },
   security: { icon: FiEye, bg: '#EF4444', label: 'Seguridad' },
 }
