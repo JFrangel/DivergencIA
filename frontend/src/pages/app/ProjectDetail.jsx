@@ -755,10 +755,10 @@ export default function ProjectDetail() {
               metrics={metrics}
               tasks={tasks}
               area={project.area}
-              onChange={async (newMetrics) => {
+              onChange={canManageTeam ? async (newMetrics) => {
                 setMetrics(newMetrics)
                 await updateProject({ metricas: newMetrics })
-              }}
+              } : null}
             />
           </Card>
         </div>

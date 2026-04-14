@@ -15,12 +15,13 @@ const METRIC_TYPES = [
 ]
 
 export default function MetricsEditor({ metrics = [], onChange, area, tasks = [] }) {
+  const canEdit = typeof onChange === 'function'
   const [showAdd, setShowAdd] = useState(false)
   const [newMetric, setNewMetric] = useState({ tipo: 'accuracy', nombre: '', valor: '', meta: '' })
   const { suggestMetrics } = useAutoPopulate()
 
   const handleAdd = () => {
-    if (!newMetric.valor) return
+    if (!newMetric.valor || !canEdit) return
     const type = METRIC_TYPES.find(t => t.value === newMetric.tipo) || METRIC_TYPES[5]
     const metric = {
       id: Date.now(),
@@ -36,10 +37,12 @@ export default function MetricsEditor({ metrics = [], onChange, area, tasks = []
   }
 
   const handleRemove = (id) => {
+    if (!canEdit) return
     onChange(metrics.filter(m => m.id !== id))
   }
 
   const handleSuggestMetrics = () => {
+    if (!canEdit) return
     const areaKey = area || 'General'
     const suggestions = suggestMetrics(areaKey, tasks)
     // Map suggestions to the metric format used in this component, merging with existing
@@ -66,21 +69,23 @@ export default function MetricsEditor({ metrics = [], onChange, area, tasks = []
           <FiBarChart2 size={12} className="text-[#8B5CF6]" />
           Metricas del proyecto
         </h4>
-        <div className="flex items-center gap-2">
-          <button
-            className="text-[10px] text-[#8B5CF6] hover:text-[#8B5CF6]/80 flex items-center gap-1 transition-colors"
-            onClick={handleSuggestMetrics}
-            title="Sugerir metricas basadas en el area del proyecto"
-          >
-            <FiZap size={10} /> Sugerir metricas
-          </button>
-          <button
-            className="text-[10px] text-[#FC651F] hover:text-[#FC651F]/80 flex items-center gap-1 transition-colors"
-            onClick={() => setShowAdd(!showAdd)}
-          >
-            <FiPlus size={10} /> Agregar metrica
-          </button>
-        </div>
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            <button
+              className="text-[10px] text-[#8B5CF6] hover:text-[#8B5CF6]/80 flex items-center gap-1 transition-colors"
+              onClick={handleSuggestMetrics}
+              title="Sugerir metricas basadas en el area del proyecto"
+            >
+              <FiZap size={10} /> Sugerir metricas
+            </button>
+            <button
+              className="text-[10px] text-[#FC651F] hover:text-[#FC651F]/80 flex items-center gap-1 transition-colors"
+              onClick={() => setShowAdd(!showAdd)}
+            >
+              <FiPlus size={10} /> Agregar metrica
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Add metric form */}
@@ -141,12 +146,14 @@ export default function MetricsEditor({ metrics = [], onChange, area, tasks = []
       {metrics.length === 0 ? (
         <div className="text-center py-4 space-y-2">
           <p className="text-xs text-white/15">Sin metricas registradas</p>
-          <button
-            onClick={handleSuggestMetrics}
-            className="text-[10px] text-[#8B5CF6]/60 hover:text-[#8B5CF6] flex items-center gap-1 mx-auto transition-colors"
-          >
-            <FiZap size={10} /> Generar metricas sugeridas
-          </button>
+          {canEdit && (
+            <button
+              onClick={handleSuggestMetrics}
+              className="text-[10px] text-[#8B5CF6]/60 hover:text-[#8B5CF6] flex items-center gap-1 mx-auto transition-colors"
+            >
+              <FiZap size={10} /> Generar metricas sugeridas
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -166,12 +173,14 @@ export default function MetricsEditor({ metrics = [], onChange, area, tasks = []
                 transition={{ delay: i * 0.06 }}
               >
                 {/* Remove button */}
-                <button
-                  className="absolute top-1.5 right-1.5 p-1 rounded text-white/10 hover:text-[#EF4444] transition-colors opacity-0 group-hover:opacity-100"
-                  onClick={() => handleRemove(m.id)}
-                >
-                  <FiX size={10} />
-                </button>
+                {canEdit && (
+                  <button
+                    className="absolute top-1.5 right-1.5 p-1 rounded text-white/10 hover:text-[#EF4444] transition-colors opacity-0 group-hover:opacity-100"
+                    onClick={() => handleRemove(m.id)}
+                  >
+                    <FiX size={10} />
+                  </button>
+                )}
 
                 <div className="flex items-center gap-1.5 mb-2">
                   <Icon size={11} style={{ color }} />
