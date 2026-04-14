@@ -16,6 +16,7 @@ import NodosManager from '../../components/admin/NodosManager'
 import NodeGroupManager from '../../components/admin/NodeGroupManager'
 import BroadcastPanel from '../../components/notifications/BroadcastPanel'
 import GaleriaManager from '../../components/admin/GaleriaManager'
+import VersionNews from '../../components/admin/VersionNews'
 import { toast } from 'sonner'
 import { timeAgo } from '../../lib/utils'
 import { useNodos } from '../../hooks/useNodos'
@@ -159,6 +160,7 @@ const tabs = [
   { id: 'pending-nodes', label: 'Nodos Pendientes' },
   { id: 'galeria', label: 'Galería' },
   { id: 'broadcast', label: 'Broadcast' },
+  { id: 'novedades', label: 'Novedades' },
   { id: 'config', label: 'Configuración' },
 ]
 
@@ -1272,6 +1274,7 @@ export default function AdminPanel() {
       {tab === 'pending-nodes' && <PendingNodesManager />}
       {tab === 'galeria' && <GaleriaManager />}
       {tab === 'broadcast' && <BroadcastPanel />}
+      {tab === 'novedades' && <VersionNews />}
       {tab === 'config' && <PlatformConfig />}
     </div>
   )

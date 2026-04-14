@@ -5,7 +5,11 @@ const STORAGE_KEY_ENABLED = 'divergencia_sound_enabled'
 const STORAGE_KEY_VOLUME  = 'divergencia_sound_volume'
 
 function getEnabled() {
-  try { return localStorage.getItem(STORAGE_KEY_ENABLED) !== 'false' }
+  try {
+    const val = localStorage.getItem(STORAGE_KEY_ENABLED)
+    // Default to true if not set, explicit false disables
+    return val === null ? true : val !== 'false'
+  }
   catch { return true }
 }
 function getVolume() {
