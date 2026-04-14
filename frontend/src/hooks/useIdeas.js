@@ -218,35 +218,33 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
     return { data }
   }
 
-  // Merge ideas
-  const mergeIdeas = async (targetId, sourceId, method = 'combinar') => {
+  // Merge ideas — aiContent opcional: { titulo, descripcion } generado por IA
+  const mergeIdeas = async (targetId, sourceId, method = 'combinar', aiContent = null) => {
     const target = ideas.find(i => i.id === targetId)
     const source = ideas.find(i => i.id === sourceId)
     if (!target || !source) return { error: 'Ideas no encontradas' }
 
     if (method === 'combinar') {
-      // Merge descriptions and combine tags
       const merged = {
-        descripcion: [target.descripcion, source.descripcion].filter(Boolean).join('\n\n---\n\n'),
-        votos_favor: (target.votos_favor || 0) + (source.votos_favor || 0),
+        titulo:      aiContent?.titulo      || target.titulo,
+        descripcion: aiContent?.descripcion || [target.descripcion, source.descripcion].filter(Boolean).join('\n\n---\n\n'),
+        votos_favor:  (target.votos_favor  || 0) + (source.votos_favor  || 0),
         votos_contra: (target.votos_contra || 0) + (source.votos_contra || 0),
         tags: [...new Set([...(target.tags || []), ...(source.tags || [])])],
       }
       await supabase.from('ideas').update(merged).eq('id', targetId)
       await supabase.from('ideas').update({ estado: 'archivada' }).eq('id', sourceId)
     } else if (method === 'absorber') {
-      // Keep primary, archive secondary
       const merged = {
-        votos_favor: (target.votos_favor || 0) + (source.votos_favor || 0),
+        votos_favor:  (target.votos_favor  || 0) + (source.votos_favor  || 0),
         votos_contra: (target.votos_contra || 0) + (source.votos_contra || 0),
       }
       await supabase.from('ideas').update(merged).eq('id', targetId)
       await supabase.from('ideas').update({ estado: 'archivada' }).eq('id', sourceId)
     } else if (method === 'sintesis' || method === 'nueva_sintesis') {
-      // Create new idea from both, archive originals
       const newIdea = {
-        titulo: `${target.titulo} + ${source.titulo}`,
-        descripcion: `## Origen: ${target.titulo}\n${target.descripcion || ''}\n\n## Origen: ${source.titulo}\n${source.descripcion || ''}`,
+        titulo:      aiContent?.titulo      || `${target.titulo} + ${source.titulo}`,
+        descripcion: aiContent?.descripcion || `## Origen: ${target.titulo}\n${target.descripcion || ''}\n\n## Origen: ${source.titulo}\n${source.descripcion || ''}`,
         area_relacionada: target.area_relacionada || source.area_relacionada,
         estado: 'votacion',
         autor_id: user?.id,

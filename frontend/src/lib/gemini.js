@@ -427,6 +427,48 @@ Escribe una comparación clara y concisa en prosa, sin listas ni markdown.`
 }
 
 // ─── Conexión semántica entre temas ───────────────────────────────────────
+// ─── Vista previa IA para fusión de ideas ─────────────────────────────────
+export async function generateIdeaMergePreview(ideaA, ideaB, method) {
+  const client = getClient()
+  if (!client) return null
+
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL })
+
+  const isNewSynthesis = method === 'nueva_sintesis'
+
+  const prompt = isNewSynthesis
+    ? `Eres un asistente de investigación. Crea una NUEVA idea que sintetice estas dos en una visión unificada y más potente:
+
+IDEA A: "${ideaA.titulo}"
+${ideaA.descripcion ? `Descripción A: ${ideaA.descripcion}` : ''}
+
+IDEA B: "${ideaB.titulo}"
+${ideaB.descripcion ? `Descripción B: ${ideaB.descripcion}` : ''}
+
+Genera un título creativo y una descripción de 2-3 párrafos que sintetice ambas en algo nuevo y valioso — no una simple suma, sino una perspectiva emergente.
+
+Responde SOLO en JSON plano (sin bloques de código):
+{"titulo":"...","descripcion":"..."}`
+    : `Eres un asistente de investigación. Combina estas dos ideas en una sola, coherente y bien articulada:
+
+IDEA A: "${ideaA.titulo}"
+${ideaA.descripcion ? `Descripción A: ${ideaA.descripcion}` : ''}
+
+IDEA B: "${ideaB.titulo}"
+${ideaB.descripcion ? `Descripción B: ${ideaB.descripcion}` : ''}
+
+Genera un título que combine ambas y una descripción que integre los elementos más valiosos de forma fluida.
+
+Responde SOLO en JSON plano (sin bloques de código):
+{"titulo":"...","descripcion":"..."}`
+
+  const result = await model.generateContent(prompt)
+  const text = result.response.text().trim()
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) return null
+  return JSON.parse(jsonMatch[0])
+}
+
 export async function connectTopics(topicA, topicB, context = '') {
   const client = getClient()
   if (!client) throw new Error('VITE_GEMINI_API_KEY no configurada')

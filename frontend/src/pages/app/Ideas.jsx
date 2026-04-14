@@ -194,9 +194,9 @@ export default function Ideas() {
         open={!!mergeIdea}
         onClose={() => setMergeIdea(null)}
         ideas={ideas}
-        onMerge={async (targetId, sourceId, method) => {
+        onMerge={async (targetId, sourceId, method, aiContent) => {
           try {
-            const result = await mergeIdeas(targetId, sourceId, method)
+            const result = await mergeIdeas(targetId, sourceId, method, aiContent)
             if (result?.error) {
               toast.error(result.error)
               return
