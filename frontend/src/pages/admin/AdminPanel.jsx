@@ -72,7 +72,7 @@ function UserEditModal({ user, open, onClose, onSave }) {
     onClose()
   }
 
-  const inputClass = 'w-full px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-white/20 outline-none focus:border-[#FC651F]/40 transition-colors'
+  const inputClass = 'w-full px-3 py-2 rounded-lg bg-[#0c0608] border border-white/[0.08] text-sm text-white placeholder-white/20 outline-none focus:border-[#FC651F]/40 transition-colors [&>option]:bg-[#0c0608] [&>option]:text-white'
   const labelClass = 'block text-[11px] text-white/40 uppercase tracking-wider font-semibold mb-1.5'
 
   return (
@@ -395,7 +395,7 @@ function UserTable() {
                     <select
                       value={u.rol}
                       onChange={e => changeRole(u, e.target.value)}
-                      className="text-[11px] px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08] text-white/60 outline-none cursor-pointer hover:border-[#8B5CF6]/30 transition-colors"
+                      className="text-[11px] px-1.5 py-0.5 rounded bg-[#0c0608] border border-white/[0.08] text-white/60 outline-none cursor-pointer hover:border-[#8B5CF6]/30 transition-colors [&>option]:bg-[#0c0608] [&>option]:text-white"
                     >
                       <option value="miembro">Miembro</option>
                       <option value="admin">Admin</option>
