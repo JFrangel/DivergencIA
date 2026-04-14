@@ -172,7 +172,7 @@ export default function ProjectDetail() {
   useEffect(() => {
     if (!id) return
     setIdeasLoading(true)
-    supabase.from('ideas').select('id, titulo, estado, votos_favor, autor:usuarios!ideas_autor_id_fkey(nombre)').eq('proyecto_origen_id', id)
+    supabase.from('ideas').select('id, titulo, estado, votos_favor, autor:usuarios!ideas_autor_id_fkey(nombre)').eq('proyecto_id', id)
       .then(({ data }) => { setLinkedIdeas(data || []); setIdeasLoading(false) })
   }, [id])
 
@@ -569,8 +569,8 @@ export default function ProjectDetail() {
             </h3>
             {canManageTeam && (
               <Button size="sm" onClick={async () => {
-                const { data } = await supabase.from('ideas').select('id, titulo, estado, proyecto_origen_id').limit(100)
-                setAllIdeas((data || []).filter(i => i.proyecto_origen_id !== id))
+                const { data } = await supabase.from('ideas').select('id, titulo, estado, proyecto_id').limit(100)
+                setAllIdeas((data || []).filter(i => i.proyecto_id !== id))
                 setIdeaSearch('')
                 setShowIdeaPicker(true)
               }}>
@@ -604,7 +604,7 @@ export default function ProjectDetail() {
                   {canManageTeam && (
                     <button
                       onClick={async () => {
-                        await supabase.from('ideas').update({ proyecto_origen_id: null }).eq('id', idea.id)
+                        await supabase.from('ideas').update({ proyecto_id: null }).eq('id', idea.id)
                         setLinkedIdeas(prev => prev.filter(i => i.id !== idea.id))
                       }}
                       className="p-1.5 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100" title="Desvincular"
@@ -652,12 +652,12 @@ export default function ProjectDetail() {
                         </div>
                       )
                       return filtered.map(idea => {
-                        const alreadyLinked = !!idea.proyecto_origen_id
+                        const alreadyLinked = !!idea.proyecto_id
                         return (
                           <button key={idea.id} disabled={linkingIdea === idea.id}
                             onClick={async () => {
                               setLinkingIdea(idea.id)
-                              await supabase.from('ideas').update({ proyecto_origen_id: id }).eq('id', idea.id)
+                              await supabase.from('ideas').update({ proyecto_id: id }).eq('id', idea.id)
                               setLinkedIdeas(prev => [...prev, { ...idea }])
                               setAllIdeas(prev => prev.filter(i => i.id !== idea.id))
                               setLinkingIdea(null)
