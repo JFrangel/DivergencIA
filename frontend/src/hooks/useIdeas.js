@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
@@ -53,12 +53,38 @@ export function useIdeas({ estado, area, sort = 'votos', searchQuery = '' } = {}
     setLoading(false)
   }, [estado, area, sort, user, cacheKey])
 
+  // Timers that fire exactly when each idea's voting deadline expires
+  const expiryTimersRef = useRef([])
+
   useEffect(() => {
     const { stale } = getCached(cacheKey)
-    // Trigger server-side close of expired votaciones (fire-and-forget)
-    // before fetching so we get updated estados immediately
     supabase.rpc('close_expired_idea_votaciones').then(() => fetch(stale === false))
   }, [fetch, cacheKey])
+
+  // After ideas load, set a precise timer for each upcoming deadline
+  useEffect(() => {
+    // Clear previous timers
+    expiryTimersRef.current.forEach(clearTimeout)
+    expiryTimersRef.current = []
+
+    const now = Date.now()
+    ideas.forEach(idea => {
+      if (idea.estado !== 'votacion' || !idea.fecha_limite_votacion) return
+      const msUntilExpiry = new Date(idea.fecha_limite_votacion).getTime() - now
+      if (msUntilExpiry <= 0) return // already expired, handled on load
+      // Cap at ~24 days (setTimeout max safe value)
+      if (msUntilExpiry > 2_147_483_647) return
+      const t = setTimeout(() => {
+        supabase.rpc('close_expired_idea_votaciones').then(() => fetch(true))
+      }, msUntilExpiry)
+      expiryTimersRef.current.push(t)
+    })
+
+    return () => {
+      expiryTimersRef.current.forEach(clearTimeout)
+      expiryTimersRef.current = []
+    }
+  }, [ideas, fetch])
 
   // Client-side filtering for search
   const filtered = useMemo(() => {

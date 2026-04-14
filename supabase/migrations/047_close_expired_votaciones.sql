@@ -64,13 +64,14 @@ $$;
 GRANT EXECUTE ON FUNCTION public.close_expired_idea_votaciones() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.close_expired_idea_votaciones() TO service_role;
 
--- Schedule via pg_cron if available (runs every 30 minutes)
+-- pg_cron fallback: runs once a day at 4am to catch any ideas that
+-- expired while no user had the app open (e.g. overnight).
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
     PERFORM cron.schedule(
       'close-expired-votaciones',
-      '*/30 * * * *',
+      '0 4 * * *',
       'SELECT public.close_expired_idea_votaciones()'
     );
   END IF;
