@@ -704,7 +704,7 @@ function DeleteConfirmModal({ onConfirm, onCancel }) {
 // ─── MessageBubble — own messages right, others left ─────────────────────────
 const MessageBubble = forwardRef(function MessageBubble({
   message, isOwn, canDelete, onDelete, onReply, onEdit, onScrollToReply,
-  prevSame, memberRolCanal, replyMessage,
+  prevSame, memberRolCanal, replyMessage, isReported,
 }, ref) {
   const [hover, setHover] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -746,7 +746,12 @@ const MessageBubble = forwardRef(function MessageBubble({
     <motion.div
       ref={ref}
       className={`flex gap-3 px-4 group relative ${prevSame ? 'mt-0.5' : 'mt-4'}`}
-      style={{ transition: 'background 0.4s', ...(hover ? { background: 'rgba(255,255,255,0.02)' } : {}) }}
+      style={{
+        transition: 'background 0.4s',
+        ...(isReported
+          ? { background: 'rgba(239,68,68,0.07)', borderLeft: '2px solid rgba(239,68,68,0.45)' }
+          : hover ? { background: 'rgba(255,255,255,0.02)' } : {}),
+      }}
       initial={{ opacity: 0, y: 3 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.1 }}
@@ -788,6 +793,11 @@ const MessageBubble = forwardRef(function MessageBubble({
             {isOwn && <span className="text-[10px] text-white/25 font-normal leading-none">(tú)</span>}
             <AuthorBadges autor={autor} rolCanal={memberRolCanal} />
             <span className="text-[10px] text-white/20 leading-none">{timeAgo(created_at)}</span>
+            {isReported && (
+              <span className="flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.15)', color: '#EF4444' }}>
+                <FiFlag size={8} /> Reportado
+              </span>
+            )}
           </div>
         )}
 

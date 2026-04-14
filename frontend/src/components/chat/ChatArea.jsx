@@ -479,6 +479,19 @@ export default function ChatArea({ channel, puedeEscribir, highlightMsgId }) {
     }
   }, [messages])
 
+  // Load reported message IDs for admin view
+  const [reportedMsgIds, setReportedMsgIds] = useState(new Set())
+  useEffect(() => {
+    if (!isAdmin || !channel?.id) return
+    supabase.from('reportes')
+      .select('contenido_id')
+      .eq('tipo_contenido', 'mensaje')
+      .eq('estado', 'pendiente')
+      .then(({ data }) => {
+        if (data) setReportedMsgIds(new Set(data.map(r => r.contenido_id)))
+      })
+  }, [isAdmin, channel?.id, messages.length])
+
   // Highlight reported message coming from moderation panel (?msg=...)
   useEffect(() => {
     if (!highlightMsgId || loading || !messages.length) return
@@ -792,6 +805,7 @@ export default function ChatArea({ channel, puedeEscribir, highlightMsgId }) {
                     prevSame={prevSame && !showDateSep}
                     memberRolCanal={authorMember?.rol_canal}
                     replyMessage={replyMessage}
+                    isReported={isAdmin && reportedMsgIds.has(msg.id)}
                   />
                 </div>
               )
