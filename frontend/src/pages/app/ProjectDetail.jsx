@@ -805,7 +805,9 @@ export default function ProjectDetail() {
       )}
 
       {tab === 'diagrams' && (
-        <DiagramEditor projectId={id} />
+        <div style={{ height: 700 }}>
+          <DiagramEditor projectId={id} />
+        </div>
       )}
 
       <LibraryPickerModal
