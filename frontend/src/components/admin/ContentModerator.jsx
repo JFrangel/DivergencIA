@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiAlertTriangle, FiEye, FiTrash2, FiFlag, FiChevronDown, FiChevronUp, FiMessageSquare, FiCheck } from 'react-icons/fi'
+import { FiAlertTriangle, FiEye, FiTrash2, FiFlag, FiChevronDown, FiChevronUp, FiMessageSquare, FiCheck, FiExternalLink } from 'react-icons/fi'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import Card from '../ui/Card'
 import { toast } from 'sonner'
@@ -24,7 +25,26 @@ function ReportCard({ r, onStatusChange, onDeleteContent }) {
   const [expanded, setExpanded] = useState(false)
   const [notas, setNotas]       = useState(r.notas_admin || '')
   const [savingNotas, setSavingNotas] = useState(false)
+  const [contextUrl, setContextUrl] = useState(null)
+  const navigate = useNavigate()
   const status = REPORT_STATUS[r.estado] || REPORT_STATUS.pendiente
+
+  // Resolve navigation URL for reported content
+  useEffect(() => {
+    if (!r.contenido_id || !r.tipo_contenido) return
+    if (r.tipo_contenido === 'mensaje') {
+      supabase.from('mensajes').select('canal_id').eq('id', r.contenido_id).single()
+        .then(({ data }) => {
+          if (data?.canal_id) setContextUrl(`/chat?canal=${data.canal_id}&msg=${r.contenido_id}`)
+        })
+    } else if (r.tipo_contenido === 'idea') {
+      setContextUrl(`/ideas/${r.contenido_id}`)
+    } else if (r.tipo_contenido === 'proyecto') {
+      setContextUrl(`/proyectos/${r.contenido_id}`)
+    } else if (r.tipo_contenido === 'archivo') {
+      setContextUrl(`/biblioteca`)
+    }
+  }, [r.contenido_id, r.tipo_contenido])
 
   const saveNotas = async () => {
     setSavingNotas(true)
@@ -142,9 +162,20 @@ function ReportCard({ r, onStatusChange, onDeleteContent }) {
                   </button>
                 </div>
 
-                {/* Delete content action */}
-                {r.contenido_id && TABLE_FOR_TYPE[r.tipo_contenido] && r.estado !== 'accion_tomada' && (
-                  <div className="flex items-center gap-2 pt-1">
+                {/* Actions row */}
+                <div className="flex items-center gap-2 pt-1 flex-wrap">
+                  {/* Navigate to content */}
+                  {contextUrl && (
+                    <button
+                      onClick={() => navigate(contextUrl)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-90"
+                      style={{ background: 'rgba(139,92,246,0.12)', color: '#8B5CF6', border: '1px solid rgba(139,92,246,0.2)' }}
+                    >
+                      <FiExternalLink size={11} /> Ver en contexto
+                    </button>
+                  )}
+                  {/* Delete content action */}
+                  {r.contenido_id && TABLE_FOR_TYPE[r.tipo_contenido] && r.estado !== 'accion_tomada' && (
                     <button
                       onClick={() => onDeleteContent(r)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-90"
@@ -152,9 +183,8 @@ function ReportCard({ r, onStatusChange, onDeleteContent }) {
                     >
                       <FiTrash2 size={11} /> Eliminar contenido
                     </button>
-                    <span className="text-[10px] text-white/20">Elimina el {r.tipo_contenido} de la plataforma</span>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </motion.div>
           )}
