@@ -471,7 +471,44 @@ export default function ProjectDetail() {
               </div>
             </Card>
           </div>
+
+          {/* Auto Metrics from Tasks */}
           <Card>
+            <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <FiActivity size={13} style={{ color: '#FC651F' }} />
+              Métricas Automáticas
+              <span className="text-[10px] text-white/30">Calculado desde tareas</span>
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 rounded-lg border border-white/[0.06]" style={{ background: 'rgba(34,197,94,0.05)' }}>
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5 font-semibold">Total Tareas</p>
+                <p className="text-2xl font-bold text-white">{totalTareas}</p>
+              </div>
+              <div className="p-3 rounded-lg border border-white/[0.06]" style={{ background: 'rgba(34,197,94,0.05)' }}>
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5 font-semibold">Completadas</p>
+                <p className="text-2xl font-bold" style={{ color: '#22c55e' }}>{done}</p>
+              </div>
+              <div className="p-3 rounded-lg border border-white/[0.06]" style={{ background: 'rgba(139,92,246,0.05)' }}>
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5 font-semibold">Progreso</p>
+                <p className="text-2xl font-bold" style={{ color: '#8B5CF6' }}>{progress}%</p>
+              </div>
+              <div className="p-3 rounded-lg border border-white/[0.06]" style={{ background: 'rgba(252,101,31,0.05)' }}>
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1.5 font-semibold">Avances</p>
+                <p className="text-2xl font-bold" style={{ color: '#FC651F' }}>{advances.length}</p>
+              </div>
+            </div>
+            {totalTareas > 0 && (
+              <div className="mt-4 pt-4 border-t border-white/[0.06]">
+                <ProgressBar value={progress} color="#8B5CF6" />
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <FiEdit2 size={13} style={{ color: '#FC651F' }} />
+              Métricas Personalizadas
+            </h3>
             <MetricsEditor metrics={metrics} onChange={setMetrics} area={project.area} />
           </Card>
         </div>
