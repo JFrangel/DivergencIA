@@ -33,6 +33,7 @@ export default function Chat() {
 
     const canalId = searchParams.get('canal')
     const autoCall = searchParams.get('autoCall')
+    // ?msg= used by moderation panel to highlight a specific message
 
     if (canalId) {
       const found = channels.find(c => c.id === canalId)
@@ -125,6 +126,7 @@ export default function Chat() {
         <ChatArea
           channel={activeChannel}
           puedeEscribir={puedeEscribir}
+          highlightMsgId={searchParams.get('msg')}
         />
       </div>
 

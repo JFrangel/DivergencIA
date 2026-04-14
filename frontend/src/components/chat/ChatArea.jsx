@@ -421,7 +421,7 @@ function CallHistoryPanel({ canalId, onClose }) {
 }
 
 /* ── Main ChatArea ─────────────────────────────────────────────────────────── */
-export default function ChatArea({ channel, puedeEscribir }) {
+export default function ChatArea({ channel, puedeEscribir, highlightMsgId }) {
   const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
   const { messages, loading, sending, members, sendMessage, deleteMessage, updateMessage, updateMemberRolCanal, updateChannelPrivacy, deleteChannel, updateChannel } = useChat(channel?.id)
@@ -478,6 +478,32 @@ export default function ChatArea({ channel, puedeEscribir }) {
       prevMsgCount.current = messages.length
     }
   }, [messages])
+
+  // Highlight reported message coming from moderation panel (?msg=...)
+  useEffect(() => {
+    if (!highlightMsgId || loading || !messages.length) return
+    const found = messages.find(m => m.id === highlightMsgId)
+    if (!found) return
+    // Poll until the ref is mounted (messages may still be rendering)
+    let attempts = 0
+    const tryHighlight = () => {
+      const el = messageRefs.current[highlightMsgId]
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.style.background = 'rgba(239,68,68,0.13)'
+        el.style.outline = '1px solid rgba(239,68,68,0.35)'
+        el.style.borderRadius = '10px'
+        el.style.transition = 'background 0.6s, outline 0.6s'
+        setTimeout(() => {
+          if (el) { el.style.background = ''; el.style.outline = '' }
+        }, 2500)
+      } else if (attempts < 20) {
+        attempts++
+        setTimeout(tryHighlight, 80)
+      }
+    }
+    requestAnimationFrame(tryHighlight)
+  }, [highlightMsgId, messages, loading])
 
   // Close settings when channel changes, clear reply
   useEffect(() => { setShowSettings(false); setShowMembers(false); setShowHistory(false); setReplyingTo(null) }, [channel?.id])
